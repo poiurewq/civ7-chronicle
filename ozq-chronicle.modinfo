@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Mod id="ozq-chronicle" version="1" xmlns="ModInfo">
+    <Properties>
+        <Name>Chronicle - Stats &amp; Graphs</Name>
+        <Description>Civ 7 tracks a lot of per-turn data and never shows it to you. Chronicle surfaces it. Open it from the pause menu on any turn or from the end-game screen for per-turn graphs of every player, including your own civ, which the base game's charts leave out. Follow yields like Science, milestones like Wonders, and unit breakdowns across the whole game, and see exactly when a runaway pulled away. UI only. No gameplay changes, no effect on saves.</Description>
+        <Authors>ozq</Authors>
+        <Package>Mod</Package>
+        <AffectsSavedGames>0</AffectsSavedGames>
+        <Version>0.15.2</Version>
+    </Properties>
+
+    <Dependencies>
+        <Mod id="base-standard" title="LOC_MODULE_BASE_STANDARD_NAME" />
+    </Dependencies>
+    <References>
+        <Mod id="core" title="LOC_MODULE_CORE_NAME" />
+    </References>
+
+    <ActionCriteria>
+        <Criteria id="always">
+            <AlwaysMet />
+        </Criteria>
+    </ActionCriteria>
+
+    <ActionGroups>
+        <ActionGroup id="ozq-chronicle-game" scope="game" criteria="always">
+            <Properties>
+                <LoadOrder>1700</LoadOrder>
+            </Properties>
+            <Actions>
+                <UIScripts>
+                    <Item>scripts/chronicle-endgame-graphs.js</Item>
+                    <Item>scripts/chronicle-logger.js</Item>
+                </UIScripts>
+            </Actions>
+        </ActionGroup>
+    </ActionGroups>
+</Mod>
