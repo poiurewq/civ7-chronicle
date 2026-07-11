@@ -2,11 +2,11 @@
 <Mod id="ozq-chronicle" version="1" xmlns="ModInfo">
     <Properties>
         <Name>Chronicle - Stats &amp; Graphs</Name>
-        <Description>Civ 7 tracks a lot of per-turn data and never shows it to you. Chronicle surfaces it. Open it from the pause menu on any turn or from the end-game screen for per-turn graphs of every player, including your own civ, which the base game's charts leave out. Follow yields like Science, milestones like Wonders, and unit breakdowns across the whole game, and see exactly when a runaway pulled away. UI only. No gameplay changes, no effect on saves.</Description>
+        <Description>Civ 7 tracks a lot of per-turn data and never shows it to you. Chronicle surfaces it. Open it from the pause menu on any turn or from the end-game screen for per-turn graphs of every player, including your own civ, which the base game's charts leave out. Follow yields like Science and Gold, cumulative milestones like Wonders and Great Works, end-of-game standings that compare every civ, and world leaderboards like the largest cities and religion spread. UI only. No gameplay changes, no effect on saves.</Description>
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.15.2</Version>
+        <Version>0.20.3</Version>
     </Properties>
 
     <Dependencies>

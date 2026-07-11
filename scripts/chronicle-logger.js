@@ -55,6 +55,29 @@ function round1(n) {
   return Math.round(10 * n) / 10;
 }
 
+function resolveGameId() {
+  const fp = function() {
+    let seed = null, setup = null, csa = null;
+    try {
+      const g = Configuration.getGame();
+      g && (null != g.gameSeed && (seed = g.gameSeed), null != g.campaignSetupGUID && String(g.campaignSetupGUID).length && (setup = String(g.campaignSetupGUID)), 
+      null != g.campaignStartAgeType && (csa = g.campaignStartAgeType));
+    } catch (e) {}
+    return {
+      seed: seed,
+      setup: setup,
+      csa: csa
+    };
+  }(), seedOk = null != fp.seed && "0" !== String(fp.seed);
+  let chosen = "nogid";
+  return fp.setup && seedOk ? chosen = `${fp.setup}#${fp.seed}` : seedOk ? chosen = `seed:${fp.seed}` : fp.setup && (chosen = fp.setup), 
+  {
+    id: chosen,
+    fp: fp,
+    diag: `setup=${fp.setup} seed=${fp.seed} csa=${fp.csa}`
+  };
+}
+
 function currentAge() {
   let key = "unknown", label = "", ci = null;
   try {
@@ -70,6 +93,74 @@ function currentAge() {
   };
 }
 
+function snapshotLiveScalars(p, s) {
+  const st = p.Stats;
+  try {
+    if (p.Trade && "function" == typeof p.Trade.countPlayerTradeRoutes) {
+      const v = p.Trade.countPlayerTradeRoutes();
+      null != v && (s.tr = v);
+    }
+  } catch (e) {}
+  if (st) {
+    try {
+      if ("function" == typeof st.getTotalGreatWorksSlotted) {
+        const v = st.getTotalGreatWorksSlotted();
+        null != v && (s.gw = v);
+      }
+    } catch (e) {}
+    try {
+      if ("function" == typeof st.getNumWonders) {
+        const v = st.getNumWonders(!1, !1);
+        null != v && (s.won = v);
+      }
+    } catch (e) {}
+    try {
+      null != st.numSettlements && (s.set = st.numSettlements);
+    } catch (e) {}
+    try {
+      null != st.numCities && (s.cityN = st.numCities);
+    } catch (e) {}
+    try {
+      null != st.numTowns && (s.townN = st.numTowns);
+    } catch (e) {}
+    try {
+      null != st.settlementCap && (s.cap = st.settlementCap);
+    } catch (e) {}
+    try {
+      if ("function" == typeof st.getNumConqueredSettlements) {
+        const v = st.getNumConqueredSettlements(!0, !0, !0, !1);
+        null != v && (s.conq = v);
+      }
+    } catch (e) {}
+  }
+  const urb = function(p) {
+    if ("undefined" == typeof DistrictTypes || !p.Cities || "function" != typeof p.Cities.getCities) return null;
+    let n = 0, any = !1;
+    try {
+      for (const c of p.Cities.getCities()) try {
+        c.Districts && "function" == typeof c.Districts.getIdsOfType && (n += c.Districts.getIdsOfType(DistrictTypes.URBAN).length, 
+        any = !0);
+      } catch (e) {}
+    } catch (e) {
+      return null;
+    }
+    return any ? n : null;
+  }(p);
+  null != urb && (s.urb = urb);
+  try {
+    if (p.Cities && "function" == typeof p.Cities.getCities) {
+      const cities = p.Cities.getCities() || [];
+      s.cit = cities.length;
+      let up = 0, tp = 0, any = !1;
+      for (const c of cities) try {
+        null != c.urbanPopulation && (up += c.urbanPopulation, any = !0), null != c.population && (tp += c.population, 
+        any = !0);
+      } catch (e) {}
+      any && (s.upop = up, s.tpop = tp);
+    }
+  } catch (e) {}
+}
+
 function snapshotPlayer(p) {
   const s = {}, st = p.Stats;
   if (st && "function" == typeof st.getNetYield) for (const m of YIELD_METRICS) try {
@@ -82,7 +173,7 @@ function snapshotPlayer(p) {
   try {
     p.Treasury && null != p.Treasury.goldBalance && (s.gold = round1(p.Treasury.goldBalance));
   } catch (e) {}
-  return s;
+  return snapshotLiveScalars(p, s), s;
 }
 
 function lastY(ds) {
@@ -91,6 +182,56 @@ function lastY(ds) {
 
 function storeKey(guid) {
   return "chronicle:v1:" + guid;
+}
+
+function emsg(e) {
+  return e && e.message ? e.message : e;
+}
+
+function migrateStore(o) {
+  return o && "object" == typeof o ? (o.ages || (o.ages = {}), o.v = 1, o) : o;
+}
+
+function scanChronicleStores() {
+  const out = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && 0 === k.indexOf("chronicle:v1:") && "chronicle:v1:current" !== k) try {
+        const o = JSON.parse(localStorage.getItem(k));
+        o && o.ages && out.push({
+          key: k,
+          store: o
+        });
+      } catch (e) {}
+    }
+  } catch (e) {}
+  return out;
+}
+
+function evictOldestStore(exceptKey) {
+  const stores = scanChronicleStores().filter(s => s.key !== exceptKey);
+  if (!stores.length) return !1;
+  stores.sort((a, b) => (a.store.updated || 0) - (b.store.updated || 0));
+  try {
+    return localStorage.removeItem(stores[0].key), err(`evicted oldest store ${stores[0].key} (quota)`), 
+    !0;
+  } catch (e) {
+    return !1;
+  }
+}
+
+function saveStore(store) {
+  store.updated = Date.now();
+  const key = storeKey(store.guid), payload = JSON.stringify(store);
+  for (let attempt = 0; attempt < 8; attempt++) try {
+    return localStorage.setItem(key, payload), localStorage.setItem("chronicle:v1:current", store.guid), 
+    !0;
+  } catch (e) {
+    if (!evictOldestStore(key)) return err("save failed (quota, nothing to evict): " + emsg(e)), 
+    !1;
+  }
+  return err("save failed after evictions"), !1;
 }
 
 function countRows(store) {
@@ -164,57 +305,45 @@ function maybeCapture(reason) {
   bucket.turns[turn] = {
     t: turn,
     p: players
-  }, function(store) {
-    try {
-      return store.updated = Date.now(), localStorage.setItem(storeKey(store.guid), JSON.stringify(store)), 
-      localStorage.setItem("chronicle:v1:current", store.guid), !0;
-    } catch (e) {
-      return err("save failed: " + (e && e.message ? e.message : e)), !1;
-    }
-  }(store);
+  }, saveStore(store);
 }
 
 function init() {
-  const resolved = function() {
-    let diag = "", chosen = "nogid";
-    try {
-      const g = Configuration.getGame(), cands = g ? {
-        campaignSetupGUID: g.campaignSetupGUID,
-        gameGUIDHexString: g.gameGUIDHexString,
-        gameSeed: g.gameSeed
-      } : {};
-      diag = Object.keys(cands).map(k => `${k}=${JSON.stringify(cands[k])}`).join(" ");
-      for (const k of [ "campaignSetupGUID", "gameGUIDHexString", "gameSeed" ]) {
-        const v = cands[k];
-        if (null != v && String(v).length && "0" !== String(v)) {
-          chosen = String(v);
-          break;
-        }
-      }
-    } catch (e) {}
-    return {
-      id: chosen,
-      diag: diag
+  const resolved = resolveGameId();
+  guid = resolved.id, store = function(newKey, fp) {
+    const adopt = (o, why) => {
+      o.guid = newKey, o.fp = fp;
+      const m = migrateStore(o);
+      return why && (err(`adopted ${why} → ${newKey}: ${countRows(m)} rows across ${Object.keys(m.ages).length} ages`), 
+      saveStore(m)), m;
     };
-  }();
-  guid = resolved.id, store = function(guid) {
     try {
-      const raw = localStorage.getItem(storeKey(guid));
+      const raw = localStorage.getItem(storeKey(newKey));
       if (raw) {
         const o = JSON.parse(raw);
-        if (o && o.ages) return o.guid = guid, o;
+        if (o && o.ages && o.fp && fp && o.fp.seed === fp.seed) return o.guid = newKey, 
+        o.fp = fp, migrateStore(o);
       }
     } catch (e) {
-      err("load parse failed: " + (e && e.message ? e.message : e));
+      err("load parse failed: " + emsg(e));
     }
-    return {
+    if (fp && null != fp.seed) for (const s of scanChronicleStores()) if (s.key !== storeKey(newKey) && s.store.fp && s.store.fp.seed === fp.seed) return adopt(s.store, `relocated store ${s.key}`);
+    if (fp && fp.setup) try {
+      const raw = localStorage.getItem(storeKey(fp.setup));
+      if (raw) {
+        const o = JSON.parse(raw);
+        if (o && o.ages && !o.fp) return adopt(o, `legacy setup=${fp.setup} store`);
+      }
+    } catch (e) {}
+    return migrateStore({
       v: 1,
-      guid: guid,
+      guid: newKey,
+      fp: fp,
       created: Date.now(),
       updated: 0,
       ages: {}
-    };
-  }(guid);
+    });
+  }(guid, resolved.fp);
   const age = currentAge();
   err(`loaded. game=${guid} age=${age.key}${age.label ? " (" + age.label + ")" : ""} restored ${countRows(store)} prior rows across ${Object.keys(store.ages).length} ages (${byteLen(store)} B)`);
   try {

@@ -1,30 +1,67 @@
 const LOG = "[ozq-chronicle]", OVERLAY_ID = "ozq-chronicle-graphs-overlay";
 
-function loadLoggerStore() {
+function currentGameSeed() {
   try {
-    const key = localStorage.getItem("chronicle:v1:current") || "nogid", raw = localStorage.getItem("chronicle:v1:" + key);
-    if (raw) {
-      const o = JSON.parse(raw);
-      if (o && o.ages) return o;
-    }
+    const g = Configuration.getGame();
+    if (g && null != g.gameSeed) return g.gameSeed;
   } catch (e) {}
   return null;
 }
 
-function loggerMetricHasData(key) {
-  const store = loadLoggerStore();
-  if (!store || !store.ages) return !1;
-  for (const k in store.ages) {
-    const turns = store.ages[k].turns || {};
-    for (const t in turns) {
-      const p = turns[t].p || {};
-      for (const pid in p) if (null != p[pid][key]) return !0;
-    }
-  }
-  return !1;
+function currentSetup() {
+  try {
+    const g = Configuration.getGame();
+    if (g && null != g.campaignSetupGUID && String(g.campaignSetupGUID).length) return String(g.campaignSetupGUID);
+  } catch (e) {}
+  return null;
 }
 
-const CATEGORIES = [ "Growth", "Totals", "By Type" ], METRICS = [ {
+function loadLoggerStore() {
+  const seed = currentGameSeed(), readKey = key => {
+    if (!key) return null;
+    try {
+      const raw = localStorage.getItem("chronicle:v1:" + key);
+      if (raw) {
+        const o = JSON.parse(raw);
+        if (o && o.ages) return o;
+      }
+    } catch (e) {}
+    return null;
+  };
+  let store = readKey(function() {
+    const setup = currentSetup(), seed = currentGameSeed(), seedOk = null != seed && "0" !== String(seed);
+    return setup && seedOk ? `${setup}#${seed}` : seedOk ? `seed:${seed}` : setup || null;
+  }());
+  if (store && (null == seed || store.fp && store.fp.seed === seed)) return store;
+  if (null != seed) for (const s of function() {
+    const out = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && 0 === k.indexOf("chronicle:v1:") && "chronicle:v1:current" !== k) try {
+          const o = JSON.parse(localStorage.getItem(k));
+          o && o.ages && out.push({
+            key: k,
+            store: o
+          });
+        } catch (e) {}
+      }
+    } catch (e) {}
+    return out;
+  }()) if (s.store.fp && s.store.fp.seed === seed) return s.store;
+  const setup = currentSetup();
+  if (setup) {
+    const lg = readKey(setup);
+    if (lg && !lg.fp) return lg;
+  }
+  try {
+    const p = readKey(localStorage.getItem("chronicle:v1:current"));
+    if (p && (null == seed || !p.fp || p.fp.seed === seed)) return p;
+  } catch (e) {}
+  return null;
+}
+
+const CATEGORIES = [ "Growth", "Totals", "Settlements", "Economy", "Breakdown", "World" ], METRICS = [ {
   id: "Science",
   label: "Science / Turn",
   category: "Growth",
@@ -102,32 +139,110 @@ const CATEGORIES = [ "Growth", "Totals", "By Type" ], METRICS = [ {
   cityRollup: !0,
   loggerKey: "Tourism"
 }, {
-  id: "CitiesFounded",
-  label: "Cities Founded",
-  category: "Totals",
-  delta: !0,
-  stepped: !0
+  id: "ratioUrbanTrend",
+  label: "Urbanization %",
+  category: "Growth",
+  loggerOnly: !0,
+  ratioKey: {
+    num: "upop",
+    den: "tpop",
+    scale: 100,
+    dp: 0
+  },
+  yTitle: "% of population urban"
+}, {
+  id: "ratioSciPerCitizenTrend",
+  label: "Science / Citizen",
+  category: "Growth",
+  loggerOnly: !0,
+  ratioKey: {
+    num: "Science",
+    den: "tpop",
+    scale: 1,
+    dp: 1
+  },
+  yTitle: "Science per citizen / turn"
+}, {
+  id: "ratioTradeDepTrend",
+  label: "Trade / Settlement",
+  category: "Growth",
+  loggerOnly: !0,
+  ratioKey: {
+    num: "tr",
+    den: "cit",
+    scale: 1,
+    dp: 2
+  },
+  yTitle: "Trade routes per settlement"
+}, {
+  id: "ratioConquestTrend",
+  label: "Conquest %",
+  category: "Growth",
+  loggerOnly: !0,
+  ratioKey: {
+    num: "conq",
+    den: "set",
+    scale: 100,
+    dp: 0
+  },
+  yTitle: "% of settlements taken by force"
+}, {
+  id: "ratioSettlementCapTrend",
+  label: "Cap Used %",
+  category: "Growth",
+  loggerOnly: !0,
+  ratioKey: {
+    num: "set",
+    den: "cap",
+    scale: 100,
+    dp: 0
+  },
+  yTitle: "% of settlement cap used"
 }, {
   id: "CitiesTotal",
-  label: "Cities (Total)",
+  label: "Settlements Total",
   category: "Totals",
+  loggerKey: "set",
+  loggerOnly: !0,
   stepped: !0,
-  combine: [ {
-    id: "CitiesFounded",
-    sign: 1
-  }, {
-    id: "CitiesConquered",
-    sign: 1
-  }, {
-    id: "CitiesLost",
-    sign: -1
-  } ]
+  yTitle: "Settlements owned"
 }, {
-  id: "CitiesConquered",
-  label: "Cities Conquered",
+  id: "trendSettlementCap",
+  label: "Settlement Cap",
+  category: "Totals",
+  loggerKey: "cap",
+  loggerOnly: !0,
+  stepped: !0,
+  yTitle: "Settlement cap"
+}, {
+  id: "trendCities",
+  label: "Cities",
+  category: "Totals",
+  loggerKey: "cityN",
+  loggerOnly: !0,
+  stepped: !0,
+  yTitle: "Cities (promoted settlements)"
+}, {
+  id: "trendTowns",
+  label: "Towns",
+  category: "Totals",
+  loggerKey: "townN",
+  loggerOnly: !0,
+  stepped: !0,
+  yTitle: "Towns"
+}, {
+  id: "CitiesFounded",
+  label: "Settlements Founded",
   category: "Totals",
   delta: !0,
   stepped: !0
+}, {
+  id: "CitiesConquered",
+  label: "Settlements Conquered",
+  category: "Totals",
+  delta: !0,
+  stepped: !0,
+  loggerKey: "conq"
 }, {
   id: "GreatPeopleEarned",
   label: "Great People",
@@ -151,11 +266,36 @@ const CATEGORIES = [ "Growth", "Totals", "By Type" ], METRICS = [ {
   label: "Wonders",
   category: "Totals",
   delta: !0,
-  stepped: !0
+  stepped: !0,
+  loggerKey: "won"
+}, {
+  id: "trendTrade",
+  label: "Trade Routes",
+  category: "Totals",
+  loggerKey: "tr",
+  loggerOnly: !0,
+  stepped: !0,
+  yTitle: "Active trade routes"
+}, {
+  id: "trendGreatWorks",
+  label: "Great Works",
+  category: "Totals",
+  loggerKey: "gw",
+  loggerOnly: !0,
+  stepped: !0,
+  yTitle: "Great works"
+}, {
+  id: "trendUrban",
+  label: "Urban Districts",
+  category: "Totals",
+  loggerKey: "urb",
+  loggerOnly: !0,
+  stepped: !0,
+  yTitle: "Urban districts"
 }, {
   id: "UnitsTrainedByType",
   label: "Units Trained",
-  category: "By Type",
+  category: "Breakdown",
   kind: "bar",
   lookup: "Units",
   xTitle: "Unit type",
@@ -163,7 +303,7 @@ const CATEGORIES = [ "Growth", "Totals", "By Type" ], METRICS = [ {
 }, {
   id: "UnitsKilledByType",
   label: "Kills by Unit",
-  category: "By Type",
+  category: "Breakdown",
   kind: "bar",
   lookup: "Units",
   xTitle: "Your unit type",
@@ -171,7 +311,7 @@ const CATEGORIES = [ "Growth", "Totals", "By Type" ], METRICS = [ {
 }, {
   id: "UnitsLostByType",
   label: "Losses by Unit",
-  category: "By Type",
+  category: "Breakdown",
   kind: "bar",
   lookup: "Units",
   xTitle: "Your unit type",
@@ -179,7 +319,7 @@ const CATEGORIES = [ "Growth", "Totals", "By Type" ], METRICS = [ {
 }, {
   id: "BuildingsBuiltByType",
   label: "Buildings",
-  category: "By Type",
+  category: "Breakdown",
   kind: "bar",
   lookup: "Constructibles",
   xTitle: "Building",
@@ -187,7 +327,7 @@ const CATEGORIES = [ "Growth", "Totals", "By Type" ], METRICS = [ {
 }, {
   id: "DistrictsBuiltByType",
   label: "Districts",
-  category: "By Type",
+  category: "Breakdown",
   kind: "bar",
   lookup: "Districts",
   xTitle: "District",
@@ -195,9 +335,364 @@ const CATEGORIES = [ "Growth", "Totals", "By Type" ], METRICS = [ {
 }, {
   id: "WondersBuiltByType",
   label: "Wonders",
-  category: "By Type",
+  category: "Breakdown",
   kind: "board",
   lookup: "Constructibles"
+}, {
+  id: "liveSettlements",
+  label: "Settlements",
+  category: "Settlements",
+  kind: "live",
+  compute: () => perCivBar(p => readNum(() => p.Stats.numSettlements), "Settlements")
+}, {
+  id: "liveSettlementCap",
+  label: "Settlement Cap",
+  category: "Settlements",
+  kind: "live",
+  compute: () => perCivBar(p => readNum(() => p.Stats.settlementCap), "Settlement cap")
+}, {
+  id: "liveCities",
+  label: "Cities",
+  category: "Settlements",
+  kind: "live",
+  compute: () => perCivBar(p => readNum(() => p.Stats.numCities), "Cities")
+}, {
+  id: "liveTowns",
+  label: "Towns",
+  category: "Settlements",
+  kind: "live",
+  compute: () => perCivBar(p => readNum(() => p.Stats.numTowns), "Towns")
+}, {
+  id: "liveConquered",
+  label: "Conquered",
+  category: "Settlements",
+  kind: "live",
+  compute: () => perCivBar(p => readNum(() => p.Stats.getNumConqueredSettlements(!0, !0, !0, !1)), "Settlements conquered")
+}, {
+  id: "ratioConquest",
+  label: "Conquest %",
+  category: "Settlements",
+  kind: "live",
+  compute: () => perCivBar(p => {
+    const conq = readNum(() => p.Stats.getNumConqueredSettlements(!0, !0, !0, !1)), set = readNum(() => p.Stats.numSettlements);
+    return null != conq && set > 0 ? Math.round(100 * conq / set) : null;
+  }, "% of settlements taken by force")
+}, {
+  id: "liveUrban",
+  label: "Urban Districts",
+  category: "Settlements",
+  kind: "live",
+  compute: () => perCivBar(urbanDistrictCount, "Urban districts")
+}, {
+  id: "ratioUrban",
+  label: "Urbanization %",
+  category: "Settlements",
+  kind: "live",
+  compute: () => perCivBar(p => {
+    const s = popSplit(p);
+    return s.total > 0 ? Math.round(100 * s.urban / s.total) : null;
+  }, "% of population urban")
+}, {
+  id: "ratioSciPerCitizen",
+  label: "Science / Citizen",
+  category: "Economy",
+  kind: "live",
+  compute: () => perCivBar(p => {
+    const sci = readNum(() => p.Stats.getNetYield(YieldTypes.YIELD_SCIENCE)), pop = popSplit(p).total;
+    return null != sci && pop > 0 ? Math.round(10 * sci / pop) / 10 : null;
+  }, "Science per citizen / turn")
+}, {
+  id: "ratioCulPerCitizen",
+  label: "Culture / Citizen",
+  category: "Economy",
+  kind: "live",
+  compute: () => perCivBar(p => {
+    const cul = readNum(() => p.Stats.getNetYield(YieldTypes.YIELD_CULTURE)), pop = popSplit(p).total;
+    return null != cul && pop > 0 ? Math.round(10 * cul / pop) / 10 : null;
+  }, "Culture per citizen / turn")
+}, {
+  id: "ratioGoldPerCitizen",
+  label: "Gold / Citizen",
+  category: "Economy",
+  kind: "live",
+  compute: () => perCivBar(p => {
+    const gold = readNum(() => p.Stats.getNetYield(YieldTypes.YIELD_GOLD)), pop = popSplit(p).total;
+    return null != gold && pop > 0 ? Math.round(10 * gold / pop) / 10 : null;
+  }, "Gold per citizen / turn")
+}, {
+  id: "liveTradeRoutes",
+  label: "Trade Routes",
+  category: "Economy",
+  kind: "live",
+  compute: () => perCivBar(p => readNum(() => p.Trade.countPlayerTradeRoutes()), "Active trade routes")
+}, {
+  id: "ratioTradeDep",
+  label: "Trade / Settlement",
+  category: "Economy",
+  kind: "live",
+  compute: () => perCivBar(p => {
+    const tr = readNum(() => p.Trade.countPlayerTradeRoutes()), c = function(p) {
+      return playerCities(p).length;
+    }(p);
+    return null != tr && c > 0 ? Math.round(100 * tr / c) / 100 : null;
+  }, "Trade routes per settlement")
+}, {
+  id: "liveGreatWorks",
+  label: "Great Works",
+  category: "Economy",
+  kind: "live",
+  compute: () => perCivBar(p => readNum(() => p.Stats.getTotalGreatWorksSlotted()), "Great works")
+}, {
+  id: "liveWonders",
+  label: "Wonders",
+  category: "Economy",
+  kind: "live",
+  compute: () => perCivBar(p => readNum(() => p.Stats.getNumWonders(!1, !1)), "Wonders owned")
+}, {
+  id: "liveLargestCities",
+  label: "Largest Settlements",
+  category: "World",
+  kind: "live",
+  compute: function() {
+    const rows = [];
+    try {
+      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
+        null != c.population && rows.push({
+          name: cityName(c),
+          pop: c.population,
+          pid: p.id
+        });
+      } catch (e) {}
+    } catch (e) {}
+    rows.sort((a, b) => b.pop - a.pop);
+    const top = rows.slice(0, 15);
+    return {
+      labels: top.map(r => r.name),
+      data: top.map(r => r.pop),
+      colors: top.map(r => ownerColor({
+        ownerPlayer: r.pid
+      })),
+      indexAxis: "y",
+      valueTitle: "Population",
+      catTitle: ""
+    };
+  }
+}, {
+  id: "liveMostUrbanized",
+  label: "Most Urbanized",
+  category: "World",
+  kind: "live",
+  compute: function() {
+    const rows = [];
+    try {
+      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
+        const tot = c.population, urb = c.urbanPopulation;
+        if (null == tot || null == urb || isNaN(tot) || isNaN(urb) || tot < MIN_URBAN_POP) continue;
+        rows.push({
+          name: cityName(c),
+          pct: Math.round(100 * urb / tot),
+          pid: p.id
+        });
+      } catch (e) {}
+    } catch (e) {}
+    rows.sort((a, b) => b.pct - a.pct);
+    const top = rows.slice(0, 15);
+    if (!top.length) return {
+      labels: [],
+      data: [],
+      colors: [],
+      indexAxis: "y",
+      valueTitle: "",
+      catTitle: ""
+    };
+    return {
+      labels: top.map(r => r.name),
+      data: top.map(r => r.pct),
+      colors: top.map(r => ownerColor({
+        ownerPlayer: r.pid
+      })),
+      indexAxis: "y",
+      valueTitle: "% urban",
+      catTitle: ""
+    };
+  }
+}, {
+  id: "liveSizeDist",
+  label: "Settlement Sizes",
+  category: "World",
+  kind: "live",
+  compute: function() {
+    const counts = SIZE_BUCKETS.map(() => 0);
+    let any = !1;
+    try {
+      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
+        const pop = c.population;
+        if (null == pop || isNaN(pop)) continue;
+        for (let i = 0; i < SIZE_BUCKETS.length; i++) if (pop >= SIZE_BUCKETS[i][0] && pop <= SIZE_BUCKETS[i][1]) {
+          counts[i]++, any = !0;
+          break;
+        }
+      } catch (e) {}
+    } catch (e) {}
+    if (!any) return {
+      labels: [],
+      data: [],
+      colors: [],
+      indexAxis: "x",
+      valueTitle: "",
+      catTitle: ""
+    };
+    return {
+      labels: SIZE_BUCKETS.map(([lo, hi]) => hi === 1 / 0 ? `${lo}+` : `${lo}–${hi}`),
+      data: counts,
+      colors: SIZE_BUCKETS.map((_, i) => SIZE_BAR_COLORS[i]),
+      indexAxis: "x",
+      valueTitle: "Settlements",
+      catTitle: "Population"
+    };
+  }
+}, {
+  id: "liveWorldPopShare",
+  label: "Population Share",
+  category: "World",
+  kind: "live",
+  compute: function() {
+    let worldTotal = 0;
+    const perMajor = [];
+    try {
+      for (const p of Players.getAlive()) {
+        if (!p) continue;
+        let tot = 0;
+        for (const c of playerCities(p)) try {
+          null != c.population && (tot += c.population);
+        } catch (e) {}
+        worldTotal += tot, p.isMajor && tot > 0 && perMajor.push({
+          pid: p.id,
+          pop: tot
+        });
+      }
+    } catch (e) {}
+    if (worldTotal <= 0 || !perMajor.length) return {
+      labels: [],
+      data: [],
+      colors: [],
+      indexAxis: "x",
+      valueTitle: "",
+      catTitle: ""
+    };
+    return perMajor.sort((a, b) => b.pop - a.pop), {
+      labels: perMajor.map(r => ownerName({
+        ownerPlayer: r.pid
+      })),
+      data: perMajor.map(r => Math.round(1e3 * r.pop / worldTotal) / 10),
+      colors: perMajor.map(r => ownerColor({
+        ownerPlayer: r.pid
+      })),
+      indexAxis: "x",
+      valueTitle: "% of world population",
+      catTitle: ""
+    };
+  }
+}, {
+  id: "liveReligion",
+  label: "Religion Spread",
+  category: "World",
+  kind: "live",
+  compute: function() {
+    const relByHash = new Map;
+    try {
+      for (const r of GameInfo.Religions) relByHash.set(r.$hash, r);
+    } catch (e) {}
+    if (!relByHash.size || "undefined" == typeof Game || !Game.Religion) return {
+      labels: [],
+      data: [],
+      colors: [],
+      indexAxis: "x",
+      valueTitle: "",
+      catTitle: ""
+    };
+    const counts = new Map;
+    try {
+      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
+        const rel = c.Religion && c.Religion.majorityReligion;
+        null != rel && relByHash.has(rel) && counts.set(rel, (counts.get(rel) || 0) + 1);
+      } catch (e) {}
+    } catch (e) {}
+    const rows = [];
+    for (const [hash, count] of counts) {
+      const def = relByHash.get(hash);
+      let name = def.Name ? Locale.compose(def.Name) : prettifyType(def.ReligionType), pid = null;
+      try {
+        const f = Game.Religion.getPlayerFromReligion(def.ReligionType);
+        null != f && f >= 0 && (pid = f);
+      } catch (e) {}
+      rows.push({
+        name: name,
+        count: count,
+        pid: pid
+      });
+    }
+    return rows.sort((a, b) => b.count - a.count), {
+      labels: rows.map(r => r.name),
+      data: rows.map(r => r.count),
+      colors: rows.map(r => null != r.pid ? ownerColor({
+        ownerPlayer: r.pid
+      }) : "#B0B0B0"),
+      indexAxis: "x",
+      valueTitle: "Settlements following",
+      catTitle: "Religion"
+    };
+  }
+}, {
+  id: "liveReligionPop",
+  label: "Religion by Population",
+  category: "World",
+  kind: "live",
+  compute: function() {
+    const relByHash = new Map;
+    try {
+      for (const r of GameInfo.Religions) relByHash.set(r.$hash, r);
+    } catch (e) {}
+    if (!relByHash.size || "undefined" == typeof Game || !Game.Religion) return {
+      labels: [],
+      data: [],
+      colors: [],
+      indexAxis: "x",
+      valueTitle: "",
+      catTitle: ""
+    };
+    const pops = new Map;
+    try {
+      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
+        const rel = c.Religion && c.Religion.majorityReligion;
+        null != rel && relByHash.has(rel) && null != c.population && pops.set(rel, (pops.get(rel) || 0) + c.population);
+      } catch (e) {}
+    } catch (e) {}
+    const rows = [];
+    for (const [hash, pop] of pops) {
+      const def = relByHash.get(hash);
+      let name = def.Name ? Locale.compose(def.Name) : prettifyType(def.ReligionType), pid = null;
+      try {
+        const f = Game.Religion.getPlayerFromReligion(def.ReligionType);
+        null != f && f >= 0 && (pid = f);
+      } catch (e) {}
+      rows.push({
+        name: name,
+        pop: pop,
+        pid: pid
+      });
+    }
+    return rows.sort((a, b) => b.pop - a.pop), {
+      labels: rows.map(r => r.name),
+      data: rows.map(r => r.pop),
+      colors: rows.map(r => null != r.pid ? ownerColor({
+        ownerPlayer: r.pid
+      }) : "#B0B0B0"),
+      indexAxis: "x",
+      valueTitle: "Population following",
+      catTitle: "Religion"
+    };
+  }
 } ], ALL_DATASET_IDS = [ "Beliefs", "Cities", "CivicsAcquired", "Culture", "Faith", "Followers", "Gold", "Science", "Score", "TechsAcquired", "BuildingsConstructed", "CitiesConquered", "CitiesFounded", "CitiesLost", "Combats", "DistrictsConstructed", "GreatPeopleEarned", "NaturalWondersDiscovered", "NukesLaunched", "UnitsKilled", "UnitsLost", "WarsDeclared", "WarsReceived", "WondersConstructed" ];
 
 function ownerName(obj) {
@@ -209,11 +704,41 @@ function ownerName(obj) {
 }
 
 function ownerColor(obj) {
+  const pid = obj && obj.ownerPlayer;
   try {
-    return UI.Player.getPrimaryColorValueAsString(obj.ownerPlayer);
-  } catch (e) {
-    return "#B0B0B0";
-  }
+    const m = function() {
+      if (colorMapCache) return colorMapCache;
+      const map = new Map, placed = [];
+      let pids = [];
+      try {
+        pids = Players.getAlive().filter(p => p).map(p => p.id);
+      } catch (e) {}
+      pids.sort((a, b) => a - b);
+      for (const pid of pids) {
+        let raw = "#B0B0B0";
+        try {
+          raw = UI.Player.getPrimaryColorValueAsString(pid);
+        } catch (e) {}
+        const rgb = parseColor(raw);
+        if (!rgb) {
+          map.set(pid, raw);
+          continue;
+        }
+        const finalRgb = disambiguate(ensureContrast(rgb), placed);
+        placed.push(finalRgb), map.set(pid, rgbCss(finalRgb));
+      }
+      return colorMapCache = map, map;
+    }();
+    if (m.has(pid)) return m.get(pid);
+  } catch (e) {}
+  let raw = "#B0B0B0";
+  try {
+    raw = UI.Player.getPrimaryColorValueAsString(pid);
+  } catch (e) {}
+  return function(raw) {
+    const rgb = parseColor(raw);
+    return rgb ? rgbCss(ensureContrast(rgb)) : raw;
+  }(raw);
 }
 
 function ownerColorSecondary(obj) {
@@ -242,6 +767,114 @@ function resolveAgeMeta(ageKey, ageObj) {
   return {
     ci: null != ci ? ci : 0,
     label: label || String(ageKey)
+  };
+}
+
+function buildLoggerDatasets(metric) {
+  const valueOf = function(metric) {
+    const r = metric.ratioKey;
+    if (r) {
+      const scale = null != r.scale ? r.scale : 1, dp = null != r.dp ? r.dp : 1, f = Math.pow(10, dp);
+      return v => v && null != v[r.num] && null != v[r.den] && 0 !== v[r.den] ? Math.round(scale * v[r.num] / v[r.den] * f) / f : null;
+    }
+    const key = metric.loggerKey;
+    return v => v && null != v[key] ? v[key] : null;
+  }(metric), empty = {
+    datasets: [],
+    start: 0,
+    end: 0,
+    boundaries: [],
+    turnCount: 0,
+    startedLate: !1,
+    firstAgeLabel: "",
+    firstTurn: 0
+  }, store = loadLoggerStore();
+  if (!store || !store.ages || !metric.loggerKey && !metric.ratioKey) return empty;
+  const ages = Object.keys(store.ages).map(k => {
+    const m = resolveAgeMeta(k, store.ages[k]);
+    return {
+      key: k,
+      turns: store.ages[k].turns,
+      ci: m.ci,
+      label: m.label
+    };
+  }).sort((a, b) => a.ci - b.ci), curCi = function() {
+    try {
+      if ("undefined" != typeof Game && null != Game.age) return resolveAgeMeta(String(Game.age), null).ci;
+    } catch (e) {}
+    return null;
+  }(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0;
+  let cursor = 0;
+  const boundaries = [], layout = [], pids = new Set;
+  for (const age of ages) {
+    if (null != curCi && age.ci > curCi) continue;
+    let turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
+    if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
+    !turns.length) continue;
+    const minT = turns[0], maxT = turns[turns.length - 1];
+    boundaries.push({
+      x: cursor,
+      label: prettifyType(age.label || age.key)
+    }), layout.push({
+      age: age,
+      turns: turns,
+      minT: minT,
+      offset: cursor
+    }), cursor += maxT - minT + 2;
+    for (const t of turns) {
+      const p = age.turns[t].p || {};
+      for (const pid in p) pids.add(pid);
+    }
+  }
+  const end = Math.max(0, cursor - 2);
+  let turnCount = 0;
+  for (const L of layout) for (const t of L.turns) {
+    const p = L.age.turns[t].p || {};
+    let has = !1;
+    for (const pid in p) if (null != valueOf(p[pid])) {
+      has = !0;
+      break;
+    }
+    has && turnCount++;
+  }
+  if (turnCount <= 1) return empty;
+  const datasets = [];
+  for (const pid of pids) {
+    const data = [];
+    for (const L of layout) for (const t of L.turns) {
+      const y = valueOf((L.age.turns[t].p || {})[pid]);
+      null != y && data.push({
+        x: L.offset + (t - L.minT),
+        y: y
+      });
+    }
+    if (!data.length) continue;
+    const color = ownerColor({
+      ownerPlayer: Number(pid)
+    });
+    datasets.push({
+      label: ownerName({
+        ownerPlayer: Number(pid)
+      }),
+      data: data,
+      parsing: !1,
+      borderColor: color,
+      backgroundColor: color,
+      pointRadius: 0,
+      stepped: !!metric.stepped,
+      tension: metric.stepped ? 0 : .15
+    });
+  }
+  const first = layout[0];
+  return {
+    datasets: datasets,
+    start: 0,
+    end: end,
+    boundaries: boundaries,
+    turnCount: turnCount,
+    startedLate: !!first && ((first.age.ci || 0) > 0 || first.minT > 1),
+    firstAgeLabel: first ? first.age.label || first.age.key : "",
+    firstTurn: first ? first.minT : 0
   };
 }
 
@@ -349,6 +982,81 @@ function buildBarChart(metric, page) {
   };
 }
 
+function readNum(fn) {
+  try {
+    const v = fn();
+    return null == v || isNaN(v) ? null : v;
+  } catch (e) {
+    return null;
+  }
+}
+
+function playerCities(p) {
+  try {
+    if (p && p.Cities && "function" == typeof p.Cities.getCities) return p.Cities.getCities() || [];
+  } catch (e) {}
+  return [];
+}
+
+function urbanDistrictCount(p) {
+  if ("undefined" == typeof DistrictTypes) return null;
+  let n = 0, any = !1;
+  for (const c of playerCities(p)) try {
+    c.Districts && "function" == typeof c.Districts.getIdsOfType && (n += c.Districts.getIdsOfType(DistrictTypes.URBAN).length, 
+    any = !0);
+  } catch (e) {}
+  return any ? n : null;
+}
+
+function popSplit(p) {
+  let urban = 0, total = 0;
+  for (const c of playerCities(p)) try {
+    null != c.urbanPopulation && (urban += c.urbanPopulation), null != c.population && (total += c.population);
+  } catch (e) {}
+  return {
+    urban: urban,
+    total: total
+  };
+}
+
+function perCivBar(valueFn, valueTitle) {
+  const labels = [], data = [], colors = [];
+  for (const p of function() {
+    const out = [];
+    try {
+      for (const p of Players.getAlive()) p && p.isMajor && out.push(p);
+    } catch (e) {}
+    return out;
+  }()) {
+    const v = valueFn(p);
+    null == v || isNaN(v) || (labels.push(ownerName({
+      ownerPlayer: p.id
+    })), data.push(v), colors.push(ownerColor({
+      ownerPlayer: p.id
+    })));
+  }
+  return {
+    labels: labels,
+    data: data,
+    colors: colors,
+    indexAxis: "x",
+    valueTitle: valueTitle,
+    catTitle: ""
+  };
+}
+
+function cityName(c) {
+  try {
+    return Locale.compose(c.name);
+  } catch (e) {
+    return String(c && c.name);
+  }
+}
+
+const SIZE_BUCKETS = [ [ 1, 5 ], [ 6, 10 ], [ 11, 15 ], [ 16, 20 ], [ 21, 1 / 0 ] ], SIZE_BAR_COLORS = [ "#F0DDA0", "#E0C06A", "#C9A94E", "#B0893A", "#8C6522" ];
+
+const MIN_URBAN_POP = 5;
+
 const AXIS_TICK = "#C9BFA6";
 
 function axisTitle(text) {
@@ -360,6 +1068,128 @@ function axisTitle(text) {
     display: !1
   };
 }
+
+function parseColor(c) {
+  if ("string" != typeof c) return null;
+  let m = c.match(/^#([0-9a-f]{6})$/i);
+  if (m) {
+    const n = parseInt(m[1], 16);
+    return {
+      r: n >> 16 & 255,
+      g: n >> 8 & 255,
+      b: 255 & n
+    };
+  }
+  if (m = c.match(/^#([0-9a-f]{3})$/i), m) {
+    const s = m[1];
+    return {
+      r: parseInt(s[0] + s[0], 16),
+      g: parseInt(s[1] + s[1], 16),
+      b: parseInt(s[2] + s[2], 16)
+    };
+  }
+  if (m = c.match(/rgba?\(([^)]+)\)/i), m) {
+    const p = m[1].split(",").map(x => parseFloat(x));
+    return {
+      r: p[0] || 0,
+      g: p[1] || 0,
+      b: p[2] || 0
+    };
+  }
+  return null;
+}
+
+const CHART_BG_RGB = {
+  r: 22,
+  g: 19,
+  b: 14
+}, MIN_CONTRAST = 2.4;
+
+function relLuminance(rgb) {
+  const chan = v => (v /= 255) <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4);
+  return .2126 * chan(rgb.r) + .7152 * chan(rgb.g) + .0722 * chan(rgb.b);
+}
+
+function contrastRatio(a, b) {
+  const la = relLuminance(a), lb = relLuminance(b);
+  return (Math.max(la, lb) + .05) / (Math.min(la, lb) + .05);
+}
+
+function rgbToHsl({r: r, g: g, b: b}) {
+  r /= 255, g /= 255, b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  const l = (mx + mn) / 2;
+  return 0 !== d && (h = mx === r ? (g - b) / d % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4, 
+  h *= 60, h < 0 && (h += 360)), {
+    h: h,
+    s: 0 === d ? 0 : d / (1 - Math.abs(2 * l - 1)),
+    l: l
+  };
+}
+
+function hslToRgb({h: h, s: s, l: l}) {
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(h / 60 % 2 - 1)), m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  return h < 60 ? (r = c, g = x) : h < 120 ? (r = x, g = c) : h < 180 ? (g = c, b = x) : h < 240 ? (g = x, 
+  b = c) : h < 300 ? (r = x, b = c) : (r = c, b = x), {
+    r: Math.round(255 * (r + m)),
+    g: Math.round(255 * (g + m)),
+    b: Math.round(255 * (b + m))
+  };
+}
+
+function rgbCss(rgb) {
+  return `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+}
+
+function ensureContrast(rgb) {
+  if (contrastRatio(rgb, CHART_BG_RGB) >= MIN_CONTRAST) return rgb;
+  const hsl = rgbToHsl(rgb);
+  let out = rgb;
+  for (let L = hsl.l; L <= .95 && (out = hslToRgb({
+    h: hsl.h,
+    s: hsl.s,
+    l: L
+  }), !(contrastRatio(out, CHART_BG_RGB) >= MIN_CONTRAST)); L += .03) ;
+  return out;
+}
+
+const MIN_COLOR_DIST = 72;
+
+function colorDist(a, b) {
+  const dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+function tooClose(rgb, placed) {
+  for (const p of placed) if (colorDist(rgb, p) < MIN_COLOR_DIST) return !0;
+  return !1;
+}
+
+function disambiguate(rgb, placed) {
+  if (!tooClose(rgb, placed)) return rgb;
+  const hsl = rgbToHsl(rgb);
+  for (let L = hsl.l + .08; L <= .92; L += .06) {
+    const cand = hslToRgb({
+      h: hsl.h,
+      s: hsl.s,
+      l: L
+    });
+    if (!tooClose(cand, placed)) return cand;
+  }
+  for (let step = 1; step <= 5; step++) for (const dir of [ 1, -1 ]) {
+    const cand = ensureContrast(hslToRgb({
+      h: (hsl.h + dir * step * 20 + 360) % 360,
+      s: Math.min(1, hsl.s + .1),
+      l: Math.min(.72, hsl.l + .06)
+    }));
+    if (!tooClose(cand, placed)) return cand;
+  }
+  return rgb;
+}
+
+let colorMapCache = null;
 
 let activeChart = null;
 
@@ -449,157 +1279,68 @@ function renderChart(ui, metric, page) {
         }
       }
     };
+  } else if ("live" === metric.kind) {
+    setNote(ui, "Current standings, whole game");
+    const res = metric.compute(), hasData = res && res.data && res.data.length > 0;
+    if (setNoData(ui.canvas, hasData ? "" : `No data available for ${metric.label}.`), 
+    !hasData) return;
+    const horiz = "y" === res.indexAxis, catAxis = {
+      type: "category",
+      title: axisTitle(res.catTitle),
+      ticks: {
+        color: AXIS_TICK
+      },
+      grid: {
+        color: "#4A4034"
+      }
+    }, valAxis = {
+      type: "linear",
+      min: 0,
+      title: axisTitle(res.valueTitle),
+      ticks: {
+        color: AXIS_TICK
+      },
+      grid: {
+        color: "#4A4034"
+      }
+    };
+    config = {
+      type: "bar",
+      data: {
+        labels: res.labels,
+        datasets: [ {
+          data: res.data,
+          backgroundColor: res.colors,
+          borderColor: res.colors,
+          borderWidth: 0
+        } ]
+      },
+      options: {
+        indexAxis: horiz ? "y" : "x",
+        maintainAspectRatio: !1,
+        animation: !1,
+        color: "#E8E2D0",
+        plugins: {
+          legend: {
+            display: !1
+          },
+          title: {
+            display: !1
+          }
+        },
+        scales: horiz ? {
+          x: valAxis,
+          y: catAxis
+        } : {
+          x: catAxis,
+          y: valAxis
+        }
+      }
+    };
   } else {
-    const logged = metric.loggerKey ? function(metric) {
-      const key = metric.loggerKey, empty = {
-        datasets: [],
-        start: 0,
-        end: 0,
-        boundaries: [],
-        turnCount: 0,
-        startedLate: !1,
-        firstAgeLabel: "",
-        firstTurn: 0
-      }, store = loadLoggerStore();
-      if (!store || !store.ages || !key) return empty;
-      const ages = Object.keys(store.ages).map(k => {
-        const m = resolveAgeMeta(k, store.ages[k]);
-        return {
-          key: k,
-          turns: store.ages[k].turns,
-          ci: m.ci,
-          label: m.label
-        };
-      }).sort((a, b) => a.ci - b.ci);
-      let cursor = 0;
-      const boundaries = [], layout = [], pids = new Set;
-      for (const age of ages) {
-        const turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
-        if (!turns.length) continue;
-        const minT = turns[0], maxT = turns[turns.length - 1];
-        boundaries.push({
-          x: cursor,
-          label: prettifyType(age.label || age.key)
-        }), layout.push({
-          age: age,
-          turns: turns,
-          minT: minT,
-          offset: cursor
-        }), cursor += maxT - minT + 2;
-        for (const t of turns) {
-          const p = age.turns[t].p || {};
-          for (const pid in p) pids.add(pid);
-        }
-      }
-      const end = Math.max(0, cursor - 2);
-      let turnCount = 0;
-      for (const L of layout) for (const t of L.turns) {
-        const p = L.age.turns[t].p || {};
-        let has = !1;
-        for (const pid in p) if (null != p[pid][key]) {
-          has = !0;
-          break;
-        }
-        has && turnCount++;
-      }
-      if (!turnCount) return empty;
-      const datasets = [];
-      for (const pid of pids) {
-        const data = [];
-        for (const L of layout) for (const t of L.turns) {
-          const v = (L.age.turns[t].p || {})[pid];
-          v && null != v[key] && data.push({
-            x: L.offset + (t - L.minT),
-            y: v[key]
-          });
-        }
-        if (!data.length) continue;
-        const color = ownerColor({
-          ownerPlayer: Number(pid)
-        });
-        datasets.push({
-          label: ownerName({
-            ownerPlayer: Number(pid)
-          }),
-          data: data,
-          parsing: !1,
-          borderColor: color,
-          backgroundColor: color,
-          pointRadius: 0,
-          stepped: !!metric.stepped,
-          tension: metric.stepped ? 0 : .15
-        });
-      }
-      const first = layout[0];
-      return {
-        datasets: datasets,
-        start: 0,
-        end: end,
-        boundaries: boundaries,
-        turnCount: turnCount,
-        startedLate: !!first && ((first.age.ci || 0) > 0 || first.minT > 1),
-        firstAgeLabel: first ? first.age.label || first.age.key : "",
-        firstTurn: first ? first.minT : 0
-      };
-    }(metric) : null, loggedTurns = logged ? logged.turnCount : 0;
+    const logged = metric.loggerKey || metric.ratioKey ? buildLoggerDatasets(metric) : null, loggedTurns = logged ? logged.turnCount : 0;
     let native = null, nativeTurns = 0;
-    metric.loggerOnly || (native = metric.combine ? function(metric) {
-      const objectMap = new Map;
-      Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o));
-      let start = 1 / 0, end = ageEndTurn();
-      const perPlayer = new Map;
-      for (const comp of metric.combine) {
-        let dataSets = [];
-        try {
-          dataSets = Game.Summary.getDataSets(comp.id);
-        } catch (e) {}
-        for (const ds of dataSets) {
-          const owner = null != ds.owner ? objectMap.get(ds.owner) : null;
-          if (!owner || "Player" !== owner.type || !ds.values) continue;
-          let arr = perPlayer.get(owner.ownerPlayer);
-          arr || (arr = [], perPlayer.set(owner.ownerPlayer, arr));
-          for (const pt of ds.values) arr.push({
-            x: pt.x,
-            d: comp.sign * pt.y
-          });
-        }
-      }
-      const datasets = [];
-      for (const [pid, events] of perPlayer) {
-        events.sort((a, b) => a.x - b.x);
-        const v = [];
-        let sum = 0;
-        for (let i = 0; i < events.length; i++) sum += events[i].d, i + 1 !== events.length && events[i + 1].x === events[i].x || v.push({
-          x: events[i].x,
-          y: sum
-        });
-        if (!v.length) continue;
-        start = Math.min(start, v[0].x), end = Math.max(end, v[v.length - 1].x), v[v.length - 1].x < end && v.push({
-          x: end,
-          y: v[v.length - 1].y
-        });
-        const color = ownerColor({
-          ownerPlayer: pid
-        });
-        datasets.push({
-          label: ownerName({
-            ownerPlayer: pid
-          }),
-          data: v,
-          parsing: !1,
-          borderColor: color,
-          backgroundColor: color,
-          pointRadius: 0,
-          stepped: !0,
-          tension: 0
-        });
-      }
-      return isFinite(start) || (start = 0), {
-        datasets: datasets,
-        start: start,
-        end: end
-      };
-    }(metric) : metric.cityRollup ? function(metric) {
+    metric.loggerOnly || (native = metric.cityRollup ? function(metric) {
       const objectMap = new Map;
       Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o));
       const validPlayers = new Set;
@@ -940,9 +1681,15 @@ function openOverlay() {
     } catch (e) {}
     return withData;
   }(METRICS.filter(m => m.cityRollup).map(m => m.id)), metrics = METRICS.filter(m => {
-    if (m.loggerOnly) return loggerMetricHasData(m.loggerKey);
+    if ("live" === m.kind) try {
+      const r = m.compute();
+      return !!(r && r.data && r.data.length);
+    } catch (e) {
+      return !1;
+    }
+    if (m.loggerOnly) return buildLoggerDatasets(m).turnCount > 0;
     if ("bar" === m.kind || "board" === m.kind) return dataPointIds.has(m.id);
-    return (m.combine ? m.combine.some(c => datasetIds.has(c.id)) : m.cityRollup ? cityIds.has(m.id) : datasetIds.has(m.id)) || m.loggerKey && loggerMetricHasData(m.loggerKey);
+    return (m.cityRollup ? cityIds.has(m.id) : datasetIds.has(m.id)) || m.loggerKey && buildLoggerDatasets(m).turnCount > 0;
   }), catList = CATEGORIES.filter(c => metrics.some(m => m.category === c)), ui = {
     canvas: canvas,
     chartInner: chartInner,

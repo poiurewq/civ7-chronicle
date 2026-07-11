@@ -12,17 +12,26 @@ Adds a **Chronicle** button in two places — the **pause menu** (openable on an
 turn) and the **end-of-game results screen** — that opens a full-screen overlay
 of charts, organized into categories:
 
-- **Growth** — per-turn line charts: Science, Technologies, Culture, Gold, and
-  any other continuous stats the game recorded.
-- **Totals** — cumulative counts over the Age: Cities Founded, Wonders, Units
-  Killed, Units Lost, and similar.
+- **Growth** — per-turn line charts of yields and rates over time: Science,
+  Culture, Gold, Food, Production, Population, Happiness, Influence, Technologies,
+  Civics, plus derived ratios like Urbanization % and Science per Citizen.
+- **Totals** — cumulative counts over time: Cities, Wonders, Great People, Units
+  Killed / Lost, plus Trade Routes, Great Works, and Urban Districts.
 - **By Type** — grouped bar charts broken down by type, one bar series per
   player: Units Trained / Killed / Lost by unit, Buildings and Districts by type
   (paged when there are many types), plus a per-player **Wonders** board.
+- **Standings** — end-of-game bars comparing every civ at a glance: trade routes,
+  great works, wonders, urban districts, settlements, conquests, and
+  size-normalized ratios (urbanization, science per citizen, trade per city,
+  conquest share).
+- **World** — leaderboards across the whole map: the largest cities, and which
+  religion holds the most settlements.
 
 Every chart includes **all players** — including you (the base game's own chart
 code hides the local player). Empty categories are hidden automatically, and a
-chart only appears for data the current game actually recorded.
+chart only appears for data the current game actually recorded. Colors that would
+be too dark to read on the chart are brightened, and near-identical civ colors are
+nudged apart so every line stays distinct.
 
 This is a **UI-only** mod. It changes no gameplay rules and is flagged so it does
 **not** affect your saved games.
