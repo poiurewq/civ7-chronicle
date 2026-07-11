@@ -48,16 +48,37 @@ This is a **UI-only** mod. It changes no gameplay rules and is flagged so it doe
 
 ## Installation
 
+The easiest way is to **subscribe on the Steam Workshop** — Steam downloads and
+updates the mod for you. Installing manually also works if you'd rather not use the
+Workshop (or you're playing a non-Steam copy).
+
+### Option A — Steam Workshop (recommended)
+
+1. Open the [Chronicle Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3761407790)
+   and click **Subscribe**.
+2. Launch Civ 7 → **Additional Content / Mods** → make sure **Chronicle — Stats &
+   Graphs** is enabled.
+
+Steam keeps it up to date automatically. To uninstall, just **Unsubscribe**.
+
+### Option B — manual install
+
 1. Locate your Civ 7 mods folder:
    - **macOS:** `~/Library/Application Support/Civilization VII/Mods/`
    - **Windows:** `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VII\Mods\`
 2. Copy the entire `ozq-chronicle` folder into that `Mods` folder.
 3. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle — Stats &
    Graphs**.
-4. In-game, open the pause menu (Escape) any turn and click **Chronicle** — or
-   click **Chronicle** on the end-of-game results screen.
 
 To uninstall, disable it in the Mods menu or delete the `ozq-chronicle` folder.
+
+> **Don't do both.** If you subscribe on the Workshop *and* place a copy in `Mods/`,
+> the two share the same mod id and conflict — pick one.
+
+### Using it
+
+In-game, open the pause menu (Escape) any turn and click **Chronicle** — or click
+**Chronicle** on the end-of-game results screen.
 
 ## Compatibility
 
