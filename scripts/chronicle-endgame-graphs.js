@@ -8,294 +8,394 @@ function currentGameSeed() {
   return null;
 }
 
-function currentSetup() {
-  try {
-    const g = Configuration.getGame();
-    if (g && null != g.campaignSetupGUID && String(g.campaignSetupGUID).length) return String(g.campaignSetupGUID);
-  } catch (e) {}
-  return null;
+function resolveGameId() {
+  const setup = function() {
+    try {
+      const g = Configuration.getGame();
+      if (g && null != g.campaignSetupGUID && String(g.campaignSetupGUID).length) return String(g.campaignSetupGUID);
+    } catch (e) {}
+    return null;
+  }(), seed = currentGameSeed(), seedOk = null != seed && "0" !== String(seed);
+  return setup && seedOk ? `${setup}_${seed}` : seedOk ? `seed:${seed}` : setup || null;
 }
 
 function loadLoggerStore() {
-  const seed = currentGameSeed(), readKey = key => {
-    if (!key) return null;
-    try {
-      const raw = localStorage.getItem("chronicle:v1:" + key);
-      if (raw) {
-        const o = JSON.parse(raw);
-        if (o && o.ages) return o;
-      }
-    } catch (e) {}
-    return null;
-  };
-  let store = readKey(function() {
-    const setup = currentSetup(), seed = currentGameSeed(), seedOk = null != seed && "0" !== String(seed);
-    return setup && seedOk ? `${setup}#${seed}` : seedOk ? `seed:${seed}` : setup || null;
-  }());
-  if (store && (null == seed || store.fp && store.fp.seed === seed)) return store;
-  if (null != seed) for (const s of function() {
-    const out = [];
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && 0 === k.indexOf("chronicle:v1:") && "chronicle:v1:current" !== k) try {
-          const o = JSON.parse(localStorage.getItem(k));
-          o && o.ages && out.push({
-            key: k,
-            store: o
-          });
-        } catch (e) {}
-      }
-    } catch (e) {}
-    return out;
-  }()) if (s.store.fp && s.store.fp.seed === seed) return s.store;
-  const setup = currentSetup();
-  if (setup) {
-    const lg = readKey(setup);
-    if (lg && !lg.fp) return lg;
-  }
+  let container = null;
   try {
-    const p = readKey(localStorage.getItem("chronicle:v1:current"));
-    if (p && (null == seed || !p.fp || p.fp.seed === seed)) return p;
+    const raw = localStorage.getItem("!chronicle");
+    raw && (container = JSON.parse(raw));
   } catch (e) {}
+  if (!container || !container.games) return null;
+  const gid = resolveGameId();
+  if (gid && container.games[gid] && container.games[gid].ages) return container.games[gid];
+  const seed = currentGameSeed();
+  if (null != seed) for (const k in container.games) {
+    const g = container.games[k];
+    if (g && g.ages && g.fp && g.fp.seed === seed) return g;
+  }
   return null;
 }
 
-const CATEGORIES = [ "Growth", "Totals", "Settlements", "Economy", "Breakdown", "World" ], METRICS = [ {
+const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", "Construction", "World" ], METRICS = [ {
   id: "Science",
   label: "Science / Turn",
-  category: "Growth",
-  loggerKey: "Science",
-  default: !0
+  category: "Research",
+  default: !0,
+  trend: {
+    loggerKey: "Science",
+    yTitle: "Science / turn",
+    summary: {
+      id: "Science",
+      scope: "Player"
+    }
+  }
+}, {
+  id: "ratioSciPerCitizen",
+  label: "Science / Citizen",
+  category: "Research",
+  trend: {
+    ratioKey: {
+      num: "Science",
+      den: "tpop",
+      scale: 1,
+      dp: 1
+    },
+    yTitle: "Science per citizen / turn"
+  }
 }, {
   id: "TechsAcquired",
   label: "Technologies",
-  category: "Growth",
-  stepped: !0,
-  loggerKey: "TechsAcquired"
+  category: "Research",
+  trend: {
+    loggerKey: "TechsAcquired",
+    stepped: !0,
+    yTitle: "Technologies researched",
+    summary: {
+      id: "TechsAcquired",
+      scope: "Player"
+    }
+  }
 }, {
   id: "Culture",
   label: "Culture / Turn",
-  category: "Growth",
-  loggerKey: "Culture"
+  category: "Research",
+  trend: {
+    loggerKey: "Culture",
+    yTitle: "Culture / turn",
+    summary: {
+      id: "Culture",
+      scope: "Player"
+    }
+  }
+}, {
+  id: "ratioCulPerCitizen",
+  label: "Culture / Citizen",
+  category: "Research",
+  trend: {
+    ratioKey: {
+      num: "Culture",
+      den: "tpop",
+      scale: 1,
+      dp: 1
+    },
+    yTitle: "Culture per citizen / turn"
+  }
 }, {
   id: "CivicsAcquired",
   label: "Civics",
-  category: "Growth",
-  stepped: !0,
-  loggerKey: "CivicsAcquired",
-  loggerOnly: !0
-}, {
-  id: "goldNet",
-  label: "Gold / Turn",
-  category: "Growth",
-  loggerKey: "goldNet",
-  loggerOnly: !0,
-  signed: !0,
-  yTitle: "Net gold / turn"
-}, {
-  id: "Gold",
-  label: "Gold (Treasury)",
-  category: "Growth",
-  loggerKey: "gold"
-}, {
-  id: "Food",
-  label: "Food / Turn",
-  category: "Growth",
-  cityRollup: !0,
-  loggerKey: "Food"
-}, {
-  id: "Population",
-  label: "Population",
-  category: "Growth",
-  cityRollup: !0,
-  loggerKey: "Population"
-}, {
-  id: "hap",
-  label: "Happiness / Turn",
-  category: "Growth",
-  loggerKey: "hap",
-  loggerOnly: !0,
-  signed: !0,
-  yTitle: "Net happiness / turn"
-}, {
-  id: "inf",
-  label: "Influence / Turn",
-  category: "Growth",
-  loggerKey: "inf",
-  loggerOnly: !0,
-  signed: !0,
-  yTitle: "Influence / turn"
-}, {
-  id: "Production",
-  label: "Production / Turn",
-  category: "Growth",
-  cityRollup: !0,
-  loggerKey: "Production"
-}, {
-  id: "Tourism",
-  label: "Tourism / Turn",
-  category: "Growth",
-  cityRollup: !0,
-  loggerKey: "Tourism"
-}, {
-  id: "ratioUrbanTrend",
-  label: "Urbanization %",
-  category: "Growth",
-  loggerOnly: !0,
-  ratioKey: {
-    num: "upop",
-    den: "tpop",
-    scale: 100,
-    dp: 0
-  },
-  yTitle: "% of population urban"
-}, {
-  id: "ratioSciPerCitizenTrend",
-  label: "Science / Citizen",
-  category: "Growth",
-  loggerOnly: !0,
-  ratioKey: {
-    num: "Science",
-    den: "tpop",
-    scale: 1,
-    dp: 1
-  },
-  yTitle: "Science per citizen / turn"
-}, {
-  id: "ratioTradeDepTrend",
-  label: "Trade / Settlement",
-  category: "Growth",
-  loggerOnly: !0,
-  ratioKey: {
-    num: "tr",
-    den: "cit",
-    scale: 1,
-    dp: 2
-  },
-  yTitle: "Trade routes per settlement"
-}, {
-  id: "ratioConquestTrend",
-  label: "Conquest %",
-  category: "Growth",
-  loggerOnly: !0,
-  ratioKey: {
-    num: "conq",
-    den: "set",
-    scale: 100,
-    dp: 0
-  },
-  yTitle: "% of settlements taken by force"
-}, {
-  id: "ratioSettlementCapTrend",
-  label: "Cap Used %",
-  category: "Growth",
-  loggerOnly: !0,
-  ratioKey: {
-    num: "set",
-    den: "cap",
-    scale: 100,
-    dp: 0
-  },
-  yTitle: "% of settlement cap used"
-}, {
-  id: "CitiesTotal",
-  label: "Settlements Total",
-  category: "Totals",
-  loggerKey: "set",
-  loggerOnly: !0,
-  stepped: !0,
-  yTitle: "Settlements owned"
-}, {
-  id: "trendSettlementCap",
-  label: "Settlement Cap",
-  category: "Totals",
-  loggerKey: "cap",
-  loggerOnly: !0,
-  stepped: !0,
-  yTitle: "Settlement cap"
-}, {
-  id: "trendCities",
-  label: "Cities",
-  category: "Totals",
-  loggerKey: "cityN",
-  loggerOnly: !0,
-  stepped: !0,
-  yTitle: "Cities (promoted settlements)"
-}, {
-  id: "trendTowns",
-  label: "Towns",
-  category: "Totals",
-  loggerKey: "townN",
-  loggerOnly: !0,
-  stepped: !0,
-  yTitle: "Towns"
-}, {
-  id: "CitiesFounded",
-  label: "Settlements Founded",
-  category: "Totals",
-  delta: !0,
-  stepped: !0
-}, {
-  id: "CitiesConquered",
-  label: "Settlements Conquered",
-  category: "Totals",
-  delta: !0,
-  stepped: !0,
-  loggerKey: "conq"
-}, {
-  id: "GreatPeopleEarned",
-  label: "Great People",
-  category: "Totals",
-  delta: !0,
-  stepped: !0
-}, {
-  id: "UnitsKilled",
-  label: "Units Killed",
-  category: "Totals",
-  delta: !0,
-  stepped: !0
-}, {
-  id: "UnitsLost",
-  label: "Units Lost",
-  category: "Totals",
-  delta: !0,
-  stepped: !0
-}, {
-  id: "WondersConstructed",
-  label: "Wonders",
-  category: "Totals",
-  delta: !0,
-  stepped: !0,
-  loggerKey: "won"
-}, {
-  id: "trendTrade",
-  label: "Trade Routes",
-  category: "Totals",
-  loggerKey: "tr",
-  loggerOnly: !0,
-  stepped: !0,
-  yTitle: "Active trade routes"
+  category: "Research",
+  trend: {
+    loggerKey: "CivicsAcquired",
+    stepped: !0,
+    yTitle: "Civics researched"
+  }
 }, {
   id: "trendGreatWorks",
   label: "Great Works",
-  category: "Totals",
-  loggerKey: "gw",
-  loggerOnly: !0,
-  stepped: !0,
-  yTitle: "Great works"
+  category: "Research",
+  trend: {
+    loggerKey: "gw",
+    stepped: !0,
+    yTitle: "Great works"
+  }
+}, {
+  id: "goldNet",
+  label: "Gold / Turn",
+  category: "Economy",
+  trend: {
+    loggerKey: "goldNet",
+    signed: !0,
+    yTitle: "Net gold / turn"
+  }
+}, {
+  id: "ratioGoldPerCitizen",
+  label: "Gold / Citizen",
+  category: "Economy",
+  trend: {
+    ratioKey: {
+      num: "goldNet",
+      den: "tpop",
+      scale: 1,
+      dp: 1
+    },
+    signed: !0,
+    yTitle: "Net gold per citizen / turn"
+  }
+}, {
+  id: "Gold",
+  label: "Gold (Treasury)",
+  category: "Economy",
+  trend: {
+    loggerKey: "gold",
+    yTitle: "Treasury",
+    summary: {
+      id: "Gold",
+      scope: "Player"
+    }
+  }
+}, {
+  id: "trendTrade",
+  label: "Trade Routes",
+  category: "Economy",
+  trend: {
+    loggerKey: "tr",
+    stepped: !0,
+    yTitle: "Active trade routes"
+  }
+}, {
+  id: "Production",
+  label: "Production / Turn",
+  category: "Economy",
+  trend: {
+    loggerKey: "Production",
+    yTitle: "Production / turn",
+    summary: {
+      id: "Production",
+      scope: "City"
+    }
+  }
+}, {
+  id: "WondersConstructed",
+  label: "Wonders",
+  category: "Economy",
+  trend: {
+    loggerKey: "won",
+    stepped: !0,
+    yTitle: "Wonders owned",
+    summary: {
+      id: "WondersConstructed",
+      scope: "Player",
+      delta: !0,
+      yTitle: "Wonders built"
+    }
+  }
+}, {
+  id: "gp",
+  label: "Great People",
+  category: "Economy",
+  trend: {
+    loggerKey: "gp",
+    stepped: !0,
+    yTitle: "Great people earned",
+    summary: {
+      id: "GreatPeopleEarned",
+      scope: "Player",
+      delta: !0
+    }
+  }
+}, {
+  id: "Food",
+  label: "Food / Turn",
+  category: "Society",
+  trend: {
+    loggerKey: "Food",
+    yTitle: "Food / turn",
+    summary: {
+      id: "Food",
+      scope: "City"
+    }
+  }
+}, {
+  id: "Population",
+  label: "Population",
+  category: "Society",
+  trend: {
+    loggerKey: "tpop",
+    yTitle: "Population",
+    summary: {
+      id: "Population",
+      scope: "City"
+    }
+  }
+}, {
+  id: "hap",
+  label: "Happiness / Turn",
+  category: "Society",
+  trend: {
+    loggerKey: "hap",
+    signed: !0,
+    yTitle: "Net happiness / turn"
+  }
+}, {
+  id: "inf",
+  label: "Influence / Turn",
+  category: "Society",
+  trend: {
+    loggerKey: "inf",
+    signed: !0,
+    yTitle: "Influence / turn"
+  }
 }, {
   id: "trendUrban",
   label: "Urban Districts",
-  category: "Totals",
-  loggerKey: "urb",
-  loggerOnly: !0,
-  stepped: !0,
-  yTitle: "Urban districts"
+  category: "Society",
+  trend: {
+    loggerKey: "urb",
+    stepped: !0,
+    yTitle: "Urban districts"
+  }
+}, {
+  id: "ratioUrban",
+  label: "Urbanization %",
+  category: "Society",
+  trend: {
+    ratioKey: {
+      num: "upop",
+      den: "tpop",
+      scale: 100,
+      dp: 0
+    },
+    yTitle: "% of population urban"
+  }
+}, {
+  id: "tour",
+  label: "Tourism",
+  category: "Society",
+  trend: {
+    loggerKey: "tour",
+    yTitle: "Tourism / turn",
+    summary: {
+      id: "Tourism",
+      scope: "City"
+    }
+  }
+}, {
+  id: "CitiesTotal",
+  label: "Settlements Total",
+  category: "Expansion",
+  trend: {
+    loggerKey: "set",
+    stepped: !0,
+    yTitle: "Settlements owned",
+    summary: {
+      id: "CitiesFounded",
+      scope: "Player",
+      delta: !0,
+      label: "Settlements Founded",
+      yTitle: "Settlements founded"
+    }
+  }
+}, {
+  id: "trendSettlementCap",
+  label: "Settlement Cap",
+  category: "Expansion",
+  trend: {
+    loggerKey: "cap",
+    stepped: !0,
+    yTitle: "Settlement cap"
+  }
+}, {
+  id: "ratioSettlementCap",
+  label: "Settlement Cap %",
+  category: "Expansion",
+  trend: {
+    ratioKey: {
+      num: "set",
+      den: "cap",
+      scale: 100,
+      dp: 0
+    },
+    yTitle: "% of settlement cap used"
+  }
+}, {
+  id: "trendCities",
+  label: "Cities",
+  category: "Expansion",
+  trend: {
+    loggerKey: "cityN",
+    stepped: !0,
+    yTitle: "Cities (promoted settlements)"
+  }
+}, {
+  id: "trendTowns",
+  label: "Towns",
+  category: "Expansion",
+  trend: {
+    loggerKey: "townN",
+    stepped: !0,
+    yTitle: "Towns"
+  }
+}, {
+  id: "CitiesConquered",
+  label: "Settlements Conquered",
+  category: "Expansion",
+  trend: {
+    loggerKey: "conq",
+    stepped: !0,
+    yTitle: "Settlements conquered",
+    summary: {
+      id: "CitiesConquered",
+      scope: "Player",
+      delta: !0
+    }
+  }
+}, {
+  id: "ratioConquest",
+  label: "Conquest %",
+  category: "Expansion",
+  trend: {
+    ratioKey: {
+      num: "conq",
+      den: "set",
+      scale: 100,
+      dp: 0
+    },
+    yTitle: "% of settlements taken by force"
+  }
+}, {
+  id: "uKill",
+  label: "Units Killed",
+  category: "Military",
+  trend: {
+    loggerKey: "uKill",
+    stepped: !0,
+    includeDead: !0,
+    yTitle: "Units killed",
+    summary: {
+      id: "UnitsKilled",
+      scope: "Player",
+      delta: !0
+    }
+  }
+}, {
+  id: "uLost",
+  label: "Units Lost",
+  category: "Military",
+  trend: {
+    loggerKey: "uLost",
+    stepped: !0,
+    includeDead: !0,
+    yTitle: "Units lost",
+    summary: {
+      id: "UnitsLost",
+      scope: "Player",
+      delta: !0
+    }
+  }
 }, {
   id: "UnitsTrainedByType",
   label: "Units Trained",
-  category: "Breakdown",
+  category: "Military",
   kind: "bar",
   lookup: "Units",
   xTitle: "Unit type",
@@ -303,7 +403,7 @@ const CATEGORIES = [ "Growth", "Totals", "Settlements", "Economy", "Breakdown", 
 }, {
   id: "UnitsKilledByType",
   label: "Kills by Unit",
-  category: "Breakdown",
+  category: "Military",
   kind: "bar",
   lookup: "Units",
   xTitle: "Your unit type",
@@ -311,7 +411,7 @@ const CATEGORIES = [ "Growth", "Totals", "Settlements", "Economy", "Breakdown", 
 }, {
   id: "UnitsLostByType",
   label: "Losses by Unit",
-  category: "Breakdown",
+  category: "Military",
   kind: "bar",
   lookup: "Units",
   xTitle: "Your unit type",
@@ -319,7 +419,7 @@ const CATEGORIES = [ "Growth", "Totals", "Settlements", "Economy", "Breakdown", 
 }, {
   id: "BuildingsBuiltByType",
   label: "Buildings",
-  category: "Breakdown",
+  category: "Construction",
   kind: "bar",
   lookup: "Constructibles",
   xTitle: "Building",
@@ -327,127 +427,17 @@ const CATEGORIES = [ "Growth", "Totals", "Settlements", "Economy", "Breakdown", 
 }, {
   id: "DistrictsBuiltByType",
   label: "Districts",
-  category: "Breakdown",
+  category: "Construction",
   kind: "bar",
   lookup: "Districts",
   xTitle: "District",
   yTitle: "Number built"
 }, {
   id: "WondersBuiltByType",
-  label: "Wonders",
-  category: "Breakdown",
+  label: "Wonders Built",
+  category: "Construction",
   kind: "board",
   lookup: "Constructibles"
-}, {
-  id: "liveSettlements",
-  label: "Settlements",
-  category: "Settlements",
-  kind: "live",
-  compute: () => perCivBar(p => readNum(() => p.Stats.numSettlements), "Settlements")
-}, {
-  id: "liveSettlementCap",
-  label: "Settlement Cap",
-  category: "Settlements",
-  kind: "live",
-  compute: () => perCivBar(p => readNum(() => p.Stats.settlementCap), "Settlement cap")
-}, {
-  id: "liveCities",
-  label: "Cities",
-  category: "Settlements",
-  kind: "live",
-  compute: () => perCivBar(p => readNum(() => p.Stats.numCities), "Cities")
-}, {
-  id: "liveTowns",
-  label: "Towns",
-  category: "Settlements",
-  kind: "live",
-  compute: () => perCivBar(p => readNum(() => p.Stats.numTowns), "Towns")
-}, {
-  id: "liveConquered",
-  label: "Conquered",
-  category: "Settlements",
-  kind: "live",
-  compute: () => perCivBar(p => readNum(() => p.Stats.getNumConqueredSettlements(!0, !0, !0, !1)), "Settlements conquered")
-}, {
-  id: "ratioConquest",
-  label: "Conquest %",
-  category: "Settlements",
-  kind: "live",
-  compute: () => perCivBar(p => {
-    const conq = readNum(() => p.Stats.getNumConqueredSettlements(!0, !0, !0, !1)), set = readNum(() => p.Stats.numSettlements);
-    return null != conq && set > 0 ? Math.round(100 * conq / set) : null;
-  }, "% of settlements taken by force")
-}, {
-  id: "liveUrban",
-  label: "Urban Districts",
-  category: "Settlements",
-  kind: "live",
-  compute: () => perCivBar(urbanDistrictCount, "Urban districts")
-}, {
-  id: "ratioUrban",
-  label: "Urbanization %",
-  category: "Settlements",
-  kind: "live",
-  compute: () => perCivBar(p => {
-    const s = popSplit(p);
-    return s.total > 0 ? Math.round(100 * s.urban / s.total) : null;
-  }, "% of population urban")
-}, {
-  id: "ratioSciPerCitizen",
-  label: "Science / Citizen",
-  category: "Economy",
-  kind: "live",
-  compute: () => perCivBar(p => {
-    const sci = readNum(() => p.Stats.getNetYield(YieldTypes.YIELD_SCIENCE)), pop = popSplit(p).total;
-    return null != sci && pop > 0 ? Math.round(10 * sci / pop) / 10 : null;
-  }, "Science per citizen / turn")
-}, {
-  id: "ratioCulPerCitizen",
-  label: "Culture / Citizen",
-  category: "Economy",
-  kind: "live",
-  compute: () => perCivBar(p => {
-    const cul = readNum(() => p.Stats.getNetYield(YieldTypes.YIELD_CULTURE)), pop = popSplit(p).total;
-    return null != cul && pop > 0 ? Math.round(10 * cul / pop) / 10 : null;
-  }, "Culture per citizen / turn")
-}, {
-  id: "ratioGoldPerCitizen",
-  label: "Gold / Citizen",
-  category: "Economy",
-  kind: "live",
-  compute: () => perCivBar(p => {
-    const gold = readNum(() => p.Stats.getNetYield(YieldTypes.YIELD_GOLD)), pop = popSplit(p).total;
-    return null != gold && pop > 0 ? Math.round(10 * gold / pop) / 10 : null;
-  }, "Gold per citizen / turn")
-}, {
-  id: "liveTradeRoutes",
-  label: "Trade Routes",
-  category: "Economy",
-  kind: "live",
-  compute: () => perCivBar(p => readNum(() => p.Trade.countPlayerTradeRoutes()), "Active trade routes")
-}, {
-  id: "ratioTradeDep",
-  label: "Trade / Settlement",
-  category: "Economy",
-  kind: "live",
-  compute: () => perCivBar(p => {
-    const tr = readNum(() => p.Trade.countPlayerTradeRoutes()), c = function(p) {
-      return playerCities(p).length;
-    }(p);
-    return null != tr && c > 0 ? Math.round(100 * tr / c) / 100 : null;
-  }, "Trade routes per settlement")
-}, {
-  id: "liveGreatWorks",
-  label: "Great Works",
-  category: "Economy",
-  kind: "live",
-  compute: () => perCivBar(p => readNum(() => p.Stats.getTotalGreatWorksSlotted()), "Great works")
-}, {
-  id: "liveWonders",
-  label: "Wonders",
-  category: "Economy",
-  kind: "live",
-  compute: () => perCivBar(p => readNum(() => p.Stats.getNumWonders(!1, !1)), "Wonders owned")
 }, {
   id: "liveLargestCities",
   label: "Largest Settlements",
@@ -552,148 +542,36 @@ const CATEGORIES = [ "Growth", "Totals", "Settlements", "Economy", "Breakdown", 
     };
   }
 }, {
-  id: "liveWorldPopShare",
+  id: "popShare",
   label: "Population Share",
   category: "World",
-  kind: "live",
-  compute: function() {
-    let worldTotal = 0;
-    const perMajor = [];
-    try {
-      for (const p of Players.getAlive()) {
-        if (!p) continue;
-        let tot = 0;
-        for (const c of playerCities(p)) try {
-          null != c.population && (tot += c.population);
-        } catch (e) {}
-        worldTotal += tot, p.isMajor && tot > 0 && perMajor.push({
-          pid: p.id,
-          pop: tot
-        });
-      }
-    } catch (e) {}
-    if (worldTotal <= 0 || !perMajor.length) return {
-      labels: [],
-      data: [],
-      colors: [],
-      indexAxis: "x",
-      valueTitle: "",
-      catTitle: ""
-    };
-    return perMajor.sort((a, b) => b.pop - a.pop), {
-      labels: perMajor.map(r => ownerName({
-        ownerPlayer: r.pid
-      })),
-      data: perMajor.map(r => Math.round(1e3 * r.pop / worldTotal) / 10),
-      colors: perMajor.map(r => ownerColor({
-        ownerPlayer: r.pid
-      })),
-      indexAxis: "x",
-      valueTitle: "% of world population",
-      catTitle: ""
-    };
+  trend: {
+    ratioKey: {
+      num: "tpop",
+      denSum: "tpop",
+      scale: 100,
+      dp: 1
+    },
+    yTitle: "% of major population"
   }
 }, {
-  id: "liveReligion",
+  id: "relSpread",
   label: "Religion Spread",
   category: "World",
-  kind: "live",
-  compute: function() {
-    const relByHash = new Map;
-    try {
-      for (const r of GameInfo.Religions) relByHash.set(r.$hash, r);
-    } catch (e) {}
-    if (!relByHash.size || "undefined" == typeof Game || !Game.Religion) return {
-      labels: [],
-      data: [],
-      colors: [],
-      indexAxis: "x",
-      valueTitle: "",
-      catTitle: ""
-    };
-    const counts = new Map;
-    try {
-      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
-        const rel = c.Religion && c.Religion.majorityReligion;
-        null != rel && relByHash.has(rel) && counts.set(rel, (counts.get(rel) || 0) + 1);
-      } catch (e) {}
-    } catch (e) {}
-    const rows = [];
-    for (const [hash, count] of counts) {
-      const def = relByHash.get(hash);
-      let name = def.Name ? Locale.compose(def.Name) : prettifyType(def.ReligionType), pid = null;
-      try {
-        const f = Game.Religion.getPlayerFromReligion(def.ReligionType);
-        null != f && f >= 0 && (pid = f);
-      } catch (e) {}
-      rows.push({
-        name: name,
-        count: count,
-        pid: pid
-      });
-    }
-    return rows.sort((a, b) => b.count - a.count), {
-      labels: rows.map(r => r.name),
-      data: rows.map(r => r.count),
-      colors: rows.map(r => null != r.pid ? ownerColor({
-        ownerPlayer: r.pid
-      }) : "#B0B0B0"),
-      indexAxis: "x",
-      valueTitle: "Settlements following",
-      catTitle: "Religion"
-    };
+  trend: {
+    religionKey: "s",
+    stepped: !0,
+    yTitle: "Settlements following"
   }
 }, {
-  id: "liveReligionPop",
+  id: "relPop",
   label: "Religion by Population",
   category: "World",
-  kind: "live",
-  compute: function() {
-    const relByHash = new Map;
-    try {
-      for (const r of GameInfo.Religions) relByHash.set(r.$hash, r);
-    } catch (e) {}
-    if (!relByHash.size || "undefined" == typeof Game || !Game.Religion) return {
-      labels: [],
-      data: [],
-      colors: [],
-      indexAxis: "x",
-      valueTitle: "",
-      catTitle: ""
-    };
-    const pops = new Map;
-    try {
-      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
-        const rel = c.Religion && c.Religion.majorityReligion;
-        null != rel && relByHash.has(rel) && null != c.population && pops.set(rel, (pops.get(rel) || 0) + c.population);
-      } catch (e) {}
-    } catch (e) {}
-    const rows = [];
-    for (const [hash, pop] of pops) {
-      const def = relByHash.get(hash);
-      let name = def.Name ? Locale.compose(def.Name) : prettifyType(def.ReligionType), pid = null;
-      try {
-        const f = Game.Religion.getPlayerFromReligion(def.ReligionType);
-        null != f && f >= 0 && (pid = f);
-      } catch (e) {}
-      rows.push({
-        name: name,
-        pop: pop,
-        pid: pid
-      });
-    }
-    return rows.sort((a, b) => b.pop - a.pop), {
-      labels: rows.map(r => r.name),
-      data: rows.map(r => r.pop),
-      colors: rows.map(r => null != r.pid ? ownerColor({
-        ownerPlayer: r.pid
-      }) : "#B0B0B0"),
-      indexAxis: "x",
-      valueTitle: "Population following",
-      catTitle: "Religion"
-    };
+  trend: {
+    religionKey: "p",
+    yTitle: "Population following"
   }
-} ], ALL_DATASET_IDS = [ "Beliefs", "Cities", "CivicsAcquired", "Culture", "Faith", "Followers", "Gold", "Science", "Score", "TechsAcquired", "BuildingsConstructed", "CitiesConquered", "CitiesFounded", "CitiesLost", "Combats", "DistrictsConstructed", "GreatPeopleEarned", "NaturalWondersDiscovered", "NukesLaunched", "UnitsKilled", "UnitsLost", "WarsDeclared", "WarsReceived", "WondersConstructed" ];
+} ];
 
 function ownerName(obj) {
   try {
@@ -749,13 +627,6 @@ function ownerColorSecondary(obj) {
   }
 }
 
-function ageEndTurn() {
-  try {
-    if ("undefined" != typeof Game && null != Game.turn) return Game.turn;
-  } catch (e) {}
-  return 0;
-}
-
 function resolveAgeMeta(ageKey, ageObj) {
   let ci = ageObj && null != ageObj.ci ? ageObj.ci : null, label = ageObj && ageObj.label ? ageObj.label : "";
   if (null == ci || !label) try {
@@ -770,26 +641,442 @@ function resolveAgeMeta(ageKey, ageObj) {
   };
 }
 
-function buildLoggerDatasets(metric) {
-  const valueOf = function(metric) {
-    const r = metric.ratioKey;
-    if (r) {
-      const scale = null != r.scale ? r.scale : 1, dp = null != r.dp ? r.dp : 1, f = Math.pow(10, dp);
-      return v => v && null != v[r.num] && null != v[r.den] && 0 !== v[r.den] ? Math.round(scale * v[r.num] / v[r.den] * f) / f : null;
+function loggerValueOf(metric) {
+  const r = metric.ratioKey;
+  if (r) {
+    const scale = null != r.scale ? r.scale : 1, dp = null != r.dp ? r.dp : 1, f = Math.pow(10, dp);
+    return (v, all) => {
+      if (!v || null == v[r.num]) return null;
+      let den;
+      if (r.denSum) {
+        if (!all) return null;
+        den = 0;
+        for (const pid in all) all[pid] && null != all[pid][r.denSum] && (den += all[pid][r.denSum]);
+      } else den = v[r.den];
+      return null == den || 0 === den ? null : Math.round(scale * v[r.num] / den * f) / f;
+    };
+  }
+  const key = metric.loggerKey;
+  return v => v && null != v[key] ? v[key] : null;
+}
+
+function niceTurnStep(range) {
+  const raw = Math.max(1, range) / 5, pow = Math.max(1, Math.pow(10, Math.floor(Math.log10(raw))));
+  for (const m of [ 1, 2, 5, 10 ]) if (m * pow >= raw) return m * pow;
+  return 10 * pow;
+}
+
+function isFromGameStart(firstCi, firstT, earliestCi) {
+  return null != firstCi && null != earliestCi && firstCi === earliestCi && null != firstT && firstT <= 1;
+}
+
+function trendSource(trend) {
+  if (trend.religionKey) return buildReligionDatasets(trend);
+  const logged = function(metric) {
+    if (metric.religionKey) return buildReligionDatasets(metric);
+    const valueOf = loggerValueOf(metric), empty = {
+      datasets: [],
+      start: 0,
+      end: 0,
+      blocks: [],
+      turnCount: 0,
+      startedLate: !1,
+      firstAgeLabel: "",
+      firstTurn: 0,
+      yTitle: metric.yTitle,
+      label: null,
+      currentAgeOnly: !1,
+      source: "logger"
+    }, store = loadLoggerStore();
+    if (!store || !store.ages || !metric.loggerKey && !metric.ratioKey) return empty;
+    const ages = Object.keys(store.ages).map(k => {
+      const m = resolveAgeMeta(k, store.ages[k]);
+      return {
+        key: k,
+        turns: store.ages[k].turns,
+        ci: m.ci,
+        label: m.label
+      };
+    }).sort((a, b) => a.ci - b.ci), curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0;
+    let cursor = 0;
+    const layout = [], pids = new Set;
+    for (const age of ages) {
+      if (null != curCi && age.ci > curCi) continue;
+      let turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
+      if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
+      !turns.length) continue;
+      const minT = turns[0], maxT = turns[turns.length - 1];
+      layout.push({
+        age: age,
+        turns: turns,
+        minT: minT,
+        offset: cursor
+      }), cursor += maxT - minT + 2;
+      for (const t of turns) {
+        const p = age.turns[t].p || {};
+        for (const pid in p) pids.add(pid);
+      }
     }
-    const key = metric.loggerKey;
-    return v => v && null != v[key] ? v[key] : null;
-  }(metric), empty = {
+    const end = Math.max(0, cursor - 2);
+    let turnCount = 0, firstCi = null, firstT = null;
+    for (const L of layout) for (const t of L.turns) {
+      const p = L.age.turns[t].p || {};
+      let has = !1;
+      for (const pid in p) if (null != valueOf(p[pid], p)) {
+        has = !0;
+        break;
+      }
+      has && (turnCount++, null == firstCi && (firstCi = L.age.ci || 0, firstT = t));
+    }
+    if (turnCount < (isFromGameStart(firstCi, firstT, layout.length ? layout[0].age.ci || 0 : null) ? 2 : 3)) return empty;
+    const datasets = [];
+    for (const pid of pids) {
+      const data = [];
+      for (const L of layout) for (const t of L.turns) {
+        const p = L.age.turns[t].p || {}, y = valueOf(p[pid], p);
+        null != y && data.push({
+          x: L.offset + (t - L.minT),
+          y: y
+        });
+      }
+      if (!data.length) continue;
+      const color = ownerColor({
+        ownerPlayer: Number(pid)
+      });
+      datasets.push({
+        label: ownerName({
+          ownerPlayer: Number(pid)
+        }),
+        pid: Number(pid),
+        data: data,
+        parsing: !1,
+        borderColor: color,
+        backgroundColor: color,
+        pointRadius: 0,
+        stepped: !!metric.stepped,
+        tension: metric.stepped ? 0 : .15
+      });
+    }
+    const first = layout[0], startedLate = !!first && first.minT > 1, blocks = layout.map(L => ({
+      offset: L.offset,
+      minT: L.minT,
+      maxT: L.turns[L.turns.length - 1],
+      label: prettifyType(L.age.label || L.age.key)
+    }));
+    let firstX = null, lastX = null;
+    for (const ds of datasets) {
+      if (!ds.data.length) continue;
+      const a = ds.data[0].x, b = ds.data[ds.data.length - 1].x;
+      (null == firstX || a < firstX) && (firstX = a), (null == lastX || b > lastX) && (lastX = b);
+    }
+    return {
+      datasets: datasets,
+      start: null != firstX ? firstX : 0,
+      end: null != lastX ? lastX : end,
+      blocks: blocks,
+      turnCount: turnCount,
+      startedLate: startedLate,
+      firstAgeLabel: first ? first.age.label || first.age.key : "",
+      firstTurn: first ? first.minT : 0,
+      yTitle: metric.yTitle,
+      label: null,
+      currentAgeOnly: !1,
+      source: "logger"
+    };
+  }(trend), native = function(trend) {
+    const empty = {
+      datasets: [],
+      start: 0,
+      end: 0,
+      blocks: [],
+      turnCount: 0,
+      startedLate: !1,
+      firstAgeLabel: "",
+      firstTurn: 0,
+      yTitle: trend.yTitle,
+      label: null,
+      currentAgeOnly: !0,
+      source: "summary"
+    }, spec = trend.summary;
+    if (!spec || "undefined" == typeof Game || !Game.Summary || "function" != typeof Game.Summary.getDataSets) return empty;
+    let objectMap, sets;
+    try {
+      objectMap = new Map, Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o)), 
+      sets = Game.Summary.getDataSets(spec.id);
+    } catch (e) {
+      return empty;
+    }
+    if (!sets || !sets.length) return empty;
+    const curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0, series = [], turnSet = new Set;
+    for (const ds of sets) {
+      const o = null != ds.owner ? objectMap.get(ds.owner) : null;
+      if (!o || o.type !== spec.scope || null == o.ownerPlayer || !ds.values || !ds.values.length) continue;
+      const points = new Map;
+      for (const pt of ds.values) null == pt.x || null == pt.y || pt.x > curTurn || (points.set(pt.x, pt.y), 
+      turnSet.add(pt.x));
+      points.size && series.push({
+        pid: o.ownerPlayer,
+        points: points
+      });
+    }
+    const turns = Array.from(turnSet).sort((a, b) => a - b);
+    if (!turns.length) return empty;
+    const byPid = new Map;
+    for (const s of series) {
+      const acc = byPid.get(s.pid) || turns.map(() => 0);
+      let running = 0, last = null;
+      turns.forEach((t, i) => {
+        spec.delta ? (running += s.points.get(t) || 0, acc[i] += running) : (s.points.has(t) && (last = s.points.get(t)), 
+        null != last && (acc[i] += last));
+      }), byPid.set(s.pid, acc);
+    }
+    if (!byPid.size) return empty;
+    const minT = turns[0], maxT = turns[turns.length - 1], datasets = [];
+    for (const [pid, vals] of byPid) {
+      const owner = {
+        ownerPlayer: Number(pid)
+      }, color = ownerColor(owner);
+      datasets.push({
+        label: ownerName(owner),
+        pid: Number(pid),
+        data: turns.map((t, i) => ({
+          x: t - minT,
+          y: vals[i]
+        })),
+        parsing: !1,
+        borderColor: color,
+        backgroundColor: color,
+        pointRadius: 0,
+        stepped: !!trend.stepped,
+        tension: trend.stepped ? 0 : .15
+      });
+    }
+    const ageLabel = prettifyType(resolveAgeMeta("undefined" != typeof Game && null != Game.age ? String(Game.age) : "", null).label);
+    return {
+      datasets: datasets,
+      start: 0,
+      end: maxT - minT,
+      blocks: [ {
+        offset: 0,
+        minT: minT,
+        maxT: maxT,
+        label: ageLabel
+      } ],
+      turnCount: turns.length,
+      startedLate: !1,
+      firstAgeLabel: ageLabel,
+      firstTurn: minT,
+      yTitle: spec.yTitle || trend.yTitle,
+      label: spec.label || null,
+      currentAgeOnly: !0,
+      source: "summary"
+    };
+  }(trend);
+  return logged.turnCount >= native.turnCount ? logged : native;
+}
+
+function canDrawLine(src) {
+  return src.turnCount >= 2;
+}
+
+function sourceLabel(src) {
+  return "summary" === src.source ? "Native log" : "Chronicle log";
+}
+
+function metricLabel(metric) {
+  if (!metric.trend) return metric.label;
+  try {
+    return trendSource(metric.trend).label || metric.label;
+  } catch (e) {
+    return metric.label;
+  }
+}
+
+function isPlayerAlive(pid) {
+  try {
+    return !!Players.isAlive(Number(pid));
+  } catch (e) {
+    return !1;
+  }
+}
+
+function buildStandings(trend) {
+  if (trend.religionKey) return function(trend) {
+    const key = trend.religionKey, empty = {
+      labels: [],
+      data: [],
+      colors: [],
+      indexAxis: "x",
+      valueTitle: trend.yTitle || "",
+      catTitle: "Religion",
+      signed: !1
+    };
+    if (!key) return empty;
+    const rel = function() {
+      const store = loadLoggerStore();
+      if (!store || !store.ages) return null;
+      const curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0, ages = Object.keys(store.ages).map(k => {
+        const m = resolveAgeMeta(k, store.ages[k]);
+        return {
+          turns: store.ages[k].turns,
+          ci: m.ci
+        };
+      }).filter(a => null == curCi || a.ci <= curCi).sort((a, b) => b.ci - a.ci);
+      for (const age of ages) {
+        let turns = Object.keys(age.turns || {}).map(Number);
+        if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
+        !turns.length) continue;
+        const maxT = turns.reduce((a, b) => b > a ? b : a, turns[0]), row = age.turns[maxT];
+        if (row && row.rel && Object.keys(row.rel).length) return row.rel;
+      }
+      return null;
+    }();
+    if (!rel) return empty;
+    const rows = [];
+    for (const h in rel) {
+      const y = rel[h] && rel[h][key];
+      if (null == y) continue;
+      const meta = religionMeta(h);
+      rows.push({
+        label: meta.name,
+        value: y,
+        color: meta.color
+      });
+    }
+    if (rows.sort((a, b) => b.value - a.value), !rows.length) return empty;
+    return {
+      labels: rows.map(r => r.label),
+      data: rows.map(r => r.value),
+      colors: rows.map(r => r.color),
+      indexAxis: "x",
+      valueTitle: trend.yTitle || "",
+      catTitle: "Religion",
+      signed: !1
+    };
+  }(trend);
+  const src = trendSource(trend), includeDead = !!trend.includeDead, rows = [];
+  if ("summary" === src.source && src.turnCount > 0) for (const ds of src.datasets) ds.data.length && (includeDead || isPlayerAlive(ds.pid)) && rows.push({
+    label: ds.label,
+    value: ds.data[ds.data.length - 1].y,
+    color: ds.borderColor
+  }); else if (includeDead) for (const [pid, y] of function(trend) {
+    const out = new Map, store = loadLoggerStore();
+    if (!store || !store.ages) return out;
+    const valueOf = loggerValueOf(trend), curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0, ages = Object.keys(store.ages).map(k => {
+      const m = resolveAgeMeta(k, store.ages[k]);
+      return {
+        turns: store.ages[k].turns,
+        ci: m.ci
+      };
+    }).filter(a => null == curCi || a.ci <= curCi).sort((a, b) => a.ci - b.ci);
+    for (const age of ages) {
+      let turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
+      null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn));
+      for (const t of turns) {
+        const p = age.turns[t].p || {};
+        for (const pid in p) {
+          const y = valueOf(p[pid], p);
+          null != y && out.set(Number(pid), y);
+        }
+      }
+    }
+    return out;
+  }(trend)) {
+    const owner = {
+      ownerPlayer: pid
+    };
+    rows.push({
+      label: ownerName(owner),
+      value: y,
+      color: ownerColor(owner)
+    });
+  } else {
+    const row = function() {
+      const store = loadLoggerStore();
+      if (!store || !store.ages) return null;
+      const curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0, ages = Object.keys(store.ages).map(k => {
+        const m = resolveAgeMeta(k, store.ages[k]);
+        return {
+          turns: store.ages[k].turns,
+          ci: m.ci
+        };
+      }).filter(a => null == curCi || a.ci <= curCi).sort((a, b) => b.ci - a.ci);
+      for (const age of ages) {
+        let turns = Object.keys(age.turns || {}).map(Number);
+        if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
+        !turns.length) continue;
+        const maxT = turns.reduce((a, b) => b > a ? b : a, turns[0]);
+        return age.turns[maxT].p || {};
+      }
+      return null;
+    }(), valueOf = loggerValueOf(trend);
+    if (row) for (const pid in row) {
+      if (!isPlayerAlive(pid)) continue;
+      const y = valueOf(row[pid], row);
+      if (null == y) continue;
+      const owner = {
+        ownerPlayer: Number(pid)
+      };
+      rows.push({
+        label: ownerName(owner),
+        value: y,
+        color: ownerColor(owner)
+      });
+    }
+  }
+  return rows.sort((a, b) => b.value - a.value), {
+    labels: rows.map(r => r.label),
+    data: rows.map(r => r.value),
+    colors: rows.map(r => r.color),
+    indexAxis: "x",
+    valueTitle: src.yTitle || trend.yTitle || "",
+    catTitle: "",
+    signed: !!trend.signed
+  };
+}
+
+function religionMeta(hash) {
+  const n = Number(hash);
+  let name = `Religion ${hash}`, pid = null;
+  try {
+    if ("undefined" != typeof GameInfo && GameInfo.Religions) for (const r of GameInfo.Religions) if (r.$hash === n || String(r.$hash) === String(hash)) {
+      name = r.Name ? Locale.compose(r.Name) : prettifyType(r.ReligionType);
+      try {
+        if ("undefined" != typeof Game && Game.Religion && "function" == typeof Game.Religion.getPlayerFromReligion) {
+          const f = Game.Religion.getPlayerFromReligion(r.ReligionType);
+          null != f && f >= 0 && (pid = f);
+        }
+      } catch (e) {}
+      break;
+    }
+  } catch (e) {}
+  return {
+    name: name,
+    pid: pid,
+    color: null != pid ? ownerColor({
+      ownerPlayer: pid
+    }) : "#B0B0B0"
+  };
+}
+
+function buildReligionDatasets(metric) {
+  const empty = {
     datasets: [],
     start: 0,
     end: 0,
-    boundaries: [],
+    blocks: [],
     turnCount: 0,
     startedLate: !1,
     firstAgeLabel: "",
-    firstTurn: 0
-  }, store = loadLoggerStore();
-  if (!store || !store.ages || !metric.loggerKey && !metric.ratioKey) return empty;
+    firstTurn: 0,
+    yTitle: metric.yTitle,
+    label: null,
+    currentAgeOnly: !1,
+    source: "logger"
+  }, key = metric.religionKey;
+  if (!key) return empty;
+  const store = loadLoggerStore();
+  if (!store || !store.ages) return empty;
   const ages = Object.keys(store.ages).map(k => {
     const m = resolveAgeMeta(k, store.ages[k]);
     return {
@@ -798,84 +1085,97 @@ function buildLoggerDatasets(metric) {
       ci: m.ci,
       label: m.label
     };
-  }).sort((a, b) => a.ci - b.ci), curCi = function() {
-    try {
-      if ("undefined" != typeof Game && null != Game.age) return resolveAgeMeta(String(Game.age), null).ci;
-    } catch (e) {}
-    return null;
-  }(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0;
+  }).sort((a, b) => a.ci - b.ci), curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0;
   let cursor = 0;
-  const boundaries = [], layout = [], pids = new Set;
+  const layout = [], hashes = new Set;
   for (const age of ages) {
     if (null != curCi && age.ci > curCi) continue;
     let turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
     if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
     !turns.length) continue;
     const minT = turns[0], maxT = turns[turns.length - 1];
-    boundaries.push({
-      x: cursor,
-      label: prettifyType(age.label || age.key)
-    }), layout.push({
+    layout.push({
       age: age,
       turns: turns,
       minT: minT,
       offset: cursor
     }), cursor += maxT - minT + 2;
     for (const t of turns) {
-      const p = age.turns[t].p || {};
-      for (const pid in p) pids.add(pid);
+      const rel = age.turns[t] && age.turns[t].rel;
+      if (rel) for (const h in rel) rel[h] && null != rel[h][key] && hashes.add(h);
     }
   }
   const end = Math.max(0, cursor - 2);
-  let turnCount = 0;
+  let turnCount = 0, firstCi = null, firstT = null;
   for (const L of layout) for (const t of L.turns) {
-    const p = L.age.turns[t].p || {};
+    const rel = L.age.turns[t] && L.age.turns[t].rel;
+    if (!rel) continue;
     let has = !1;
-    for (const pid in p) if (null != valueOf(p[pid])) {
+    for (const h in rel) if (rel[h] && null != rel[h][key]) {
       has = !0;
       break;
     }
-    has && turnCount++;
+    has && (turnCount++, null == firstCi && (firstCi = L.age.ci || 0, firstT = t));
   }
-  if (turnCount <= 1) return empty;
+  if (turnCount < (isFromGameStart(firstCi, firstT, layout.length ? layout[0].age.ci || 0 : null) ? 2 : 3)) return empty;
+  if (!hashes.size) return empty;
   const datasets = [];
-  for (const pid of pids) {
+  for (const h of hashes) {
     const data = [];
+    let seen = !1;
     for (const L of layout) for (const t of L.turns) {
-      const y = valueOf((L.age.turns[t].p || {})[pid]);
-      null != y && data.push({
+      const rel = L.age.turns[t] && L.age.turns[t].rel, raw = rel && rel[h] && null != rel[h][key] ? rel[h][key] : null;
+      null != raw && (seen = !0), seen && data.push({
         x: L.offset + (t - L.minT),
-        y: y
+        y: null != raw ? raw : 0
       });
     }
     if (!data.length) continue;
-    const color = ownerColor({
-      ownerPlayer: Number(pid)
-    });
+    const meta = religionMeta(h);
     datasets.push({
-      label: ownerName({
-        ownerPlayer: Number(pid)
-      }),
+      label: meta.name,
       data: data,
       parsing: !1,
-      borderColor: color,
-      backgroundColor: color,
+      borderColor: meta.color,
+      backgroundColor: meta.color,
       pointRadius: 0,
       stepped: !!metric.stepped,
       tension: metric.stepped ? 0 : .15
     });
   }
-  const first = layout[0];
+  const first = layout[0], startedLate = !!first && first.minT > 1, blocks = layout.map(L => ({
+    offset: L.offset,
+    minT: L.minT,
+    maxT: L.turns[L.turns.length - 1],
+    label: prettifyType(L.age.label || L.age.key)
+  }));
+  let firstX = null, lastX = null;
+  for (const ds of datasets) {
+    if (!ds.data.length) continue;
+    const a = ds.data[0].x, b = ds.data[ds.data.length - 1].x;
+    (null == firstX || a < firstX) && (firstX = a), (null == lastX || b > lastX) && (lastX = b);
+  }
   return {
     datasets: datasets,
-    start: 0,
-    end: end,
-    boundaries: boundaries,
+    start: null != firstX ? firstX : 0,
+    end: null != lastX ? lastX : end,
+    blocks: blocks,
     turnCount: turnCount,
-    startedLate: !!first && ((first.age.ci || 0) > 0 || first.minT > 1),
+    startedLate: startedLate,
     firstAgeLabel: first ? first.age.label || first.age.key : "",
-    firstTurn: first ? first.minT : 0
+    firstTurn: first ? first.minT : 0,
+    yTitle: metric.yTitle,
+    label: null,
+    currentAgeOnly: !1,
+    source: "logger"
   };
+}
+
+function currentAgeCi() {
+  try {
+    if ("undefined" != typeof Game && null != Game.age) return resolveAgeMeta(String(Game.age), null).ci;
+  } catch (e) {}
+  return null;
 }
 
 function prettifyType(type) {
@@ -883,11 +1183,47 @@ function prettifyType(type) {
 }
 
 function resolveTypeName(table, type) {
+  if (null == type || "" === String(type).trim()) return "Unknown";
   try {
     const def = GameInfo[table] && GameInfo[table].lookup(type);
-    if (def && def.Name) return Locale.compose(def.Name);
+    if (def && def.Name) {
+      const name = Locale.compose(def.Name);
+      if (name && name.trim()) return name;
+    }
   } catch (e) {}
-  return prettifyType(type);
+  const pretty = prettifyType(type);
+  return pretty && pretty.trim() ? pretty : String(type).trim();
+}
+
+function pastAgeByType(dpId) {
+  const out = {
+    rows: [],
+    labels: []
+  }, store = loadLoggerStore();
+  if (!store || !store.ages) return out;
+  const curCi = currentAgeCi(), ages = Object.keys(store.ages).map(k => {
+    const m = resolveAgeMeta(k, store.ages[k]);
+    return {
+      obj: store.ages[k],
+      ci: m.ci,
+      label: m.label
+    };
+  }).filter(a => null != curCi && a.ci < curCi).sort((a, b) => a.ci - b.ci);
+  for (const a of ages) {
+    const bt = a.obj.bt && a.obj.bt[dpId];
+    if (!bt) continue;
+    let any = !1;
+    for (const pid in bt) for (const type in bt[pid]) {
+      const v = bt[pid][type];
+      null != v && (out.rows.push({
+        pid: Number(pid),
+        type: type,
+        val: v
+      }), any = !0);
+    }
+    any && out.labels.push(prettifyType(a.label));
+  }
+  return out;
 }
 
 function readByTypeData(metric) {
@@ -899,16 +1235,42 @@ function readByTypeData(metric) {
   try {
     dps = Game.Summary.getDataPoints();
   } catch (e) {}
-  const rows = [], rawTypes = new Set;
+  const rows = [], rawTypes = new Set, cur = new Map;
   for (const dp of dps) {
-    if (dp.ID !== metric.id || !dp.value || null == dp.value.numeric || null == dp.type) continue;
+    if (dp.ID !== metric.id || !dp.value || null == dp.value.numeric) continue;
+    if (null == dp.type || "" === String(dp.type).trim()) continue;
     const owner = null != dp.owner ? objectMap.get(dp.owner) : null, pid = owner ? owner.ownerPlayer : null;
-    null != pid && validPlayers.has(pid) && (rows.push({
-      pid: pid,
-      type: dp.type,
-      val: dp.value.numeric
-    }), rawTypes.add(dp.type));
+    null != pid && validPlayers.has(pid) && cur.set(`${pid}|${dp.type}`, dp.value.numeric);
   }
+  for (const r of function(dpId) {
+    const out = [], store = loadLoggerStore();
+    if (!store || !store.ages) return out;
+    const curCi = currentAgeCi();
+    for (const k of Object.keys(store.ages)) {
+      const meta = resolveAgeMeta(k, store.ages[k]);
+      if (null == curCi || meta.ci !== curCi) continue;
+      const bt = store.ages[k].bt && store.ages[k].bt[dpId];
+      if (bt) for (const pid in bt) for (const type in bt[pid]) null != bt[pid][type] && out.push({
+        pid: Number(pid),
+        type: type,
+        val: bt[pid][type]
+      });
+    }
+    return out;
+  }(metric.id)) {
+    const k = `${r.pid}|${r.type}`;
+    r.val > (cur.get(k) || 0) && cur.set(k, r.val);
+  }
+  for (const [k, val] of cur) {
+    const sep = k.indexOf("|"), type = k.slice(sep + 1);
+    rows.push({
+      pid: Number(k.slice(0, sep)),
+      type: type,
+      val: val
+    }), rawTypes.add(type);
+  }
+  const past = pastAgeByType(metric.id);
+  for (const r of past.rows) rows.push(r), rawTypes.add(r.type);
   const canon = function(types, table) {
     const stripNum = id => {
       const tk = String(id).split("_");
@@ -938,6 +1300,11 @@ function readByTypeData(metric) {
     players: players,
     typeTotal: typeTotal
   };
+}
+
+function byTypeNote(metric) {
+  const past = pastAgeByType(metric.id).labels, here = prettifyType(resolveAgeMeta(String("undefined" != typeof Game ? Game.age : ""), null).label);
+  return past.length ? `Current standings · ${past.concat([ here ]).join(" + ")}` : `Current standings · ${here} only`;
 }
 
 function buildBarChart(metric, page) {
@@ -982,67 +1349,11 @@ function buildBarChart(metric, page) {
   };
 }
 
-function readNum(fn) {
-  try {
-    const v = fn();
-    return null == v || isNaN(v) ? null : v;
-  } catch (e) {
-    return null;
-  }
-}
-
 function playerCities(p) {
   try {
     if (p && p.Cities && "function" == typeof p.Cities.getCities) return p.Cities.getCities() || [];
   } catch (e) {}
   return [];
-}
-
-function urbanDistrictCount(p) {
-  if ("undefined" == typeof DistrictTypes) return null;
-  let n = 0, any = !1;
-  for (const c of playerCities(p)) try {
-    c.Districts && "function" == typeof c.Districts.getIdsOfType && (n += c.Districts.getIdsOfType(DistrictTypes.URBAN).length, 
-    any = !0);
-  } catch (e) {}
-  return any ? n : null;
-}
-
-function popSplit(p) {
-  let urban = 0, total = 0;
-  for (const c of playerCities(p)) try {
-    null != c.urbanPopulation && (urban += c.urbanPopulation), null != c.population && (total += c.population);
-  } catch (e) {}
-  return {
-    urban: urban,
-    total: total
-  };
-}
-
-function perCivBar(valueFn, valueTitle) {
-  const labels = [], data = [], colors = [];
-  for (const p of function() {
-    const out = [];
-    try {
-      for (const p of Players.getAlive()) p && p.isMajor && out.push(p);
-    } catch (e) {}
-    return out;
-  }()) {
-    const v = valueFn(p);
-    null == v || isNaN(v) || (labels.push(ownerName({
-      ownerPlayer: p.id
-    })), data.push(v), colors.push(ownerColor({
-      ownerPlayer: p.id
-    })));
-  }
-  return {
-    labels: labels,
-    data: data,
-    colors: colors,
-    indexAxis: "x",
-    valueTitle: valueTitle,
-    catTitle: ""
-  };
 }
 
 function cityName(c) {
@@ -1191,11 +1502,11 @@ function disambiguate(rgb, placed) {
 
 let colorMapCache = null;
 
-let activeChart = null;
+let activeChart = null, legendHintShown = !1;
 
-function renderChart(ui, metric, page) {
+function renderChart(ui, metric, view, page) {
   if ("board" === metric.kind) return activeChart && (activeChart.destroy(), activeChart = null), 
-  setNote(ui, ""), ui.chartInner.style.display = "none", ui.board.style.display = "block", 
+  setNote(ui, byTypeNote(metric)), ui.chartInner.style.display = "none", ui.board.style.display = "block", 
   void function(container, metric) {
     const {perPlayer: perPlayer, players: players} = readByTypeData(metric);
     if (container.textContent = "", !players.length) return container.textContent = `No data recorded for ${metric.label} this Age.`, 
@@ -1224,7 +1535,7 @@ function renderChart(ui, metric, page) {
     container.appendChild(row);
   }(ui.board, metric);
   if (ui.board.style.display = "none", ui.chartInner.style.display = "block", "undefined" == typeof Chart) return void console.error(`${LOG} Chart.js global not available.`);
-  if (!ui.chartInner.clientWidth || !ui.chartInner.clientHeight) return void requestAnimationFrame(() => renderChart(ui, metric, page));
+  if (!ui.chartInner.clientWidth || !ui.chartInner.clientHeight) return void requestAnimationFrame(() => renderChart(ui, metric, view, page));
   activeChart && (activeChart.destroy(), activeChart = null);
   const plugins = {
     legend: {
@@ -1239,9 +1550,9 @@ function renderChart(ui, metric, page) {
   };
   let config;
   if ("bar" === metric.kind) {
-    setNote(ui, "");
+    setNote(ui, byTypeNote(metric));
     const {labels: labels, datasets: datasets} = buildBarChart(metric, page), hasData = datasets.length > 0 && labels.length > 0;
-    if (setNoData(ui.canvas, hasData ? "" : `No data recorded for ${metric.label} this Age.`), 
+    if (setNoData(ui.canvas, hasData ? "" : `No data recorded for ${metricLabel(metric)}.`), 
     !hasData) return;
     config = {
       type: "bar",
@@ -1279,10 +1590,12 @@ function renderChart(ui, metric, page) {
         }
       }
     };
-  } else if ("live" === metric.kind) {
-    setNote(ui, "Current standings, whole game");
-    const res = metric.compute(), hasData = res && res.data && res.data.length > 0;
-    if (setNoData(ui.canvas, hasData ? "" : `No data available for ${metric.label}.`), 
+  } else if ("live" === metric.kind || "stand" === view) {
+    const isLive = "live" === metric.kind, stand = [ "Current standings" ];
+    !isLive && metric.trend && stand.unshift(sourceLabel(trendSource(metric.trend))), 
+    setNote(ui, stand.join("  ·  "));
+    const res = isLive ? metric.compute() : buildStandings(metric.trend), hasData = res && res.data && res.data.length > 0;
+    if (setNoData(ui.canvas, hasData ? "" : `No data available for ${metricLabel(metric)}.`), 
     !hasData) return;
     const horiz = "y" === res.indexAxis, catAxis = {
       type: "category",
@@ -1295,7 +1608,7 @@ function renderChart(ui, metric, page) {
       }
     }, valAxis = {
       type: "linear",
-      min: 0,
+      min: res.signed ? void 0 : 0,
       title: axisTitle(res.valueTitle),
       ticks: {
         color: AXIS_TICK
@@ -1338,118 +1651,43 @@ function renderChart(ui, metric, page) {
       }
     };
   } else {
-    const logged = metric.loggerKey || metric.ratioKey ? buildLoggerDatasets(metric) : null, loggedTurns = logged ? logged.turnCount : 0;
-    let native = null, nativeTurns = 0;
-    metric.loggerOnly || (native = metric.cityRollup ? function(metric) {
-      const objectMap = new Map;
-      Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o));
-      const validPlayers = new Set;
-      for (const o of objectMap.values()) "Player" === o.type && validPlayers.add(o.ownerPlayer);
-      const perPlayerCities = new Map;
-      let start = 1 / 0, end = ageEndTurn();
-      for (const ds of Game.Summary.getDataSets(metric.id)) {
-        const o = null != ds.owner ? objectMap.get(ds.owner) : null;
-        if (!o || "City" !== o.type || null == o.ownerPlayer || !validPlayers.has(o.ownerPlayer)) continue;
-        if (!ds.values || !ds.values.length) continue;
-        const vals = ds.values.map(p => ({
-          x: p.x,
-          y: p.y
-        }));
-        start = Math.min(start, vals[0].x), end = Math.max(end, vals[vals.length - 1].x), 
-        perPlayerCities.has(o.ownerPlayer) || perPlayerCities.set(o.ownerPlayer, []), perPlayerCities.get(o.ownerPlayer).push(vals);
-      }
-      isFinite(start) || (start = 0);
-      const datasets = [];
-      for (const [pid, cities] of perPlayerCities) {
-        const pStart = cities.reduce((mn, c) => Math.min(mn, c[0].x), 1 / 0), idx = cities.map(() => 0), cur = cities.map(() => 0), data = [];
-        for (let t = pStart; t <= end; t++) {
-          let sum = 0;
-          for (let c = 0; c < cities.length; c++) {
-            const v = cities[c];
-            for (;idx[c] < v.length && v[idx[c]].x <= t; ) cur[c] = v[idx[c]].y, idx[c]++;
-            sum += cur[c];
-          }
-          data.push({
-            x: t,
-            y: sum
+    const trend = metric.trend, src = trendSource(trend);
+    if (!canDrawLine(src)) return setNote(ui, ""), void setNoData(ui.canvas, `No ${metricLabel(metric)} recorded yet (tracked only while Chronicle is enabled).`);
+    {
+      const {datasets: datasets, start: start, end: end} = src;
+      setNoData(ui.canvas, "");
+      const scope = src.currentAgeOnly ? `${prettifyType(src.firstAgeLabel)} only` : src.startedLate ? `Tracked since ${prettifyType(src.firstAgeLabel)} turn ${src.firstTurn}` : "", provenance = [ sourceLabel(src), scope ].filter(Boolean).join("  ·  ");
+      let hint = "";
+      !legendHintShown && datasets.length > 1 && (hint = "Click a civ in the legend to toggle it", 
+      legendHintShown = !0), setNote(ui, [ provenance, hint ].filter(Boolean).join("  ·  "));
+      const turnLabel = x => {
+        for (const b of src.blocks) {
+          const bEndX = b.offset + (b.maxT - b.minT);
+          if (x >= b.offset && x <= bEndX) return `${b.label} turn ${b.minT + (x - b.offset)}`;
+        }
+        return `Turn ${x}`;
+      }, dp = trend.ratioKey ? trend.ratioKey.dp : null, fmtVal = y => null != dp ? Number(y).toFixed(dp) : Number.isInteger(y) ? String(y) : Number(y).toFixed(1), tk = function(blocks, start, end) {
+        const values = [], labels = new Map;
+        for (const b of blocks) {
+          const bEndX = b.offset + (b.maxT - b.minT);
+          if (bEndX < start || b.offset > end) continue;
+          const lo = b.minT + (Math.max(start, b.offset) - b.offset), hi = b.minT + (Math.min(end, bEndX) - b.offset), step = niceTurnStep(hi - lo), turns = new Set([ lo, hi ]);
+          for (let t = Math.ceil(lo / step) * step; t < hi; t += step) t > lo && turns.add(t);
+          Array.from(turns).sort((a, z) => a - z).forEach((t, i) => {
+            const x = b.offset + (t - b.minT);
+            values.push(x);
+            const tl = String(Math.round(t));
+            labels.set(x, 0 === i ? [ b.label, tl ] : tl);
           });
         }
-        const color = ownerColor({
-          ownerPlayer: pid
-        });
-        datasets.push({
-          label: ownerName({
-            ownerPlayer: pid
-          }),
-          data: data,
-          parsing: !1,
-          borderColor: color,
-          backgroundColor: color,
-          pointRadius: 0,
-          tension: .15
-        });
-      }
-      return {
-        datasets: datasets,
-        start: start,
-        end: end
-      };
-    }(metric) : function(metric) {
-      const objectMap = new Map;
-      Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o));
-      const dataSets = Game.Summary.getDataSets(metric.id);
-      let start = 1 / 0, end = ageEndTurn();
-      const series = [];
-      for (const ds of dataSets) {
-        const owner = null != ds.owner ? objectMap.get(ds.owner) : null;
-        if (!owner || "Player" !== owner.type) continue;
-        let values = ds.values.map(pt => ({
-          x: pt.x,
-          y: pt.y
-        }));
-        if (metric.delta) {
-          let sum = 0;
-          values = values.map(pt => (sum += pt.y, {
-            x: pt.x,
-            y: sum
-          }));
-        }
-        values.length && (start = Math.min(start, values[0].x), end = Math.max(end, values[values.length - 1].x)), 
-        series.push({
-          owner: owner,
-          values: values
-        });
-      }
-      isFinite(start) || (start = 0);
-      const datasets = [];
-      for (const s of series) {
-        const v = s.values;
-        if (!v.length) continue;
-        v[v.length - 1].x < end && v.push({
-          x: end,
-          y: v[v.length - 1].y
-        });
-        const color = ownerColor(s.owner);
-        datasets.push({
-          label: ownerName(s.owner),
-          data: v,
-          parsing: !1,
-          borderColor: color,
-          backgroundColor: color,
-          pointRadius: 0,
-          stepped: !!metric.stepped,
-          tension: metric.stepped ? 0 : .15
-        });
-      }
-      return {
-        datasets: datasets,
-        start: start,
-        end: end
-      };
-    }(metric), nativeTurns = native.datasets.reduce((mx, d) => Math.max(mx, d.data.length), 0));
-    if (loggedTurns > 0 && loggedTurns >= nativeTurns) {
-      const {datasets: datasets, start: start, end: end, boundaries: boundaries} = logged;
-      setNoData(ui.canvas, ""), setNote(ui, logged.startedLate ? `Tracked since ${prettifyType(logged.firstAgeLabel)} turn ${logged.firstTurn} — Chronicle was enabled mid-game` : "");
+        return {
+          values: values,
+          labelAt: x => {
+            const v = labels.get(x);
+            return null != v ? v : "";
+          }
+        };
+      }(src.blocks, start, end);
       config = {
         type: "line",
         data: {
@@ -1459,25 +1697,47 @@ function renderChart(ui, metric, page) {
           maintainAspectRatio: !1,
           animation: !1,
           color: "#E8E2D0",
-          plugins: plugins,
+          interaction: {
+            mode: "nearest",
+            intersect: !0
+          },
+          elements: {
+            point: {
+              hitRadius: 30
+            }
+          },
+          plugins: {
+            ...plugins,
+            tooltip: {
+              mode: "nearest",
+              intersect: !0,
+              backgroundColor: "rgba(6,7,10,0.92)",
+              borderColor: "rgba(232,226,208,0.25)",
+              borderWidth: 1,
+              titleColor: "#F5EFDD",
+              bodyColor: "#E8E2D0",
+              padding: 10,
+              callbacks: {
+                title: items => items && items.length ? turnLabel(items[0].raw.x) : "",
+                label: item => `${item.dataset.label}: ${fmtVal(item.raw.y)}`
+              }
+            }
+          },
           scales: {
             x: {
               type: "linear",
               min: start,
               max: end > start ? end : void 0,
               afterBuildTicks: axis => {
-                axis.ticks = boundaries.map(b => ({
-                  value: b.x
+                axis.ticks = tk.values.map(v => ({
+                  value: v
                 }));
               },
               ticks: {
                 color: AXIS_TICK,
                 autoSkip: !1,
                 maxRotation: 0,
-                callback: v => {
-                  const b = boundaries.find(bd => Math.abs(bd.x - v) < .5);
-                  return b ? b.label : "";
-                }
+                callback: v => tk.labelAt(v)
               },
               grid: {
                 color: "#4A4034"
@@ -1485,8 +1745,8 @@ function renderChart(ui, metric, page) {
             },
             y: {
               type: "linear",
-              min: metric.signed ? void 0 : 0,
-              title: axisTitle(metric.yTitle),
+              min: trend.signed ? void 0 : 0,
+              title: axisTitle(src.yTitle),
               ticks: {
                 color: AXIS_TICK
               },
@@ -1497,65 +1757,6 @@ function renderChart(ui, metric, page) {
           }
         }
       };
-    } else {
-      if (metric.loggerOnly) return setNote(ui, ""), void setNoData(ui.canvas, `No ${metric.label} recorded yet (tracked only while Chronicle is enabled).`);
-      {
-        const {datasets: datasets, start: start, end: end} = native, hasData = datasets.some(d => d.data.length > 0);
-        if (setNoData(ui.canvas, hasData ? "" : `No data recorded for ${metric.label} this Age.`), 
-        setNote(ui, hasData ? `Current Age only (${function() {
-          try {
-            return prettifyType(resolveAgeMeta(String(Game.age), null).label);
-          } catch (e) {
-            return "";
-          }
-        }()})` + (function() {
-          try {
-            const cur = resolveAgeMeta(String(Game.age), null).ci;
-            let min = cur;
-            for (const a of GameInfo.Ages) a.ChronologyIndex < min && (min = a.ChronologyIndex);
-            return cur > min;
-          } catch (e) {
-            return !1;
-          }
-        }() ? " — enable Chronicle earlier for cross-Age history" : "") : ""), !hasData) return;
-        config = {
-          type: "line",
-          data: {
-            datasets: datasets
-          },
-          options: {
-            maintainAspectRatio: !1,
-            animation: !1,
-            color: "#E8E2D0",
-            plugins: plugins,
-            scales: {
-              x: {
-                type: "linear",
-                min: start,
-                max: end > start ? end : void 0,
-                title: axisTitle("Turn"),
-                ticks: {
-                  color: AXIS_TICK
-                },
-                grid: {
-                  color: "#4A4034"
-                }
-              },
-              y: {
-                type: "linear",
-                min: 0,
-                title: axisTitle(metric.yTitle),
-                ticks: {
-                  color: AXIS_TICK
-                },
-                grid: {
-                  color: "#4A4034"
-                }
-              }
-            }
-          }
-        };
-      }
     }
   }
   activeChart = new Chart(ui.canvas.getContext("2d"), config), requestAnimationFrame(() => {
@@ -1595,12 +1796,37 @@ function highlightButton(button, active) {
   label && (label.style.color = active ? "#FFD98A" : "#E8E2D0"), button.style.opacity = active ? "1" : "0.72";
 }
 
+const CANCEL_ACTIONS = [ "cancel", "keyboard-escape", "mousebutton-right", "sys-menu" ], chronicleInputHandler = {
+  handleInput(e) {
+    const d = e && e.detail || {};
+    return !document.getElementById(OVERLAY_ID) || (!d.name || CANCEL_ACTIONS.indexOf(d.name) < 0 || (DEBUG_INPUT && console.error(`${LOG} INPUT cm-handler name=${d.name} status=${d.status} finish=${isPressFinished(e)} — consumed`), 
+    isPressFinished(e) && closeOverlay(), !1));
+  },
+  handleNavigation: () => !0
+};
+
+function isPressFinished(e) {
+  return !("engine-input" !== e.type || !e.detail) && ("undefined" == typeof InputActionStatuses || e.detail.status === InputActionStatuses.FINISH);
+}
+
+const DEBUG_INPUT = !1;
+
+function probeInput(where, e) {
+  if (!DEBUG_INPUT) return;
+  if (!document.getElementById(OVERLAY_ID)) return;
+  const d = e.detail || {};
+  console.error(`${LOG} INPUT ${where} type=${e.type} name=${d.name} status=${d.status} phase=${e.eventPhase} cancel=${function(e) {
+    return "engine-input" === e.type ? !!e.detail && CANCEL_ACTIONS.indexOf(e.detail.name) >= 0 : "Escape" === e.key || 27 === e.keyCode;
+  }(e)}`);
+}
+
 function closeOverlay() {
   activeChart && (activeChart.destroy(), activeChart = null), document.getElementById(OVERLAY_ID)?.remove();
 }
 
 function openOverlay() {
   if (document.getElementById(OVERLAY_ID)) return;
+  legendHintShown = !1;
   const root = document.createElement("div");
   root.id = OVERLAY_ID;
   const backdrop = document.createElement("div");
@@ -1621,6 +1847,43 @@ function openOverlay() {
   titleCol.appendChild(note), header.appendChild(titleCol), header.appendChild(makeNativeButton("Close", closeOverlay, {
     extraClass: ""
   })), panel.appendChild(header);
+  const trendAvailable = m => {
+    try {
+      return canDrawLine(trendSource(m.trend));
+    } catch (e) {
+      return !1;
+    }
+  }, standAvailable = m => {
+    try {
+      const r = buildStandings(m.trend);
+      return !!(r && r.data && r.data.length);
+    } catch (e) {
+      return !1;
+    }
+  }, dataPointIds = function() {
+    const withData = new Set;
+    let dps = [];
+    try {
+      dps = Game.Summary.getDataPoints();
+    } catch (e) {}
+    for (const dp of dps) dp.value && null != dp.value.numeric && withData.add(dp.ID);
+    for (const m of METRICS) "bar" !== m.kind && "board" !== m.kind || withData.has(m.id) || pastAgeByType(m.id).rows.length && withData.add(m.id);
+    return withData;
+  }(), metrics = METRICS.filter(m => {
+    if ("live" === m.kind) try {
+      const r = m.compute();
+      return !!(r && r.data && r.data.length);
+    } catch (e) {
+      return !1;
+    }
+    return "bar" === m.kind || "board" === m.kind ? dataPointIds.has(m.id) : standAvailable(m) || trendAvailable(m);
+  }), catList = CATEGORIES.filter(c => metrics.some(m => m.category === c));
+  if (!catList.length) {
+    const empty = document.createElement("div");
+    return empty.textContent = "No stats recorded yet. Chronicle logs each turn while it is enabled.", 
+    empty.setAttribute("style", "flex:1 1 auto;display:flex;align-items:center;justify-content:center;color:#C9BFA6;font-size:1.15rem;text-align:center;padding:2rem"), 
+    panel.appendChild(empty), void document.body.appendChild(root);
+  }
   const categoryBar = document.createElement("div");
   categoryBar.setAttribute("style", "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0"), 
   panel.appendChild(categoryBar);
@@ -1637,68 +1900,24 @@ function openOverlay() {
   const board = document.createElement("div");
   board.setAttribute("style", "position:relative;width:100%;height:100%;overflow:auto;display:none"), 
   chartWrap.appendChild(board), panel.appendChild(chartWrap);
+  const viewBar = document.createElement("div");
+  viewBar.setAttribute("style", "display:flex;gap:8px;justify-content:center;margin-top:12px;flex-shrink:0"), 
+  panel.appendChild(viewBar);
   const pageBar = document.createElement("div");
   pageBar.setAttribute("style", "display:flex;gap:12px;align-items:center;justify-content:center;margin-top:10px;flex-shrink:0"), 
   panel.appendChild(pageBar);
-  const datasetIds = function() {
-    const objectMap = new Map;
-    try {
-      Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o));
-    } catch (e) {}
-    const withData = new Set;
-    for (const id of ALL_DATASET_IDS) try {
-      for (const ds of Game.Summary.getDataSets(id)) {
-        const o = null != ds.owner ? objectMap.get(ds.owner) : null;
-        if (o && "Player" === o.type && ds.values && ds.values.length) {
-          withData.add(id);
-          break;
-        }
-      }
-    } catch (e) {}
-    return withData;
-  }(), dataPointIds = function() {
-    const withData = new Set;
-    let dps = [];
-    try {
-      dps = Game.Summary.getDataPoints();
-    } catch (e) {}
-    for (const dp of dps) dp.value && null != dp.value.numeric && withData.add(dp.ID);
-    return withData;
-  }(), cityIds = function(ids) {
-    const objectMap = new Map;
-    try {
-      Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o));
-    } catch (e) {}
-    const withData = new Set;
-    for (const id of ids) try {
-      for (const ds of Game.Summary.getDataSets(id)) {
-        const o = null != ds.owner ? objectMap.get(ds.owner) : null;
-        if (o && "City" === o.type && ds.values && ds.values.length) {
-          withData.add(id);
-          break;
-        }
-      }
-    } catch (e) {}
-    return withData;
-  }(METRICS.filter(m => m.cityRollup).map(m => m.id)), metrics = METRICS.filter(m => {
-    if ("live" === m.kind) try {
-      const r = m.compute();
-      return !!(r && r.data && r.data.length);
-    } catch (e) {
-      return !1;
-    }
-    if (m.loggerOnly) return buildLoggerDatasets(m).turnCount > 0;
-    if ("bar" === m.kind || "board" === m.kind) return dataPointIds.has(m.id);
-    return (m.cityRollup ? cityIds.has(m.id) : datasetIds.has(m.id)) || m.loggerKey && buildLoggerDatasets(m).turnCount > 0;
-  }), catList = CATEGORIES.filter(c => metrics.some(m => m.category === c)), ui = {
+  const ui = {
     canvas: canvas,
     chartInner: chartInner,
     board: board,
     note: note
-  }, chartButtons = [];
-  let curMetric = null, curPage = 0;
+  }, chartButtons = [], viewButtons = {
+    trend: null,
+    stand: null
+  };
+  let curMetric = null, curView = "trend", curPage = 0;
   const renderPage = () => {
-    renderChart(ui, curMetric, curPage), pageBar.textContent = "";
+    renderChart(ui, curMetric, curView, curPage), pageBar.textContent = "";
     const pages = "bar" === curMetric.kind ? function(metric) {
       const {typeTotal: typeTotal} = readByTypeData(metric);
       return Math.max(1, Math.ceil(typeTotal.size / 12));
@@ -1717,15 +1936,39 @@ function openOverlay() {
     const label = document.createElement("div");
     label.textContent = `Page ${curPage + 1} / ${pages}`, label.setAttribute("style", "color:#E8E2D0;font-size:0.9rem;min-width:6rem;text-align:center"), 
     pageBar.appendChild(prev), pageBar.appendChild(label), pageBar.appendChild(next);
+  }, setView = v => {
+    const btn = viewButtons[v];
+    if (!btn || !1 !== btn._avail) {
+      curView = v;
+      for (const key of [ "trend", "stand" ]) {
+        const b = viewButtons[key];
+        if (!b) continue;
+        const active = key === v, label = b.querySelector(".ozq-btn-label");
+        label && (label.style.color = active ? "#FFD98A" : "#E8E2D0"), b.style.opacity = active ? "1" : b._avail ? "0.72" : "0.4", 
+        b.style.cursor = b._avail ? "pointer" : "default";
+      }
+      curPage = 0, renderPage();
+    }
   }, selectChart = (inCat, index) => {
     chartButtons.forEach((b, i) => highlightButton(b, i === index)), curMetric = inCat[index], 
-    curPage = 0, renderPage();
+    setView((metric => {
+      if (viewBar.textContent = "", viewButtons.trend = viewButtons.stand = null, "live" === metric.kind || "bar" === metric.kind || "board" === metric.kind) return viewBar.style.display = "none", 
+      "stand";
+      viewBar.style.display = "flex";
+      const tAvail = trendAvailable(metric), sAvail = standAvailable(metric);
+      return viewButtons.trend = makeNativeButton("Trends", () => setView("trend"), {
+        secondary: !0
+      }), viewButtons.stand = makeNativeButton("Standings", () => setView("stand"), {
+        secondary: !0
+      }), viewButtons.trend._avail = tAvail, viewButtons.stand._avail = sAvail, viewBar.appendChild(viewButtons.trend), 
+      viewBar.appendChild(viewButtons.stand), tAvail ? "trend" : "stand";
+    })(curMetric));
   }, selectCategory = (catIndex, preferId) => {
     [ ...categoryBar.children ].forEach((b, i) => highlightButton(b, i === catIndex)), 
     chartBar.textContent = "", chartButtons.length = 0;
     const inCat = metrics.filter(m => m.category === catList[catIndex]);
     if (inCat.forEach((metric, i) => {
-      const b = makeNativeButton(metric.label, () => selectChart(inCat, i), {
+      const b = makeNativeButton(metricLabel(metric), () => selectChart(inCat, i), {
         secondary: !0
       });
       chartButtons.push(b), chartBar.appendChild(b);
@@ -1738,7 +1981,7 @@ function openOverlay() {
     categoryBar.appendChild(makeNativeButton(cat, () => selectCategory(i), {}));
   }), document.body.appendChild(root);
   const def = metrics.find(m => m.default) || metrics[0], defCat = def ? Math.max(0, catList.indexOf(def.category)) : 0;
-  catList.length && requestAnimationFrame(() => selectCategory(defCat, def && def.id));
+  requestAnimationFrame(() => selectCategory(defCat, def && def.id));
 }
 
 function injectButton(screen) {
@@ -1791,7 +2034,34 @@ function install() {
   }).observe(document.body, {
     childList: !0,
     subtree: !0
-  }), console.error(`${LOG} loaded.`);
+  }), function() {
+    try {
+      import("/core/ui/context-manager/context-manager.js").then(m => {
+        const cm = m && m.default;
+        if (!cm || "function" != typeof cm.registerEngineInputHandler) return void console.error(`${LOG} ContextManager has no input-handler API — Escape will not close the overlay.`);
+        cm.registerEngineInputHandler(chronicleInputHandler);
+        const arr = cm.engineInputEventHandlers;
+        if (Array.isArray(arr)) {
+          const i = arr.indexOf(chronicleInputHandler);
+          i > 0 && (arr.splice(i, 1), arr.unshift(chronicleInputHandler));
+        }
+        console.error(`${LOG} input handler installed (first of ${Array.isArray(arr) ? arr.length : "?"}).`);
+      }).catch(e => {
+        console.error(`${LOG} ContextManager import failed (${e && e.message}) — Escape will not close the overlay.`);
+      });
+    } catch (e) {
+      console.error(`${LOG} ContextManager import threw (${e && e.message}).`);
+    }
+  }(), function() {
+    if (DEBUG_INPUT) for (const ev of [ "keydown", "engine-input" ]) {
+      try {
+        window.addEventListener(ev, e => probeInput("win-capture", e), !0);
+      } catch (e) {}
+      try {
+        document.addEventListener(ev, e => probeInput("doc-capture", e), !0);
+      } catch (e) {}
+    }
+  }(), console.error(`${LOG} loaded.`);
 }
 
 !function scheduleInstall() {
