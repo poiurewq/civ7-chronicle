@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Mod id="ozq-chronicle" version="1" xmlns="ModInfo">
     <Properties>
-        <Name>Chronicle - Stats &amp; Graphs</Name>
+        <Name>Chronicle - Stats, Graphs &amp; Hall of Fame</Name>
         <Description>Per-turn graphs and standings for every civ that the base game tracks but never shows. UI only; no gameplay or save changes.</Description>
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.29.3</Version>
+        <Version>0.30.53</Version>
     </Properties>
 
     <Dependencies>
@@ -31,6 +31,18 @@
                 <UIScripts>
                     <Item>scripts/chronicle-endgame-graphs.js</Item>
                     <Item>scripts/chronicle-logger.js</Item>
+                    <Item>scripts/chronicle-hof.js</Item>
+                </UIScripts>
+            </Actions>
+        </ActionGroup>
+        <ActionGroup id="ozq-chronicle-shell" scope="shell" criteria="always">
+            <Properties>
+                <LoadOrder>1700</LoadOrder>
+            </Properties>
+            <Actions>
+                <UIScripts>
+                    <Item>scripts/chronicle-endgame-graphs.js</Item>
+                    <Item>scripts/chronicle-hof.js</Item>
                 </UIScripts>
             </Actions>
         </ActionGroup>

@@ -1,4 +1,4 @@
-# Chronicle — Stats & Graphs
+# Chronicle — Stats, Graphs & Hall of Fame
 
 A quality-of-life UI mod for **Sid Meier's Civilization VII** that adds a proper
 statistics screen — per-turn graphs and breakdowns for every player.
@@ -12,16 +12,21 @@ Adds a **Chronicle** button in two places — the **pause menu** (openable on an
 turn) and the **end-of-game results screen** — that opens a full-screen overlay
 of charts.
 
+A **Hall of Fame** screen is also available from the **Main Menu** and from the
+Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record,
+per-leader and per-civilization stats, game history, and high-score / fastest-finish
+boards, with per-game trend graphs from the Chronicle log.
+
 ### Two views of most stats
 
 Most stats have a **Trends** line (how it moved turn by turn) and a **Standings** bar
 (where every civ ranks right now). Toggle between them under the chart — it's the same
 data shown two ways, so the two can never disagree.
 
-The by-type breakdowns (Military and Construction) and a few World settlement
-leaderboards are snapshots of the current standings, so they have a single view and
-no toggle. Population Share and the two religion charts have full Trends ⇄ Standings
-like everything else.
+The by-type breakdowns (Military units, plus Buildings / Districts / Wonders under
+World) and a few World settlement leaderboards are snapshots of the current
+standings, so they have a single view and no toggle. Population Share and the two
+religion charts have full Trends ⇄ Standings like everything else.
 
 ### Categories
 
@@ -34,11 +39,12 @@ like everything else.
 - **Expansion** — Settlements, Settlement Cap, Cities vs Towns, and conquests.
 - **Military** — Units Killed and Units Lost over time, plus Units Trained and kills
   and losses broken down by unit type.
-- **Construction** — Buildings and Districts by type (paged when there are many),
-  plus a per-player board of every Wonder each civ built.
-- **World** — whole-map views: largest settlements, most urbanized, and settlement sizes
-  (live snapshots), plus Population Share, Religion Spread, and Religion by Population
-  as Trends ⇄ Standings over time.
+- **Overall** — Score and the four victory-path point totals (Cultural, Economic,
+  Military, Scientific).
+- **World** — Buildings and Districts by type (paged when there are many), a
+  per-player board of every Wonder each civ built, then whole-map settlement
+  leaderboards/histograms (live snapshots), plus Population Share, Religion Spread,
+  and Religion by Population as Trends ⇄ Standings over time.
 
 ### Details
 
@@ -84,7 +90,7 @@ because the game counts what you *founded*, not what you currently *hold*.
 - **Cross-Age history exists only for the Ages you played with Chronicle enabled.** Enable it
   before starting a game to get the whole story; the game itself can only fill in the Age
   you're currently in.
-- The **by-type breakdowns** (Military and Construction: units, buildings, districts,
+- The **by-type breakdowns** (Military units, plus World buildings, districts,
   wonders) span every Age that Chronicle was running for — the game itself keeps only the
   current one, so Chronicle banks each Age's tally as it ends. The caption under each
   breakdown names the Ages it covers, so you always know what you are looking at.

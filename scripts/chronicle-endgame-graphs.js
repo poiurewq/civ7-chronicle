@@ -1,4 +1,10 @@
-const LOG = "[ozq-chronicle]", OVERLAY_ID = "ozq-chronicle-graphs-overlay";
+const PANEL_BOX = [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 36px", "overflow-x:hidden", "overflow-y:hidden" ].join(";"), OVERLAY_ID = "ozq-chronicle-graphs-overlay";
+
+let viewMode = null;
+
+function isHistoricalView() {
+  return !(!viewMode || !viewMode.store);
+}
 
 function currentGameSeed() {
   try {
@@ -20,6 +26,7 @@ function resolveGameId() {
 }
 
 function loadLoggerStore() {
+  if (viewMode && viewMode.store) return viewMode.store;
   let container = null;
   try {
     const raw = localStorage.getItem("!chronicle");
@@ -36,7 +43,58 @@ function loadLoggerStore() {
   return null;
 }
 
-const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", "Construction", "World" ], METRICS = [ {
+function bracketCiTurn() {
+  if (isHistoricalView()) return {
+    curCi: null,
+    curTurn: 1 / 0
+  };
+  return {
+    curCi: currentAgeCi(),
+    curTurn: "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0
+  };
+}
+
+const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", "Overall", "World" ], METRICS = [ {
+  id: "score",
+  label: "Score",
+  category: "Overall",
+  trend: {
+    loggerKey: "score",
+    yTitle: "Score"
+  }
+}, {
+  id: "vCul",
+  label: "Cultural",
+  category: "Overall",
+  trend: {
+    loggerKey: "vCul",
+    yTitle: "Cultural victory points"
+  }
+}, {
+  id: "vEco",
+  label: "Economic",
+  category: "Overall",
+  trend: {
+    loggerKey: "vEco",
+    yTitle: "Economic victory points"
+  }
+}, {
+  id: "vMil",
+  label: "Military",
+  category: "Overall",
+  trend: {
+    loggerKey: "vMil",
+    yTitle: "Military victory points"
+  }
+}, {
+  id: "vSci",
+  label: "Scientific",
+  category: "Overall",
+  trend: {
+    loggerKey: "vSci",
+    yTitle: "Scientific victory points"
+  }
+}, {
   id: "Science",
   label: "Science / Turn",
   category: "Research",
@@ -419,7 +477,7 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
 }, {
   id: "BuildingsBuiltByType",
   label: "Buildings",
-  category: "Construction",
+  category: "World",
   kind: "bar",
   lookup: "Constructibles",
   xTitle: "Building",
@@ -427,7 +485,7 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
 }, {
   id: "DistrictsBuiltByType",
   label: "Districts",
-  category: "Construction",
+  category: "World",
   kind: "bar",
   lookup: "Districts",
   xTitle: "District",
@@ -435,7 +493,7 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
 }, {
   id: "WondersBuiltByType",
   label: "Wonders Built",
-  category: "Construction",
+  category: "World",
   kind: "board",
   lookup: "Constructibles"
 }, {
@@ -444,16 +502,7 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   category: "World",
   kind: "live",
   compute: function() {
-    const rows = [];
-    try {
-      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
-        null != c.population && rows.push({
-          name: cityName(c),
-          pop: c.population,
-          pid: p.id
-        });
-      } catch (e) {}
-    } catch (e) {}
+    const rows = settlementRowsForCharts().slice();
     rows.sort((a, b) => b.pop - a.pop);
     const top = rows.slice(0, 15);
     return {
@@ -474,17 +523,14 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   kind: "live",
   compute: function() {
     const rows = [];
-    try {
-      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
-        const tot = c.population, urb = c.urbanPopulation;
-        if (null == tot || null == urb || isNaN(tot) || isNaN(urb) || tot < MIN_URBAN_POP) continue;
-        rows.push({
-          name: cityName(c),
-          pct: Math.round(100 * urb / tot),
-          pid: p.id
-        });
-      } catch (e) {}
-    } catch (e) {}
+    for (const r of settlementRowsForCharts()) {
+      const tot = r.pop, urb = r.urb;
+      null == tot || null == urb || isNaN(tot) || isNaN(urb) || tot < MIN_URBAN_POP || rows.push({
+        name: r.name,
+        pct: Math.round(100 * urb / tot),
+        pid: r.pid
+      });
+    }
     rows.sort((a, b) => b.pct - a.pct);
     const top = rows.slice(0, 15);
     if (!top.length) return {
@@ -514,16 +560,13 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   compute: function() {
     const counts = SIZE_BUCKETS.map(() => 0);
     let any = !1;
-    try {
-      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
-        const pop = c.population;
-        if (null == pop || isNaN(pop)) continue;
-        for (let i = 0; i < SIZE_BUCKETS.length; i++) if (pop >= SIZE_BUCKETS[i][0] && pop <= SIZE_BUCKETS[i][1]) {
-          counts[i]++, any = !0;
-          break;
-        }
-      } catch (e) {}
-    } catch (e) {}
+    for (const r of settlementRowsForCharts()) {
+      const pop = r.pop;
+      if (null != pop && !isNaN(pop)) for (let i = 0; i < SIZE_BUCKETS.length; i++) if (pop >= SIZE_BUCKETS[i][0] && pop <= SIZE_BUCKETS[i][1]) {
+        counts[i]++, any = !0;
+        break;
+      }
+    }
     if (!any) return {
       labels: [],
       data: [],
@@ -573,12 +616,50 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   }
 } ];
 
+const LEADER_PERSONA_NAMES = {
+  LEADER_NAPOLEON_ALT: "Napoleon, Revolutionary",
+  LEADER_ASHOKA_ALT: "Ashoka, World Conqueror",
+  LEADER_HIMIKO_ALT: "Himiko, High Shaman",
+  LEADER_FRIEDRICH_ALT: "Friedrich, Baroque",
+  LEADER_XERXES_ALT: "Xerxes, the Achaemenid"
+};
+
+function isResolvedLoc(n, key) {
+  if (null == n) return !1;
+  const s = String(n).trim();
+  return !!s && ((null == key || s !== String(key)) && !/^LOC_[A-Z0-9_]+$/i.test(s));
+}
+
 function ownerName(obj) {
+  const pid = obj && obj.ownerPlayer;
+  if (isHistoricalView() && viewMode.store && viewMode.store.meta && viewMode.store.meta.players) {
+    const rec = viewMode.store.meta.players[pid] || viewMode.store.meta.players[String(pid)];
+    if (rec && rec.leader) return function(type) {
+      if (null == type || "" === type) return null;
+      const t = String(type);
+      try {
+        if ("undefined" != typeof GameInfo && GameInfo.Leaders) {
+          const def = GameInfo.Leaders.lookup(t);
+          if (def && def.Name) {
+            const n = Locale.compose(def.Name);
+            if (isResolvedLoc(n, def.Name)) return n;
+          }
+        }
+      } catch (e) {}
+      try {
+        if ("undefined" != typeof Locale && "function" == typeof Locale.compose) {
+          const key = "LOC_" + t + "_NAME", n = Locale.compose(key);
+          if (isResolvedLoc(n, key)) return n;
+        }
+      } catch (e) {}
+      return LEADER_PERSONA_NAMES[t] ? LEADER_PERSONA_NAMES[t] : prettifyType(t);
+    }(rec.leader);
+  }
   try {
-    const p = Players.get(obj.ownerPlayer);
+    const p = Players.get(pid);
     if (p && p.leaderName) return Locale.compose(p.leaderName);
   } catch (e) {}
-  return `Player ${obj.ownerPlayer}`;
+  return `Player ${pid}`;
 }
 
 function ownerColor(obj) {
@@ -588,15 +669,44 @@ function ownerColor(obj) {
       if (colorMapCache) return colorMapCache;
       const map = new Map, placed = [];
       let pids = [];
-      try {
+      if (isHistoricalView() && viewMode.store && viewMode.store.ages) {
+        const seen = new Set;
+        for (const k in viewMode.store.ages) {
+          const turns = viewMode.store.ages[k].turns || {};
+          for (const t in turns) {
+            const p = turns[t].p || {};
+            for (const pid in p) seen.add(Number(pid));
+          }
+        }
+        try {
+          const f = viewMode.store.relFounders;
+          if (f) for (const k in f) {
+            const n = Number(f[k]);
+            Number.isFinite(n) && seen.add(n);
+          }
+        } catch (e) {}
+        try {
+          const ss = viewMode.store.ss;
+          if (ss) for (const r of ss) if (r && null != r.o) {
+            const n = Number(r.o);
+            Number.isFinite(n) && seen.add(n);
+          }
+        } catch (e) {}
+        pids = [ ...seen ];
+      } else if (isLiveGameContext()) try {
         pids = Players.getAlive().filter(p => p).map(p => p.id);
       } catch (e) {}
       pids.sort((a, b) => a - b);
+      let pi = 0;
       for (const pid of pids) {
         let raw = "#B0B0B0";
-        try {
+        if (isHistoricalView() || !isLiveGameContext()) {
+          const banked = bankedPrimaryColor(pid);
+          raw = banked || HIST_PALETTE[pi % HIST_PALETTE.length];
+        } else try {
           raw = UI.Player.getPrimaryColorValueAsString(pid);
         } catch (e) {}
+        pi++;
         const rgb = parseColor(raw);
         if (!rgb) {
           map.set(pid, raw);
@@ -620,8 +730,13 @@ function ownerColor(obj) {
 }
 
 function ownerColorSecondary(obj) {
+  const pid = obj && obj.ownerPlayer;
+  if (isHistoricalView() && viewMode.store && viewMode.store.meta && viewMode.store.meta.players) {
+    const rec = viewMode.store.meta.players[pid] || viewMode.store.meta.players[String(pid)];
+    if (rec && rec.sec) return rec.sec;
+  }
   try {
-    return UI.Player.getSecondaryColorValueAsString(obj.ownerPlayer);
+    return UI.Player.getSecondaryColorValueAsString(pid);
   } catch (e) {
     return "#FFFFFF";
   }
@@ -660,10 +775,28 @@ function loggerValueOf(metric) {
   return v => v && null != v[key] ? v[key] : null;
 }
 
-function niceTurnStep(range) {
-  const raw = Math.max(1, range) / 5, pow = Math.max(1, Math.pow(10, Math.floor(Math.log10(raw))));
-  for (const m of [ 1, 2, 5, 10 ]) if (m * pow >= raw) return m * pow;
-  return 10 * pow;
+function turnAxisTicks(blocks, start, end) {
+  const values = [], labels = new Map, visible = blocks.filter(b => b.offset + (b.maxT - b.minT) >= start && b.offset <= end);
+  return visible.forEach((b, bi) => {
+    const bEndX = b.offset + (b.maxT - b.minT), lo = b.minT + (Math.max(start, b.offset) - b.offset), hi = b.minT + (Math.min(end, bEndX) - b.offset), step = function(range) {
+      const raw = Math.max(1, range) / 5, pow = Math.max(1, Math.pow(10, Math.floor(Math.log10(raw))));
+      for (const m of [ 1, 2, 5, 10 ]) if (m * pow >= raw) return m * pow;
+      return 10 * pow;
+    }(hi - lo), turns = new Set(bi === visible.length - 1 ? [ lo, hi ] : [ lo ]);
+    for (let t = Math.ceil(lo / step) * step; t < hi; t += step) t > lo && turns.add(t);
+    Array.from(turns).sort((a, z) => a - z).forEach((t, i) => {
+      const x = b.offset + (t - b.minT);
+      values.push(x);
+      const tl = String(Math.round(t));
+      labels.set(x, 0 === i ? [ b.label, tl ] : tl);
+    });
+  }), {
+    values: values,
+    labelAt: x => {
+      const v = labels.get(x);
+      return null != v ? v : "";
+    }
+  };
 }
 
 function isFromGameStart(firstCi, firstT, earliestCi) {
@@ -697,7 +830,7 @@ function trendSource(trend) {
         ci: m.ci,
         label: m.label
       };
-    }).sort((a, b) => a.ci - b.ci), curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0;
+    }).sort((a, b) => a.ci - b.ci), {curCi: curCi, curTurn: curTurn} = bracketCiTurn();
     let cursor = 0;
     const layout = [], pids = new Set;
     for (const age of ages) {
@@ -783,7 +916,9 @@ function trendSource(trend) {
       currentAgeOnly: !1,
       source: "logger"
     };
-  }(trend), native = function(trend) {
+  }(trend);
+  if (isHistoricalView()) return logged;
+  const native = function(trend) {
     const empty = {
       datasets: [],
       start: 0,
@@ -893,6 +1028,7 @@ function metricLabel(metric) {
 }
 
 function isPlayerAlive(pid) {
+  if (isHistoricalView()) return !0;
   try {
     return !!Players.isAlive(Number(pid));
   } catch (e) {
@@ -915,7 +1051,7 @@ function buildStandings(trend) {
     const rel = function() {
       const store = loadLoggerStore();
       if (!store || !store.ages) return null;
-      const curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0, ages = Object.keys(store.ages).map(k => {
+      const {curCi: curCi, curTurn: curTurn} = bracketCiTurn(), ages = Object.keys(store.ages).map(k => {
         const m = resolveAgeMeta(k, store.ages[k]);
         return {
           turns: store.ages[k].turns,
@@ -962,7 +1098,7 @@ function buildStandings(trend) {
   }); else if (includeDead) for (const [pid, y] of function(trend) {
     const out = new Map, store = loadLoggerStore();
     if (!store || !store.ages) return out;
-    const valueOf = loggerValueOf(trend), curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0, ages = Object.keys(store.ages).map(k => {
+    const valueOf = loggerValueOf(trend), {curCi: curCi, curTurn: curTurn} = bracketCiTurn(), ages = Object.keys(store.ages).map(k => {
       const m = resolveAgeMeta(k, store.ages[k]);
       return {
         turns: store.ages[k].turns,
@@ -994,7 +1130,7 @@ function buildStandings(trend) {
     const row = function() {
       const store = loadLoggerStore();
       if (!store || !store.ages) return null;
-      const curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0, ages = Object.keys(store.ages).map(k => {
+      const {curCi: curCi, curTurn: curTurn} = bracketCiTurn(), ages = Object.keys(store.ages).map(k => {
         const m = resolveAgeMeta(k, store.ages[k]);
         return {
           turns: store.ages[k].turns,
@@ -1035,19 +1171,162 @@ function buildStandings(trend) {
   };
 }
 
-function religionMeta(hash) {
-  const n = Number(hash);
-  let name = `Religion ${hash}`, pid = null;
+const BASE_RELIGION_TYPES = [ "RELIGION_BUDDHISM", "RELIGION_CATHOLICISM", "RELIGION_CONFUCIANISM", "RELIGION_HINDUISM", "RELIGION_ISLAM", "RELIGION_JUDAISM", "RELIGION_ORTHODOXY", "RELIGION_PROTESTANTISM", "RELIGION_SHINTO", "RELIGION_SIKHISM", "RELIGION_TAOISM", "RELIGION_ZOROASTRIANISM", "RELIGION_CUSTOM_1", "RELIGION_CUSTOM_2", "RELIGION_CUSTOM_3", "RELIGION_CUSTOM_4", "RELIGION_CUSTOM_5", "RELIGION_CUSTOM_6", "RELIGION_CUSTOM_7", "RELIGION_CUSTOM_8", "RELIGION_CUSTOM_9", "RELIGION_CUSTOM_10", "RELIGION_CUSTOM_11", "RELIGION_CUSTOM_12" ];
+
+function hash32Eq(a, b) {
+  if (null == a || null == b) return !1;
+  if (a === b || String(a) === String(b)) return !0;
+  const na = Number(a), nb = Number(b);
+  return !(!Number.isFinite(na) || !Number.isFinite(nb)) && (na === nb || ((0 | na) == (0 | nb) || na >>> 0 == nb >>> 0));
+}
+
+function typeHash(type) {
   try {
-    if ("undefined" != typeof GameInfo && GameInfo.Religions) for (const r of GameInfo.Religions) if (r.$hash === n || String(r.$hash) === String(hash)) {
-      name = r.Name ? Locale.compose(r.Name) : prettifyType(r.ReligionType);
+    if ("undefined" != typeof Database && "function" == typeof Database.makeHash) return Database.makeHash(type);
+  } catch (e) {}
+  return null;
+}
+
+function bankedRelLookup(map, hash) {
+  if (!map) return null;
+  if (null != map[String(hash)]) return map[String(hash)];
+  if (null != map[hash]) return map[hash];
+  for (const k in map) if (hash32Eq(k, hash) && null != map[k]) return map[k];
+  return null;
+}
+
+function isSyntheticReligionLabel(s) {
+  if (null == s) return !0;
+  const t = String(s).trim();
+  return !t || (0 === t.indexOf("LOC_") || (!!/^custom\s+\d+$/i.test(t) || !!/^religion[\s_-]?-?\d+$/i.test(t)));
+}
+
+function resolvePlayerReligionName(playerRel) {
+  if (!playerRel || "function" != typeof playerRel.getReligionName) return null;
+  let raw = null;
+  try {
+    raw = playerRel.getReligionName();
+  } catch (e) {
+    return null;
+  }
+  if (null == raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const ugc = function(s) {
+    const m = String(s).match(/:\s*ugc\s+\d+;([^;}]*)/i);
+    return m && m[1] && m[1].trim() ? m[1].trim() : null;
+  }(s);
+  return ugc && !isSyntheticReligionLabel(ugc) ? ugc : isSyntheticReligionLabel(s) ? null : s;
+}
+
+function isLiveGameContext() {
+  if (isHistoricalView()) return !1;
+  try {
+    return "undefined" != typeof Game && null != Game && "undefined" != typeof Players && null != Players && "function" == typeof Players.getAlive;
+  } catch (e) {
+    return !1;
+  }
+}
+
+function religionMeta(hash) {
+  let name = `Religion ${hash}`, pid = null, type = null;
+  try {
+    const store = loadLoggerStore();
+    type = function(hash) {
       try {
-        if ("undefined" != typeof Game && Game.Religion && "function" == typeof Game.Religion.getPlayerFromReligion) {
-          const f = Game.Religion.getPlayerFromReligion(r.ReligionType);
-          null != f && f >= 0 && (pid = f);
+        const store = loadLoggerStore();
+        if (store && store.relTypes) {
+          const t = store.relTypes[String(hash)] || store.relTypes[hash];
+          if (t) return t;
+          for (const k in store.relTypes) if (hash32Eq(k, hash)) return store.relTypes[k];
         }
       } catch (e) {}
-      break;
+      try {
+        if ("undefined" != typeof GameInfo && GameInfo.Religions) for (const r of GameInfo.Religions) if (r) {
+          if (hash32Eq(r.$hash, hash)) return r.ReligionType || null;
+          if (r.ReligionType) {
+            const h = typeHash(r.ReligionType);
+            if (null != h && hash32Eq(h, hash)) return r.ReligionType;
+          }
+        }
+      } catch (e) {}
+      for (const t of BASE_RELIGION_TYPES) {
+        const h = typeHash(t);
+        if (null != h && hash32Eq(h, hash)) return t;
+      }
+      return null;
+    }(hash);
+    const live = isLiveGameContext();
+    if (live && type && (pid = function(type) {
+      if (!type || !isLiveGameContext()) return null;
+      try {
+        if (Game.Religion && "function" == typeof Game.Religion.getPlayerFromReligion) {
+          const f = Game.Religion.getPlayerFromReligion(type);
+          if (null != f && f >= 0) return f;
+        }
+      } catch (e) {}
+      try {
+        const alive = Players.getAlive() || [];
+        for (const p of alive) {
+          if (!p || !p.isMajor || !p.Religion) continue;
+          if ("function" == typeof p.Religion.hasCreatedReligion && !p.Religion.hasCreatedReligion()) continue;
+          if ("function" != typeof p.Religion.getReligionType) continue;
+          const tid = p.Religion.getReligionType();
+          if (null != tid) {
+            if (hash32Eq(tid, type) || tid === type) return p.id;
+            try {
+              if ("undefined" != typeof GameInfo && GameInfo.Religions) {
+                const def = GameInfo.Religions.lookup(tid);
+                if (def && def.ReligionType === type) return p.id;
+              }
+            } catch (e) {}
+          }
+        }
+      } catch (e) {}
+      return null;
+    }(type)), null == pid && store) {
+      const bf = bankedRelLookup(store.relFounders, hash);
+      if (null != bf && "" !== bf) {
+        const n = Number(bf);
+        Number.isFinite(n) && (pid = n);
+      }
+    }
+    let named = !1;
+    if (live && null != pid) try {
+      const pl = Players.get(pid), nm = pl && pl.Religion ? resolvePlayerReligionName(pl.Religion) : null;
+      nm && (name = nm, named = !0);
+    } catch (e) {}
+    if (!named && store) {
+      const rn = bankedRelLookup(store.relNames, hash);
+      rn && !isSyntheticReligionLabel(rn) && (name = String(rn).trim(), named = !0);
+    }
+    if (!named && type) {
+      const sn = function(type) {
+        if (!type) return null;
+        try {
+          if ("undefined" != typeof GameInfo && GameInfo.Religions) {
+            const def = GameInfo.Religions.lookup ? GameInfo.Religions.lookup(type) : null;
+            if (def && def.Name) {
+              const n = Locale.compose(def.Name);
+              if (n && n.trim() && 0 !== String(n).indexOf("LOC_")) return n;
+            }
+            for (const r of GameInfo.Religions) if (r && r.ReligionType === type && r.Name) {
+              const n = Locale.compose(r.Name);
+              if (n && n.trim() && 0 !== String(n).indexOf("LOC_")) return n;
+              break;
+            }
+          }
+        } catch (e) {}
+        try {
+          const locKey = 0 === String(type).indexOf("RELIGION_CUSTOM_") ? "LOC_RELIGION_CUSTOM_NAME" : "LOC_" + type + "_NAME";
+          if ("undefined" != typeof Locale && "function" == typeof Locale.compose) {
+            const n = Locale.compose(locKey);
+            if (n && n.trim() && String(n) !== locKey && 0 !== String(n).indexOf("LOC_")) return n;
+          }
+        } catch (e) {}
+        return prettifyType(type);
+      }(type);
+      sn && sn.trim() && (name = sn);
     }
   } catch (e) {}
   return {
@@ -1055,7 +1334,8 @@ function religionMeta(hash) {
     pid: pid,
     color: null != pid ? ownerColor({
       ownerPlayer: pid
-    }) : "#B0B0B0"
+    }) : "#B0B0B0",
+    type: type
   };
 }
 
@@ -1085,7 +1365,7 @@ function buildReligionDatasets(metric) {
       ci: m.ci,
       label: m.label
     };
-  }).sort((a, b) => a.ci - b.ci), curCi = currentAgeCi(), curTurn = "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0;
+  }).sort((a, b) => a.ci - b.ci), {curCi: curCi, curTurn: curTurn} = bracketCiTurn();
   let cursor = 0;
   const layout = [], hashes = new Set;
   for (const age of ages) {
@@ -1364,6 +1644,46 @@ function cityName(c) {
   }
 }
 
+function bankedSettlementRows() {
+  if (!isHistoricalView() || !viewMode || !viewMode.store) return [];
+  const ss = viewMode.store.ss;
+  if (!ss || !ss.length) return [];
+  const out = [];
+  for (const r of ss) r && null != r.p && !isNaN(r.p) && out.push({
+    name: null != r.n && "" !== r.n ? r.n : "Settlement",
+    pop: r.p,
+    urb: r.u,
+    pid: r.o
+  });
+  return out;
+}
+
+function settlementRowsForCharts() {
+  return isHistoricalView() ? bankedSettlementRows() : function() {
+    const rows = [];
+    if (!isLiveGameContext()) return rows;
+    try {
+      for (const p of Players.getAlive()) if (p) for (const c of playerCities(p)) try {
+        const pop = c.population;
+        if (null == pop || isNaN(pop)) continue;
+        let urb;
+        try {
+          urb = c.urbanPopulation;
+        } catch (e) {
+          urb = null;
+        }
+        rows.push({
+          name: cityName(c),
+          pop: pop,
+          urb: urb,
+          pid: p.id
+        });
+      } catch (e) {}
+    } catch (e) {}
+    return rows;
+  }();
+}
+
 const SIZE_BUCKETS = [ [ 1, 5 ], [ 6, 10 ], [ 11, 15 ], [ 16, 20 ], [ 21, 1 / 0 ] ], SIZE_BAR_COLORS = [ "#F0DDA0", "#E0C06A", "#C9A94E", "#B0893A", "#8C6522" ];
 
 const MIN_URBAN_POP = 5;
@@ -1466,7 +1786,7 @@ function ensureContrast(rgb) {
   return out;
 }
 
-const MIN_COLOR_DIST = 72;
+const MIN_COLOR_DIST = 90;
 
 function colorDist(a, b) {
   const dr = a.r - b.r, dg = a.g - b.g, db = a.b - b.b;
@@ -1478,29 +1798,65 @@ function tooClose(rgb, placed) {
   return !1;
 }
 
+const NUDGE_L_CAP = .78;
+
 function disambiguate(rgb, placed) {
   if (!tooClose(rgb, placed)) return rgb;
-  const hsl = rgbToHsl(rgb);
-  for (let L = hsl.l + .08; L <= .92; L += .06) {
-    const cand = hslToRgb({
+  const hsl = rgbToHsl(rgb), s = hsl.s, baseL = Math.min(NUDGE_L_CAP, hsl.l);
+  let prefer = 1, nearH = null, best = 1 / 0;
+  for (const p of placed) {
+    const d = colorDist(rgb, p);
+    d < best && (best = d, nearH = rgbToHsl(p).h);
+  }
+  if (null != nearH) {
+    prefer = (hsl.h - nearH + 540) % 360 - 180 >= 0 ? 1 : -1;
+  }
+  if (hsl.l >= .55) for (const dL of [ -.06, -.1, -.14, -.18, -.22, .04, .08 ]) {
+    const L = Math.min(NUDGE_L_CAP, Math.max(.48, baseL + dL)), cand = ensureContrast(hslToRgb({
       h: hsl.h,
-      s: hsl.s,
+      s: s,
       l: L
-    });
+    }));
     if (!tooClose(cand, placed)) return cand;
   }
-  for (let step = 1; step <= 5; step++) for (const dir of [ 1, -1 ]) {
+  for (let step = 1; step <= 4; step++) for (const dir of [ prefer, -prefer ]) {
     const cand = ensureContrast(hslToRgb({
-      h: (hsl.h + dir * step * 20 + 360) % 360,
-      s: Math.min(1, hsl.s + .1),
-      l: Math.min(.72, hsl.l + .06)
+      h: (hsl.h + dir * step * 8 + 360) % 360,
+      s: s,
+      l: baseL
+    }));
+    if (!tooClose(cand, placed)) return cand;
+  }
+  for (const dL of [ .06, -.06, .12, -.12, .18, -.18 ]) {
+    const L = Math.min(NUDGE_L_CAP, Math.max(.35, baseL + dL)), cand = ensureContrast(hslToRgb({
+      h: hsl.h,
+      s: s,
+      l: L
+    }));
+    if (!tooClose(cand, placed)) return cand;
+  }
+  for (let step = 1; step <= 5; step++) for (const dir of [ prefer, -prefer ]) {
+    const cand = ensureContrast(hslToRgb({
+      h: (hsl.h + dir * step * 15 + 360) % 360,
+      s: s,
+      l: Math.min(NUDGE_L_CAP, Math.max(.4, baseL))
     }));
     if (!tooClose(cand, placed)) return cand;
   }
   return rgb;
 }
 
+const HIST_PALETTE = [ "#E8C547", "#5BA3D9", "#D96B6B", "#6BCB77", "#C77DFF", "#FF9F43", "#2ED9A8", "#F368E0", "#B0B0B0" ];
+
 let colorMapCache = null;
+
+function bankedPrimaryColor(pid) {
+  if (!(isHistoricalView() && viewMode && viewMode.store && viewMode.store.meta)) return null;
+  const players = viewMode.store.meta.players;
+  if (!players) return null;
+  const rec = players[pid] || players[String(pid)];
+  return rec && rec.pri ? rec.pri : null;
+}
 
 let activeChart = null, legendHintShown = !1;
 
@@ -1534,19 +1890,37 @@ function renderChart(ui, metric, view, page) {
     }
     container.appendChild(row);
   }(ui.board, metric);
-  if (ui.board.style.display = "none", ui.chartInner.style.display = "block", "undefined" == typeof Chart) return void console.error(`${LOG} Chart.js global not available.`);
+  if (ui.board.style.display = "none", ui.chartInner.style.display = "block", "undefined" == typeof Chart) return;
   if (!ui.chartInner.clientWidth || !ui.chartInner.clientHeight) return void requestAnimationFrame(() => renderChart(ui, metric, view, page));
-  activeChart && (activeChart.destroy(), activeChart = null);
-  const plugins = {
+  activeChart && (activeChart.destroy(), activeChart = null), applyChartDefaults();
+  const fs = function() {
+    try {
+      if ("undefined" != typeof Chart && Chart.defaults && Chart.defaults.font) {
+        const cur = Number(Chart.defaults.font.size) || 0;
+        if (cur >= 33) return cur;
+      }
+    } catch (e) {}
+    return 33;
+  }(), tickFont = {
+    size: fs
+  }, legendFont = {
+    size: fs
+  }, plugins = {
     legend: {
       display: !0,
       labels: {
-        color: "#E8E2D0"
+        color: "#E8E2D0",
+        font: legendFont,
+        boxWidth: 18,
+        padding: 12
       }
     },
     title: {
       display: !1
     }
+  }, tickOpts = {
+    color: AXIS_TICK,
+    font: tickFont
   };
   let config;
   if ("bar" === metric.kind) {
@@ -1569,9 +1943,7 @@ function renderChart(ui, metric, view, page) {
           x: {
             type: "category",
             title: axisTitle(metric.xTitle),
-            ticks: {
-              color: AXIS_TICK
-            },
+            ticks: tickOpts,
             grid: {
               color: "#4A4034"
             }
@@ -1580,9 +1952,7 @@ function renderChart(ui, metric, view, page) {
             type: "linear",
             min: 0,
             title: axisTitle(metric.yTitle),
-            ticks: {
-              color: AXIS_TICK
-            },
+            ticks: tickOpts,
             grid: {
               color: "#4A4034"
             }
@@ -1591,18 +1961,19 @@ function renderChart(ui, metric, view, page) {
       }
     };
   } else if ("live" === metric.kind || "stand" === view) {
-    const isLive = "live" === metric.kind, stand = [ "Current standings" ];
-    !isLive && metric.trend && stand.unshift(sourceLabel(trendSource(metric.trend))), 
-    setNote(ui, stand.join("  ·  "));
+    const isLive = "live" === metric.kind;
+    if (isLive && isHistoricalView() && bankedSettlementRows().length > 0) setNote(ui, "Chronicle log  ·  Last logged standings"); else {
+      const stand = [ "Current standings" ];
+      !isLive && metric.trend && stand.unshift(sourceLabel(trendSource(metric.trend))), 
+      setNote(ui, stand.join("  ·  "));
+    }
     const res = isLive ? metric.compute() : buildStandings(metric.trend), hasData = res && res.data && res.data.length > 0;
     if (setNoData(ui.canvas, hasData ? "" : `No data available for ${metricLabel(metric)}.`), 
     !hasData) return;
     const horiz = "y" === res.indexAxis, catAxis = {
       type: "category",
       title: axisTitle(res.catTitle),
-      ticks: {
-        color: AXIS_TICK
-      },
+      ticks: tickOpts,
       grid: {
         color: "#4A4034"
       }
@@ -1610,9 +1981,7 @@ function renderChart(ui, metric, view, page) {
       type: "linear",
       min: res.signed ? void 0 : 0,
       title: axisTitle(res.valueTitle),
-      ticks: {
-        color: AXIS_TICK
-      },
+      ticks: tickOpts,
       grid: {
         color: "#4A4034"
       }
@@ -1666,28 +2035,7 @@ function renderChart(ui, metric, view, page) {
           if (x >= b.offset && x <= bEndX) return `${b.label} turn ${b.minT + (x - b.offset)}`;
         }
         return `Turn ${x}`;
-      }, dp = trend.ratioKey ? trend.ratioKey.dp : null, fmtVal = y => null != dp ? Number(y).toFixed(dp) : Number.isInteger(y) ? String(y) : Number(y).toFixed(1), tk = function(blocks, start, end) {
-        const values = [], labels = new Map;
-        for (const b of blocks) {
-          const bEndX = b.offset + (b.maxT - b.minT);
-          if (bEndX < start || b.offset > end) continue;
-          const lo = b.minT + (Math.max(start, b.offset) - b.offset), hi = b.minT + (Math.min(end, bEndX) - b.offset), step = niceTurnStep(hi - lo), turns = new Set([ lo, hi ]);
-          for (let t = Math.ceil(lo / step) * step; t < hi; t += step) t > lo && turns.add(t);
-          Array.from(turns).sort((a, z) => a - z).forEach((t, i) => {
-            const x = b.offset + (t - b.minT);
-            values.push(x);
-            const tl = String(Math.round(t));
-            labels.set(x, 0 === i ? [ b.label, tl ] : tl);
-          });
-        }
-        return {
-          values: values,
-          labelAt: x => {
-            const v = labels.get(x);
-            return null != v ? v : "";
-          }
-        };
-      }(src.blocks, start, end);
+      }, dp = trend.ratioKey ? trend.ratioKey.dp : null, fmtVal = y => null != dp ? Number(y).toFixed(dp) : Number.isInteger(y) ? String(y) : Number(y).toFixed(1), tk = turnAxisTicks(src.blocks, start, end);
       config = {
         type: "line",
         data: {
@@ -1717,6 +2065,8 @@ function renderChart(ui, metric, view, page) {
               titleColor: "#F5EFDD",
               bodyColor: "#E8E2D0",
               padding: 10,
+              titleFont: legendFont,
+              bodyFont: tickFont,
               callbacks: {
                 title: items => items && items.length ? turnLabel(items[0].raw.x) : "",
                 label: item => `${item.dataset.label}: ${fmtVal(item.raw.y)}`
@@ -1734,7 +2084,7 @@ function renderChart(ui, metric, view, page) {
                 }));
               },
               ticks: {
-                color: AXIS_TICK,
+                ...tickOpts,
                 autoSkip: !1,
                 maxRotation: 0,
                 callback: v => tk.labelAt(v)
@@ -1747,9 +2097,7 @@ function renderChart(ui, metric, view, page) {
               type: "linear",
               min: trend.signed ? void 0 : 0,
               title: axisTitle(src.yTitle),
-              ticks: {
-                color: AXIS_TICK
-              },
+              ticks: tickOpts,
               grid: {
                 color: "#4A4034"
               }
@@ -1760,7 +2108,9 @@ function renderChart(ui, metric, view, page) {
     }
   }
   activeChart = new Chart(ui.canvas.getContext("2d"), config), requestAnimationFrame(() => {
-    activeChart && activeChart.resize();
+    requestAnimationFrame(() => {
+      activeChart && activeChart.resize();
+    });
   });
 }
 
@@ -1796,57 +2146,289 @@ function highlightButton(button, active) {
   label && (label.style.color = active ? "#FFD98A" : "#E8E2D0"), button.style.opacity = active ? "1" : "0.72";
 }
 
+function makeScrollRow(opts) {
+  (opts = opts || {}).name;
+  let items = [], startIdx = 0, endIdx = 0, overflowing = !1, retryPending = !1;
+  const root = document.createElement("div"), mb = null != opts.marginBottom ? opts.marginBottom : 0;
+  root.setAttribute("style", "position:relative;width:100%;max-width:100%;min-width:0;flex:0 0 auto;box-sizing:border-box;overflow:visible;" + (mb ? `margin-bottom:${mb}px;` : ""));
+  const viewport = document.createElement("div");
+  viewport.setAttribute("style", "width:100%;max-width:100%;min-width:0;overflow:hidden;position:relative;box-sizing:border-box");
+  const track = document.createElement("div");
+  track.setAttribute("style", "display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;position:relative;left:0;top:0;margin:0;padding:0;border:0;box-sizing:border-box;width:100%"), 
+  viewport.appendChild(track), root.appendChild(viewport);
+  const makeArrow = (label, dir, side) => {
+    const b = document.createElement("div");
+    b.textContent = label, b.setAttribute("activatable", "true");
+    const sidePos = "left" === side ? "left:-30px;" : "right:-30px;";
+    return b.setAttribute("style", "position:absolute;" + sidePos + "top:50%;margin-top:-14px;width:24px;height:28px;display:flex;align-items:center;justify-content:center;color:#C9BFA6;font-size:1.35rem;line-height:1;font-weight:700;cursor:pointer;user-select:none;z-index:3;background:transparent;border:none;padding:0;visibility:hidden;pointer-events:none"), 
+    b.addEventListener("click", e => {
+      try {
+        e.stopPropagation(), e.preventDefault();
+      } catch (err) {}
+      b._inert || "hidden" === b.style.visibility || function(dir) {
+        if (!overflowing) return;
+        if (dir > 0) {
+          if (endIdx >= items.length) return;
+          startIdx = Math.min(items.length - 1, startIdx + 1);
+        } else {
+          if (startIdx <= 0) return;
+          startIdx = Math.max(0, startIdx - 1);
+        }
+        relayout();
+      }(dir);
+    }), b;
+  }, prev = makeArrow("‹", -1, "left"), next = makeArrow("›", 1, "right");
+  function setArrowState(btn, enabled) {
+    if (btn._inert = !enabled, !overflowing) return btn.style.visibility = "hidden", 
+    void (btn.style.pointerEvents = "none");
+    btn.style.visibility = "visible", btn.style.opacity = enabled ? "0.95" : "0.35", 
+    btn.style.cursor = enabled ? "pointer" : "default", btn.style.pointerEvents = enabled ? "auto" : "none", 
+    btn.style.color = enabled ? "#C9BFA6" : "#6B6350";
+  }
+  function scheduleRetry(why) {
+    retryPending || (retryPending = !0, requestAnimationFrame(() => {
+      retryPending = !1, relayout();
+    }));
+  }
+  function applyBaseGaps(fromIdx, toIdx) {
+    const lo = null == fromIdx ? 0 : fromIdx, hi = null == toIdx ? items.length : toIdx;
+    for (let i = lo; i < hi; i++) {
+      const el = items[i].el;
+      el.style.flexShrink = "0", el.style.flexGrow = "0", el.style.marginLeft = "0", el.style.marginRight = i < hi - 1 ? "9px" : "0";
+    }
+  }
+  function relayout() {
+    root.style.width = "100%", root.style.maxWidth = "100%", root.style.minWidth = "0", 
+    root.style.height = "", root.style.minHeight = "", viewport.style.width = "100%", 
+    viewport.style.maxWidth = "100%", viewport.style.height = "", viewport.style.minHeight = "", 
+    track.style.height = "", track.style.minHeight = "";
+    const n = items.length;
+    if (n < 1) return track.textContent = "", track.style.visibility = "visible", overflowing = !1, 
+    startIdx = 0, endIdx = 0, setArrowState(prev, !1), void setArrowState(next, !1);
+    const vw = viewport.clientWidth || root.clientWidth || 0;
+    if (vw < 1) return void scheduleRetry();
+    !function() {
+      const n = items.length;
+      let need = !1;
+      for (let i = 0; i < n; i++) if ((items[i].w || 0) < 1) {
+        need = !0;
+        break;
+      }
+      if (need) {
+        track.textContent = "", applyBaseGaps(0, n);
+        for (let i = 0; i < n; i++) track.appendChild(items[i].el);
+      }
+      for (let i = 0; i < n; i++) {
+        const el = items[i].el;
+        let w = el.offsetWidth || 0;
+        if (w < 1) try {
+          w = el.getBoundingClientRect().width || 0;
+        } catch (e) {}
+        w > 1 ? items[i].w = w : el.parentNode;
+      }
+    }();
+    let anyW = !1;
+    for (let i = 0; i < n; i++) if ((items[i].w || 0) > 1) {
+      anyW = !0;
+      break;
+    }
+    if (!anyW) return void scheduleRetry();
+    let totalW = 0;
+    for (let i = 0; i < n; i++) totalW += items[i].w || 0, i < n - 1 && (totalW += 9);
+    overflowing = totalW > vw + 1, overflowing ? (startIdx > n - 1 && (startIdx = Math.max(0, n - 1)), 
+    startIdx < 0 && (startIdx = 0)) : startIdx = 0;
+    let used = 0;
+    endIdx = startIdx;
+    for (let i = startIdx; i < n; i++) {
+      const need = (items[i].w || 0) + (i > startIdx ? 9 : 0);
+      if (i > startIdx && used + need > vw + .5) break;
+      used += need, endIdx = i + 1;
+    }
+    endIdx === startIdx && startIdx < n && (endIdx = startIdx + 1, used = items[startIdx].w || 0), 
+    overflowing || (startIdx = 0, endIdx = n, used = totalW), track.textContent = "", 
+    track.style.marginLeft = "0", track.style.left = "0", track.style.transform = "";
+    const count = endIdx - startIdx, leftover = Math.max(0, Math.floor(vw - used)), gaps = Math.max(0, count - 1), avgW = count > 0 ? used / count : 0, widthCapped = overflowing && endIdx < n, nearlyFull = leftover > 0 && leftover <= Math.max(32, .35 * avgW), doSpread = gaps > 0 && leftover > 0 && (widthCapped || nearlyFull), extraEach = doSpread ? Math.floor(leftover / gaps) : 0;
+    let extraRem = doSpread ? leftover - extraEach * gaps : 0;
+    for (let i = startIdx; i < endIdx; i++) {
+      const el = items[i].el;
+      if (el.style.flexShrink = "0", el.style.flexGrow = "0", el.style.marginLeft = "0", 
+      i < endIdx - 1) {
+        let mr = 9 + extraEach;
+        extraRem > 0 && (mr += 1, extraRem -= 1), el.style.marginRight = mr + "px";
+      } else el.style.marginRight = "0";
+      track.appendChild(el);
+    }
+    track.style.visibility = "visible", setArrowState(prev, overflowing && startIdx > 0), 
+    setArrowState(next, overflowing && endIdx < n);
+  }
+  return root.appendChild(prev), root.appendChild(next), {
+    root: root,
+    viewport: viewport,
+    track: track,
+    prev: prev,
+    next: next,
+    setButtons: function(els) {
+      const list = els || [];
+      track.style.visibility = "hidden", items = list.map((el, i) => (el.style.flexShrink = "0", 
+      el.style.flexGrow = "0", el.style.marginLeft = "0", el.style.marginRight = i < list.length - 1 ? "9px" : "0", 
+      {
+        el: el,
+        w: 0
+      })), startIdx = 0, endIdx = 0, track.textContent = "", items.forEach(it => {
+        track.appendChild(it.el);
+      }), relayout();
+    },
+    scrollToShow: function(el) {
+      if (!el || !items.length) return;
+      let idx = -1;
+      for (let i = 0; i < items.length; i++) if (items[i].el === el) {
+        idx = i;
+        break;
+      }
+      idx < 0 || idx >= startIdx && idx < endIdx || (startIdx = idx, relayout(), (idx >= endIdx || idx < startIdx) && (startIdx = Math.max(0, idx), 
+      relayout()));
+    },
+    remeasure: function() {
+      for (let i = 0; i < items.length; i++) items[i].w = 0;
+      applyBaseGaps(0, items.length), relayout();
+    },
+    hasOverflow: function() {
+      return overflowing;
+    }
+  };
+}
+
 const CANCEL_ACTIONS = [ "cancel", "keyboard-escape", "mousebutton-right", "sys-menu" ], chronicleInputHandler = {
   handleInput(e) {
     const d = e && e.detail || {};
-    return !document.getElementById(OVERLAY_ID) || (!d.name || CANCEL_ACTIONS.indexOf(d.name) < 0 || (DEBUG_INPUT && console.error(`${LOG} INPUT cm-handler name=${d.name} status=${d.status} finish=${isPressFinished(e)} — consumed`), 
-    isPressFinished(e) && closeOverlay(), !1));
+    return !document.getElementById(OVERLAY_ID) || (!d.name || CANCEL_ACTIONS.indexOf(d.name) < 0 || (function(e) {
+      if ("engine-input" !== e.type || !e.detail) return !1;
+      if ("undefined" == typeof InputActionStatuses) return !0;
+      return e.detail.status === InputActionStatuses.FINISH;
+    }(e) && closeOverlay(), !1));
   },
   handleNavigation: () => !0
 };
 
-function isPressFinished(e) {
-  return !("engine-input" !== e.type || !e.detail) && ("undefined" == typeof InputActionStatuses || e.detail.status === InputActionStatuses.FINISH);
-}
-
-const DEBUG_INPUT = !1;
-
-function probeInput(where, e) {
-  if (!DEBUG_INPUT) return;
-  if (!document.getElementById(OVERLAY_ID)) return;
-  const d = e.detail || {};
-  console.error(`${LOG} INPUT ${where} type=${e.type} name=${d.name} status=${d.status} phase=${e.eventPhase} cancel=${function(e) {
-    return "engine-input" === e.type ? !!e.detail && CANCEL_ACTIONS.indexOf(e.detail.name) >= 0 : "Escape" === e.key || 27 === e.keyCode;
-  }(e)}`);
-}
-
 function closeOverlay() {
   activeChart && (activeChart.destroy(), activeChart = null), document.getElementById(OVERLAY_ID)?.remove();
+  const onClose = viewMode && viewMode.onClose;
+  if (viewMode = null, colorMapCache = null, "function" == typeof onClose) try {
+    onClose();
+  } catch (e) {}
+}
+
+let chartWaiters = null;
+
+function applyChartDefaults() {
+  if ("undefined" != typeof Chart && Chart.defaults) try {
+    Chart.defaults.maintainAspectRatio = !1, Chart.defaults.font || (Chart.defaults.font = {});
+    const cur = Number(Chart.defaults.font.size) || 0;
+    Chart.defaults.font.size = Math.max(cur, 33);
+    try {
+      "undefined" != typeof BODY_FONTS && BODY_FONTS && BODY_FONTS.length && (Chart.defaults.font.family = BODY_FONTS.join(", "));
+    } catch (e) {}
+    Chart.defaults.color && "#666" !== Chart.defaults.color && "#666666" !== Chart.defaults.color || (Chart.defaults.color = "#E8E2D0");
+  } catch (e) {}
+}
+
+function openOverlayForStore(store, opts) {
+  opts = opts || {}, store && store.ages && (document.getElementById(OVERLAY_ID) && closeOverlay(), 
+  viewMode = {
+    store: store,
+    title: opts.title || "Game Details",
+    caption: opts.caption || "",
+    onClose: opts.onClose || null
+  }, colorMapCache = null, openOverlay());
+}
+
+try {
+  globalThis.ozqChronicleGraphs = {
+    open: openOverlay,
+    openForStore: openOverlayForStore,
+    close: closeOverlay,
+    version: "0.30.47"
+  };
+} catch (e) {
+  try {
+    window.ozqChronicleGraphs = {
+      open: openOverlay,
+      openForStore: openOverlayForStore,
+      close: closeOverlay,
+      version: "0.30.47"
+    };
+  } catch (e2) {}
 }
 
 function openOverlay() {
   if (document.getElementById(OVERLAY_ID)) return;
-  legendHintShown = !1;
-  const root = document.createElement("div");
+  if ("undefined" == typeof Chart) return void function(done) {
+    if ("undefined" != typeof Chart) return applyChartDefaults(), void done();
+    if (chartWaiters) chartWaiters.push(done); else {
+      chartWaiters = [ done ];
+      try {
+        const s = document.createElement("script");
+        s.src = "fs://game/core/ui/external/chart-js/chart.js", s.onload = () => {
+          const q = chartWaiters || [];
+          if (chartWaiters = null, "undefined" != typeof Chart) {
+            applyChartDefaults();
+            for (const fn of q) try {
+              fn();
+            } catch (e) {}
+          }
+        }, s.onerror = () => {
+          chartWaiters = null;
+        }, (document.head || document.documentElement).appendChild(s);
+      } catch (e) {
+        chartWaiters = null;
+      }
+    }
+  }(() => openOverlay());
+  applyChartDefaults(), legendHintShown = !1;
+  const historical = isHistoricalView(), root = document.createElement("div");
   root.id = OVERLAY_ID;
   const backdrop = document.createElement("div");
   backdrop.setAttribute("style", "position:fixed;left:0;top:0;width:100%;height:100%;z-index:999998;background:rgba(6,7,10,0.78);pointer-events:auto"), 
   backdrop.addEventListener("click", closeOverlay), root.appendChild(backdrop);
   const panel = document.createElement("div");
-  panel.setAttribute("style", [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 28px" ].join(";")), 
-  root.appendChild(panel);
+  panel.setAttribute("style", PANEL_BOX), root.appendChild(panel);
   const header = document.createElement("div");
-  header.setAttribute("style", "display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0");
+  header.setAttribute("style", "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-shrink:0;width:100%;min-width:0;box-sizing:border-box");
   const titleCol = document.createElement("div");
-  titleCol.setAttribute("style", "display:flex;flex-direction:row;align-items:flex-end;gap:20px");
+  titleCol.setAttribute("style", "display:flex;flex-direction:column;align-items:stretch;gap:4px;flex:1 1 auto;min-width:0;overflow:hidden");
+  const titleRow = document.createElement("div");
+  titleRow.setAttribute("style", "display:flex;flex-direction:row;align-items:flex-end;min-width:0;overflow:hidden;flex:1 1 auto");
   const title = document.createElement("div");
-  title.textContent = "Chronicle — Game Statistics", title.className = "font-title uppercase tracking-150", 
-  title.setAttribute("style", "font-size:1.8rem;color:#F0E6D2"), titleCol.appendChild(title);
+  title.textContent = historical ? viewMode && viewMode.title || "Game Details" : "Chronicle — Game Statistics", 
+  title.className = "font-title uppercase tracking-150", title.setAttribute("style", "font-size:1.8rem;color:#F0E6D2;flex-shrink:0;line-height:1.2;margin-right:20px"), 
+  titleRow.appendChild(title);
   const note = document.createElement("div");
-  note.className = "font-body text-sm", note.setAttribute("style", "color:#B7A987;font-size:0.85rem;letter-spacing:0.04em;flex-shrink:0;padding-bottom:0.3rem"), 
-  titleCol.appendChild(note), header.appendChild(titleCol), header.appendChild(makeNativeButton("Close", closeOverlay, {
-    extraClass: ""
-  })), panel.appendChild(header);
+  if (note.className = "font-body text-sm", note.setAttribute("style", "color:#B7A987;font-size:0.85rem;letter-spacing:0.04em;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-bottom:0.3rem"), 
+  titleRow.appendChild(note), titleCol.appendChild(titleRow), historical && viewMode && viewMode.caption) {
+    const cap = document.createElement("div");
+    cap.className = "font-body text-sm", cap.textContent = viewMode.caption, cap.setAttribute("style", "color:#B7A987;font-size:0.9rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"), 
+    titleCol.appendChild(cap);
+  }
+  header.appendChild(titleCol);
+  const headerActions = document.createElement("div");
+  function muteHeaderBtn(b) {
+    b.style.opacity = "0.72";
+    const lab = b.querySelector(".ozq-btn-label");
+    lab && (lab.style.color = "#E8E2D0");
+  }
+  if (headerActions.setAttribute("style", "display:flex;align-items:center;flex-shrink:0;margin-left:16px"), 
+  !historical) {
+    const hofBtn = makeNativeButton("Hall of Fame", () => {
+      try {
+        const api = "undefined" != typeof globalThis && globalThis.ozqChronicleHof || "undefined" != typeof window && window.ozqChronicleHof;
+        api && "function" == typeof api.open && api.open();
+      } catch (e) {}
+    }, {});
+    muteHeaderBtn(hofBtn), hofBtn.style.marginRight = "9px", headerActions.appendChild(hofBtn);
+  }
+  const closeBtn = makeNativeButton("Close", closeOverlay, {});
+  muteHeaderBtn(closeBtn), headerActions.appendChild(closeBtn), header.appendChild(headerActions), 
+  panel.appendChild(header);
   const trendAvailable = m => {
     try {
       return canDrawLine(trendSource(m.trend));
@@ -1860,7 +2442,7 @@ function openOverlay() {
     } catch (e) {
       return !1;
     }
-  }, dataPointIds = function() {
+  }, dataPointIds = isHistoricalView() ? new Set : function() {
     const withData = new Set;
     let dps = [];
     try {
@@ -1870,6 +2452,7 @@ function openOverlay() {
     for (const m of METRICS) "bar" !== m.kind && "board" !== m.kind || withData.has(m.id) || pastAgeByType(m.id).rows.length && withData.add(m.id);
     return withData;
   }(), metrics = METRICS.filter(m => {
+    if (isHistoricalView() && ("bar" === m.kind || "board" === m.kind)) return !1;
     if ("live" === m.kind) try {
       const r = m.compute();
       return !!(r && r.data && r.data.length);
@@ -1884,12 +2467,16 @@ function openOverlay() {
     empty.setAttribute("style", "flex:1 1 auto;display:flex;align-items:center;justify-content:center;color:#C9BFA6;font-size:1.15rem;text-align:center;padding:2rem"), 
     panel.appendChild(empty), void document.body.appendChild(root);
   }
-  const categoryBar = document.createElement("div");
-  categoryBar.setAttribute("style", "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;flex-shrink:0"), 
-  panel.appendChild(categoryBar);
-  const chartBar = document.createElement("div");
-  chartBar.setAttribute("style", "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;flex-shrink:0"), 
-  panel.appendChild(chartBar);
+  const categoryRow = makeScrollRow({
+    name: "cat",
+    marginBottom: 10
+  });
+  panel.appendChild(categoryRow.root);
+  const chartRow = makeScrollRow({
+    name: "chart",
+    marginBottom: 16
+  });
+  panel.appendChild(chartRow.root);
   const chartWrap = document.createElement("div");
   chartWrap.setAttribute("style", "position:relative;flex:1 1 auto;width:100%;min-height:0;overflow:hidden");
   const chartInner = document.createElement("div");
@@ -1962,26 +2549,30 @@ function openOverlay() {
         secondary: !0
       }), viewButtons.trend._avail = tAvail, viewButtons.stand._avail = sAvail, viewBar.appendChild(viewButtons.trend), 
       viewBar.appendChild(viewButtons.stand), tAvail ? "trend" : "stand";
-    })(curMetric));
+    })(curMetric)), requestAnimationFrame(() => {
+      chartRow.remeasure(), chartButtons[index] && chartRow.scrollToShow(chartButtons[index]);
+    });
   }, selectCategory = (catIndex, preferId) => {
-    [ ...categoryBar.children ].forEach((b, i) => highlightButton(b, i === catIndex)), 
-    chartBar.textContent = "", chartButtons.length = 0;
+    catButtons.forEach((b, i) => highlightButton(b, i === catIndex)), catButtons[catIndex] && categoryRow.scrollToShow(catButtons[catIndex]), 
+    chartButtons.length = 0;
     const inCat = metrics.filter(m => m.category === catList[catIndex]);
     if (inCat.forEach((metric, i) => {
       const b = makeNativeButton(metricLabel(metric), () => selectChart(inCat, i), {
         secondary: !0
       });
-      chartButtons.push(b), chartBar.appendChild(b);
-    }), inCat.length) {
+      chartButtons.push(b);
+    }), chartRow.setButtons(chartButtons), inCat.length) {
       const idx = preferId ? Math.max(0, inCat.findIndex(m => m.id === preferId)) : 0;
-      selectChart(inCat, idx);
+      selectChart(inCat, idx < 0 ? 0 : idx);
     }
-  };
-  catList.forEach((cat, i) => {
-    categoryBar.appendChild(makeNativeButton(cat, () => selectCategory(i), {}));
-  }), document.body.appendChild(root);
+  }, catButtons = catList.map((cat, i) => makeNativeButton(cat, () => selectCategory(i), {}));
+  document.body.appendChild(root), categoryRow.setButtons(catButtons);
   const def = metrics.find(m => m.default) || metrics[0], defCat = def ? Math.max(0, catList.indexOf(def.category)) : 0;
-  requestAnimationFrame(() => selectCategory(defCat, def && def.id));
+  requestAnimationFrame(() => {
+    selectCategory(defCat, def && def.id), requestAnimationFrame(() => {
+      categoryRow.remeasure(), chartRow.remeasure();
+    });
+  });
 }
 
 function injectButton(screen) {
@@ -2038,30 +2629,16 @@ function install() {
     try {
       import("/core/ui/context-manager/context-manager.js").then(m => {
         const cm = m && m.default;
-        if (!cm || "function" != typeof cm.registerEngineInputHandler) return void console.error(`${LOG} ContextManager has no input-handler API — Escape will not close the overlay.`);
+        if (!cm || "function" != typeof cm.registerEngineInputHandler) return;
         cm.registerEngineInputHandler(chronicleInputHandler);
         const arr = cm.engineInputEventHandlers;
         if (Array.isArray(arr)) {
           const i = arr.indexOf(chronicleInputHandler);
           i > 0 && (arr.splice(i, 1), arr.unshift(chronicleInputHandler));
         }
-        console.error(`${LOG} input handler installed (first of ${Array.isArray(arr) ? arr.length : "?"}).`);
-      }).catch(e => {
-        console.error(`${LOG} ContextManager import failed (${e && e.message}) — Escape will not close the overlay.`);
-      });
-    } catch (e) {
-      console.error(`${LOG} ContextManager import threw (${e && e.message}).`);
-    }
-  }(), function() {
-    if (DEBUG_INPUT) for (const ev of [ "keydown", "engine-input" ]) {
-      try {
-        window.addEventListener(ev, e => probeInput("win-capture", e), !0);
-      } catch (e) {}
-      try {
-        document.addEventListener(ev, e => probeInput("doc-capture", e), !0);
-      } catch (e) {}
-    }
-  }(), console.error(`${LOG} loaded.`);
+      }).catch(() => {});
+    } catch (e) {}
+  }(), console.error("[ozq-chronicle] loaded.");
 }
 
 !function scheduleInstall() {
