@@ -161,6 +161,11 @@ This is an **engine bug**, not anything specific to Chronicle. It's worth knowin
 before you spend days debugging what looks like data corruption, a size quota, or an
 engine "freeze" — it convincingly imitates all three.
 
+It has been reported to 2K Support (ticket #16348750, July 2026, confirmed on
+Build 1.4.1). A full public writeup with a minimal repro mod and the UI.log evidence is on
+[this CivFanatics thread](https://forums.civfanatics.com/threads/ui-modding-localstorage-getitem-ignores-the-key-argument-and-always-returns-the-first-stored-keys-value-repro-inside-reported-to-2k-as-16348750.703995/)
+— if you can reproduce it too, adding your findings there helps make the case for a fix.
+
 ## Feedback
 
 Bug reports and suggestions are welcome — please open an issue on the
