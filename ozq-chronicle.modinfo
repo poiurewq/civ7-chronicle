@@ -2,11 +2,11 @@
 <Mod id="ozq-chronicle" version="1" xmlns="ModInfo">
     <Properties>
         <Name>Chronicle - Stats, Graphs &amp; Hall of Fame</Name>
-        <Description>Per-turn graphs and standings for every civ that the base game tracks but never shows. UI only; no gameplay or save changes.</Description>
+        <Description>Per-turn graphs and standings for every civ that the base game tracks but never shows, plus a cross-campaign Hall of Fame. UI only. No gameplay or save changes.</Description>
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.30.53</Version>
+        <Version>0.31.0</Version>
     </Properties>
 
     <Dependencies>
@@ -25,7 +25,7 @@
     <ActionGroups>
         <ActionGroup id="ozq-chronicle-game" scope="game" criteria="always">
             <Properties>
-                <LoadOrder>1700</LoadOrder>
+                <LoadOrder>2</LoadOrder>
             </Properties>
             <Actions>
                 <UIScripts>
@@ -37,7 +37,7 @@
         </ActionGroup>
         <ActionGroup id="ozq-chronicle-shell" scope="shell" criteria="always">
             <Properties>
-                <LoadOrder>1700</LoadOrder>
+                <LoadOrder>2</LoadOrder>
             </Properties>
             <Actions>
                 <UIScripts>

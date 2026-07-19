@@ -1,4 +1,10 @@
-const PANEL_BOX = [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 36px", "overflow-x:hidden", "overflow-y:hidden" ].join(";"), OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
+const PANEL_BOX = [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 36px", "overflow-x:hidden", "overflow-y:hidden" ].join(";"), LEGACY_KEYS = [ "!chronicle", "chronicle" ], OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
+
+function err(msg) {
+  try {
+    console.error(`[ozq-hof] ${msg}`);
+  } catch (e) {}
+}
 
 const LOC_FALLBACK = {
   LOC_HOF_TITLE: "Hall of Fame",
@@ -97,6 +103,86 @@ function fmtDate(ms) {
   } catch (e) {
     return "";
   }
+}
+
+function hofMergeContainers(base, add) {
+  for (const gid in add.games) {
+    const a = add.games[gid], b = base.games[gid];
+    (!b || (a.updated || 0) >= (b.updated || 0)) && (base.games[gid] = a);
+  }
+  return base;
+}
+
+function hofLoadShared() {
+  let folded = null;
+  const notes = [], fin = shared => ({
+    shared: shared,
+    container: folded || {
+      v: 2,
+      updated: 0,
+      games: {}
+    },
+    notes: notes
+  });
+  for (let hop = 0; hop < 4; hop++) {
+    let raw = null;
+    try {
+      raw = localStorage.getItem("modSettings");
+    } catch (e) {}
+    if (!raw) return notes.push("row0 empty"), fin({});
+    let row0 = null;
+    try {
+      row0 = JSON.parse(raw);
+    } catch (e) {}
+    if (!row0 || "object" != typeof row0) return notes.push("row0 not JSON (foreign)"), 
+    fin({});
+    const sub = row0["ozq-chronicle"];
+    if (sub && sub.games) return notes.push(0 !== hop || folded ? "reached modSettings after fold" : "steady"), 
+    delete row0["ozq-chronicle"], folded = folded ? hofMergeContainers(sub, folded) : sub, 
+    fin(row0);
+    if (row0.games) {
+      folded = folded ? hofMergeContainers(row0, folded) : row0, notes.push("folded pre-0.31 container");
+      let removed = !1;
+      for (const k of LEGACY_KEYS) try {
+        localStorage.removeItem(k), removed = !0;
+      } catch (e) {}
+      if (!removed) return fin({});
+      continue;
+    }
+    return notes.push("adopted row0 object"), fin(row0);
+  }
+  return notes.push("hop limit"), fin({});
+}
+
+try {
+  const r = hofLoadShared();
+  !function(shared, c) {
+    shared["ozq-chronicle"] = c;
+    const str = JSON.stringify(shared);
+    try {
+      localStorage.setItem("modSettings", str);
+    } catch (e) {
+      return !1;
+    }
+    let back = null;
+    try {
+      back = localStorage.getItem("modSettings");
+    } catch (e) {}
+    if (back === str) return !0;
+    try {
+      null != back && (shared._ozqRescued = {
+        t: Date.now(),
+        data: String(back).slice(0, 131072)
+      }), localStorage.clear();
+      const str2 = JSON.stringify(shared);
+      return localStorage.setItem("modSettings", str2), err("origin reads were blocked by an unknown first-sorting key; cleared as last resort (row-0 bytes kept in modSettings._ozqRescued)"), 
+      localStorage.getItem("modSettings") === str2;
+    } catch (e) {
+      return !1;
+    }
+  }(r.shared, r.container), err(`boot migration (${IS_GAME ? "game" : "shell"}): ${r.notes.join(", ")}; ${Object.keys(r.container.games).length} game(s) in container`);
+} catch (e) {
+  err(`boot migration threw: ${e}`);
 }
 
 function agesOrdered(store) {
@@ -245,10 +331,8 @@ function isHofEligible(g) {
 function allGames() {
   const c = function() {
     try {
-      const raw = localStorage.getItem("!chronicle");
-      if (!raw) return null;
-      const c = JSON.parse(raw);
-      if (c && c.games) return c;
+      const c = hofLoadShared().container;
+      if (c && Object.keys(c.games).length) return c;
     } catch (e) {}
     return null;
   }();
@@ -1044,14 +1128,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.30.47"
+    version: "0.31.0"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.30.47"
+      version: "0.31.0"
     };
   } catch (e2) {}
 }
@@ -1102,11 +1186,7 @@ function install() {
       subtree: !0
     });
   } catch (e) {}
-  !function(msg) {
-    try {
-      console.error(`[ozq-hof] ${msg}`);
-    } catch (e) {}
-  }("loaded (" + (IS_GAME ? "game" : "shell") + ").");
+  err("loaded (" + (IS_GAME ? "game" : "shell") + ").");
 }
 
 !function scheduleInstall() {

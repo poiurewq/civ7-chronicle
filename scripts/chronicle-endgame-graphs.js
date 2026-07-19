@@ -29,8 +29,8 @@ function loadLoggerStore() {
   if (viewMode && viewMode.store) return viewMode.store;
   let container = null;
   try {
-    const raw = localStorage.getItem("!chronicle");
-    raw && (container = JSON.parse(raw));
+    const raw = localStorage.getItem("modSettings"), row0 = raw ? JSON.parse(raw) : null;
+    row0 && row0["ozq-chronicle"] && row0["ozq-chronicle"].games ? container = row0["ozq-chronicle"] : row0 && row0.games && (container = row0);
   } catch (e) {}
   if (!container || !container.games) return null;
   const gid = resolveGameId();
@@ -2347,7 +2347,7 @@ try {
     open: openOverlay,
     openForStore: openOverlayForStore,
     close: closeOverlay,
-    version: "0.30.47"
+    version: "0.31.0"
   };
 } catch (e) {
   try {
@@ -2355,7 +2355,7 @@ try {
       open: openOverlay,
       openForStore: openOverlayForStore,
       close: closeOverlay,
-      version: "0.30.47"
+      version: "0.31.0"
     };
   } catch (e2) {}
 }

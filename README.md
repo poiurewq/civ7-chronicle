@@ -109,8 +109,8 @@ Workshop (or you're playing a non-Steam copy).
 
 1. Open the [Chronicle Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3761407790)
    and click **Subscribe**.
-2. Launch Civ 7 → **Additional Content / Mods** → make sure **Chronicle — Stats &
-   Graphs** is enabled.
+2. Launch Civ 7 → **Additional Content / Mods** → make sure **Chronicle - Stats,
+   Graphs & Hall of Fame** is enabled.
 
 Steam keeps it up to date automatically. To uninstall, just **Unsubscribe**.
 
@@ -120,8 +120,8 @@ Steam keeps it up to date automatically. To uninstall, just **Unsubscribe**.
    - **macOS:** `~/Library/Application Support/Civilization VII/Mods/`
    - **Windows:** `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VII\Mods\`
 2. Copy the entire `ozq-chronicle` folder into that `Mods` folder.
-3. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle — Stats &
-   Graphs**.
+3. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle - Stats,
+   Graphs & Hall of Fame**.
 
 To uninstall, disable it in the Mods menu or delete the `ozq-chronicle` folder.
 
@@ -139,8 +139,13 @@ again (it leaves the pause menu open behind it).
 - Additive UI patch — it overwrites no base-game files, so it's resilient to
   game updates and unlikely to conflict with other mods.
 - Requires the base game only. No dependencies.
-- Chronicle stores its per-turn log in the UI's `localStorage`. If you run another UI
-  mod that also uses `localStorage`, see the note below.
+- Chronicle stores its per-turn log in the UI's `localStorage`, using the same shared
+  `modSettings` key that the popular settings mods agreed on (because of an engine bug —
+  see the note below). It coexists cleanly with mods like Policy Yields Previews,
+  City Hall, and Better Options Menu, and preserves their settings
+  when reading and writing its own data.
+- Updating from an older Chronicle: your existing history is migrated into the shared
+  key automatically on the first launch.
 
 ## For mod developers — a Civ 7 `localStorage` bug
 
@@ -153,9 +158,16 @@ Consequences, if your UI mod runs in the game scope and reads `localStorage` by 
 - Whichever installed mod holds the **first-sorting key** answers *every* `getItem` in
   that shared origin — so your `getItem` may hand you another mod's value, including
   Chronicle's.
-- There is no keyed-read fallback. Chronicle works around it by storing everything under
-  a single key named `!chronicle`, whose leading `!` sorts ahead of essentially any key
-  another mod would use, keeping its own reads reliable.
+- There is no keyed-read fallback: only the origin's first row is readable, ever. The
+  modding community's answer is to **share one key**, `modSettings`, with one sub-object
+  per mod — several popular settings mods already enforce this, some by clearing the
+  whole origin when they find a second key. Since 0.31.0 Chronicle follows the
+  convention too: it keeps its data under `modSettings["ozq-chronicle"]`, preserves
+  every other mod's sub-object when it writes, and never clears the origin unless its
+  reads are actually blocked (and even then it keeps a copy of the row it displaced).
+  If your mod persists anything, put it under a `modSettings` sub-key rather than your
+  own key — a private key both breaks other mods' reads and will likely be erased at
+  the next boot.
 
 This is an **engine bug**, not anything specific to Chronicle. It's worth knowing about
 before you spend days debugging what looks like data corruption, a size quota, or an

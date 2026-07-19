@@ -1,4 +1,4 @@
-const YIELD_METRICS = [ {
+const LEGACY_KEYS = [ "!chronicle", "chronicle" ], YIELD_METRICS = [ {
   k: "hap",
   yield: "YIELD_HAPPINESS"
 }, {
@@ -58,6 +58,10 @@ function countCompletedNodes(pid, ageType, system) {
     return null;
   }
   return n;
+}
+
+function err(msg) {
+  console.error(`[chronicle-log] ${msg}`);
 }
 
 function round1(n) {
@@ -360,6 +364,107 @@ function seedKillCounters() {
 
 const BYTYPE_IDS = [ "UnitsTrainedByType", "UnitsKilledByType", "UnitsLostByType", "BuildingsBuiltByType", "DistrictsBuiltByType", "WondersBuiltByType" ];
 
+function migrateContainer(c) {
+  return c && "object" == typeof c && c.games ? (c.v = 2, c) : {
+    v: 2,
+    updated: 0,
+    games: {}
+  };
+}
+
+function mergeContainers(base, add) {
+  for (const gid in add.games) {
+    const a = add.games[gid], b = base.games[gid];
+    (!b || (a.updated || 0) >= (b.updated || 0)) && (base.games[gid] = a);
+  }
+  return base;
+}
+
+function foldSchema1(row0) {
+  const gid = row0.fp && row0.fp.setup && null != row0.fp.seed ? `${row0.fp.setup}_${row0.fp.seed}` : row0.guid || "legacy", c = {
+    v: 2,
+    updated: 0,
+    games: {}
+  };
+  return c.games[gid] = {
+    fp: row0.fp || null,
+    created: row0.created || Date.now(),
+    updated: row0.updated || 0,
+    ages: row0.ages
+  }, c;
+}
+
+function loadShared() {
+  let folded = null;
+  const notes = [], fin = shared => ({
+    shared: shared,
+    container: folded || {
+      v: 2,
+      updated: 0,
+      games: {}
+    },
+    notes: notes
+  });
+  for (let hop = 0; hop < 4; hop++) {
+    let raw = null;
+    try {
+      raw = localStorage.getItem("modSettings");
+    } catch (e) {}
+    if (!raw) return notes.push("row0 empty"), fin({});
+    let row0 = null;
+    try {
+      row0 = JSON.parse(raw);
+    } catch (e) {}
+    if (!row0 || "object" != typeof row0) return notes.push("row0 not JSON (foreign)"), 
+    fin({});
+    const sub = row0["ozq-chronicle"];
+    if (sub && sub.games) {
+      const c = migrateContainer(sub);
+      return 0 !== hop || folded ? notes.push("reached modSettings after fold") : notes.push("steady"), 
+      delete row0["ozq-chronicle"], folded = folded ? mergeContainers(c, folded) : c, 
+      fin(row0);
+    }
+    if (row0.games) {
+      folded = folded ? mergeContainers(migrateContainer(row0), folded) : migrateContainer(row0), 
+      notes.push("folded pre-0.31 container");
+      let removed = !1;
+      for (const k of LEGACY_KEYS) try {
+        localStorage.removeItem(k), removed = !0;
+      } catch (e) {}
+      if (!removed) return fin({});
+      continue;
+    }
+    return row0.ages && !row0.games ? (folded = folded ? mergeContainers(foldSchema1(row0), folded) : foldSchema1(row0), 
+    notes.push("folded <=0.24 store (write-verify will clean)"), fin({})) : (notes.push(0 === hop ? "adopted row0 object" : "adopted object after fold"), 
+    fin(row0));
+  }
+  return notes.push("hop limit"), fin({});
+}
+
+function saveShared(shared, c) {
+  shared["ozq-chronicle"] = c;
+  const str = JSON.stringify(shared);
+  localStorage.setItem("modSettings", str);
+  let back = null;
+  try {
+    back = localStorage.getItem("modSettings");
+  } catch (e) {}
+  if (back === str) return !0;
+  try {
+    null != back && (shared._ozqRescued = {
+      t: Date.now(),
+      data: String(back).slice(0, 131072)
+    }), localStorage.clear();
+    const str2 = JSON.stringify(shared);
+    return localStorage.setItem("modSettings", str2), err("origin reads were blocked by an unknown first-sorting key; cleared as last resort (row-0 bytes kept in modSettings._ozqRescued)"), 
+    localStorage.getItem("modSettings") === str2;
+  } catch (e) {
+    return !1;
+  }
+}
+
+let bootNotes = [];
+
 function containerBytes(c) {
   try {
     return JSON.stringify(c).length;
@@ -385,7 +490,7 @@ function saveContainer(c, currentGameId) {
   let guard = 0;
   for (;containerBytes(c) > CONTAINER_CAP && guard++ < 64 && evictOldestGame(c, currentGameId); ) ;
   for (let attempt = 0; attempt < 10; attempt++) try {
-    return localStorage.setItem("!chronicle", JSON.stringify(c)), !0;
+    return saveShared(loadShared().shared, c);
   } catch (e) {
     if (!evictOldestGame(c, currentGameId)) return !1;
   }
@@ -665,36 +770,8 @@ function maybeCapture(reason) {
 function init() {
   const resolved = resolveGameId();
   guid = resolved.id, container = function() {
-    let row0 = null;
-    try {
-      const raw = localStorage.getItem("!chronicle");
-      raw && (row0 = JSON.parse(raw));
-    } catch (e) {}
-    if (row0 && row0.games) return (c = row0) && "object" == typeof c && c.games ? (c.v = 2, 
-    c) : {
-      v: 2,
-      updated: 0,
-      games: {}
-    };
-    var c;
-    if (row0 && row0.ages && !row0.games) {
-      const games = {};
-      return games[row0.fp && row0.fp.setup && null != row0.fp.seed ? `${row0.fp.setup}_${row0.fp.seed}` : row0.guid || "legacy"] = {
-        fp: row0.fp || null,
-        created: row0.created || Date.now(),
-        updated: row0.updated || 0,
-        ages: row0.ages
-      }, {
-        v: 2,
-        updated: 0,
-        games: games
-      };
-    }
-    return {
-      v: 2,
-      updated: 0,
-      games: {}
-    };
+    const r = loadShared();
+    return bootNotes = r.notes, r.container;
   }(), store = function(c, gameId, fp) {
     const cur = c.games[gameId];
     if (cur && cur.ages) return fp && (cur.fp = fp), cur;
@@ -712,16 +789,15 @@ function init() {
     return c.games[gameId] = fresh, fresh;
   }(container, guid, resolved.fp), ensureMeta(), saveContainer(container, guid);
   const age = currentAge();
-  var msg;
-  msg = `loaded. game=${guid} age=${age.key}${age.label ? " (" + age.label + ")" : ""} restored ${function(store) {
+  err(`loaded. game=${guid} age=${age.key}${age.label ? " (" + age.label + ")" : ""} restored ${function(store) {
     let n = 0;
     for (const k in store.ages) {
       const t = store.ages[k].turns;
       t && (n += Object.keys(t).length);
     }
     return n;
-  }(store)} prior rows across ${Object.keys(store.ages).length} ages; container has ${Object.keys(container.games).length} game(s), ${containerBytes(container)} B`, 
-  console.error(`[chronicle-log] ${msg}`), seedKillCounters();
+  }(store)} prior rows across ${Object.keys(store.ages).length} ages; container has ${Object.keys(container.games).length} game(s), ${containerBytes(container)} B; storage: ${bootNotes.join(", ")}`), 
+  seedKillCounters();
   try {
     maybeCapture();
   } catch (e) {}
@@ -753,6 +829,13 @@ function init() {
       } catch (e) {}
     });
   } catch (e) {}
+}
+
+try {
+  const r = loadShared();
+  saveShared(r.shared, r.container), err(`boot migration: ${r.notes.join(", ")}; ${Object.keys(r.container.games).length} game(s) in container`);
+} catch (e) {
+  err(`boot migration threw: ${e}`);
 }
 
 let bootTries = 0;
