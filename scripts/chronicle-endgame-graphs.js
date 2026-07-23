@@ -1,4 +1,4 @@
-const PANEL_BOX = [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 36px", "overflow-x:hidden", "overflow-y:hidden" ].join(";"), OVERLAY_ID = "ozq-chronicle-graphs-overlay";
+const LOG = "[ozq-chronicle]", PANEL_BOX = [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 36px", "overflow-x:hidden", "overflow-y:hidden" ].join(";"), OVERLAY_ID = "ozq-chronicle-graphs-overlay";
 
 let viewMode = null;
 
@@ -25,22 +25,15 @@ function resolveGameId() {
   return setup && seedOk ? `${setup}_${seed}` : seedOk ? `seed:${seed}` : setup || null;
 }
 
+let _storeLayoutCache = null, _trendSourceCache = null, _probeTrendCache = null, _summaryTurnCache = null;
+
+function invalidateOpenCaches() {
+  _storeLayoutCache = null, _trendSourceCache = null, _probeTrendCache = null, _summaryTurnCache = null;
+}
+
 function loadLoggerStore() {
-  if (viewMode && viewMode.store) return viewMode.store;
-  let container = null;
-  try {
-    const raw = localStorage.getItem("modSettings"), row0 = raw ? JSON.parse(raw) : null;
-    row0 && row0["ozq-chronicle"] && row0["ozq-chronicle"].games ? container = row0["ozq-chronicle"] : row0 && row0.games && (container = row0);
-  } catch (e) {}
-  if (!container || !container.games) return null;
-  const gid = resolveGameId();
-  if (gid && container.games[gid] && container.games[gid].ages) return container.games[gid];
-  const seed = currentGameSeed();
-  if (null != seed) for (const k in container.games) {
-    const g = container.games[k];
-    if (g && g.ages && g.fp && g.fp.seed === seed) return g;
-  }
-  return null;
+  const ctx = ensureStoreLayout();
+  return ctx ? ctx.store : null;
 }
 
 function bracketCiTurn() {
@@ -52,6 +45,77 @@ function bracketCiTurn() {
     curCi: currentAgeCi(),
     curTurn: "undefined" != typeof Game && null != Game.turn ? Game.turn : 1 / 0
   };
+}
+
+function ensureStoreLayout() {
+  const bracketKey = function() {
+    const {curCi: curCi, curTurn: curTurn} = bracketCiTurn();
+    return (isHistoricalView() ? "h" : "l") + ":" + String(curCi) + ":" + String(curTurn);
+  }();
+  if (_storeLayoutCache && _storeLayoutCache.bracketKey === bracketKey) return _storeLayoutCache;
+  const store = function() {
+    if (viewMode && viewMode.store) return viewMode.store;
+    let container = null;
+    try {
+      const raw = localStorage.getItem("modSettings"), row0 = raw ? JSON.parse(raw) : null;
+      row0 && row0["ozq-chronicle"] && row0["ozq-chronicle"].games ? container = row0["ozq-chronicle"] : row0 && row0.games && (container = row0);
+    } catch (e) {}
+    if (!container || !container.games) return null;
+    const gid = resolveGameId();
+    if (gid && container.games[gid] && container.games[gid].ages) return container.games[gid];
+    const seed = currentGameSeed();
+    if (null != seed) for (const k in container.games) {
+      const g = container.games[k];
+      if (g && g.ages && g.fp && g.fp.seed === seed) return g;
+    }
+    return null;
+  }();
+  if (!store) return _storeLayoutCache = null, null;
+  const built = function(store) {
+    const empty = {
+      layout: [],
+      earliestCi: null,
+      end: 0
+    };
+    if (!store || !store.ages) return empty;
+    const ages = Object.keys(store.ages).map(k => {
+      const m = resolveAgeMeta(k, store.ages[k]);
+      return {
+        key: k,
+        turns: store.ages[k].turns,
+        ci: m.ci,
+        label: m.label
+      };
+    }).sort((a, b) => a.ci - b.ci), {curCi: curCi, curTurn: curTurn} = bracketCiTurn();
+    let cursor = 0;
+    const layout = [];
+    for (const age of ages) {
+      if (null != curCi && age.ci > curCi) continue;
+      let turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
+      if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
+      !turns.length) continue;
+      const minT = turns[0], maxT = turns[turns.length - 1];
+      layout.push({
+        age: age,
+        turns: turns,
+        minT: minT,
+        offset: cursor
+      }), cursor += maxT - minT + 2;
+    }
+    const end = Math.max(0, cursor - 2);
+    return {
+      layout: layout,
+      earliestCi: layout.length ? layout[0].age.ci || 0 : null,
+      end: end
+    };
+  }(store);
+  return _storeLayoutCache = {
+    store: store,
+    layout: built.layout,
+    earliestCi: built.earliestCi,
+    end: built.end,
+    bracketKey: bracketKey
+  }, _storeLayoutCache;
 }
 
 const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", "Overall", "World" ], METRICS = [ {
@@ -108,17 +172,16 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     }
   }
 }, {
-  id: "ratioSciPerCitizen",
-  label: "Science / Citizen",
+  id: "Culture",
+  label: "Culture / Turn",
   category: "Research",
   trend: {
-    ratioKey: {
-      num: "Science",
-      den: "tpop",
-      scale: 1,
-      dp: 1
-    },
-    yTitle: "Science per citizen / turn"
+    loggerKey: "Culture",
+    yTitle: "Culture / turn",
+    summary: {
+      id: "Culture",
+      scope: "Player"
+    }
   }
 }, {
   id: "TechsAcquired",
@@ -134,16 +197,26 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     }
   }
 }, {
-  id: "Culture",
-  label: "Culture / Turn",
+  id: "CivicsAcquired",
+  label: "Civics",
   category: "Research",
   trend: {
-    loggerKey: "Culture",
-    yTitle: "Culture / turn",
-    summary: {
-      id: "Culture",
-      scope: "Player"
-    }
+    loggerKey: "CivicsAcquired",
+    stepped: !0,
+    yTitle: "Civics researched"
+  }
+}, {
+  id: "ratioSciPerCitizen",
+  label: "Science / Citizen",
+  category: "Research",
+  trend: {
+    ratioKey: {
+      num: "Science",
+      den: "tpop",
+      scale: 1,
+      dp: 1
+    },
+    yTitle: "Science per citizen / turn"
   }
 }, {
   id: "ratioCulPerCitizen",
@@ -157,15 +230,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
       dp: 1
     },
     yTitle: "Culture per citizen / turn"
-  }
-}, {
-  id: "CivicsAcquired",
-  label: "Civics",
-  category: "Research",
-  trend: {
-    loggerKey: "CivicsAcquired",
-    stepped: !0,
-    yTitle: "Civics researched"
   }
 }, {
   id: "trendGreatWorks",
@@ -233,6 +297,40 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     }
   }
 }, {
+  id: "trendBuildings",
+  label: "Buildings",
+  category: "Economy",
+  trend: {
+    loggerKey: "bld",
+    stepped: !0,
+    yTitle: "Buildings owned",
+    summary: {
+      id: "BuildingsConstructed",
+      scope: "Player",
+      delta: !0,
+      yTitle: "Buildings built"
+    }
+  }
+}, {
+  id: "trendImprovements",
+  label: "Improvements",
+  category: "Economy",
+  trend: {
+    loggerKey: "imp",
+    stepped: !0,
+    yTitle: "Improvements owned"
+  }
+}, {
+  id: "trendOverbuilds",
+  label: "Overbuilds",
+  category: "Economy",
+  trend: {
+    loggerKey: "ob",
+    stepped: !0,
+    includeDead: !0,
+    yTitle: "Buildings & improvements overbuilt"
+  }
+}, {
   id: "WondersConstructed",
   label: "Wonders",
   category: "Economy",
@@ -262,18 +360,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     }
   }
 }, {
-  id: "Food",
-  label: "Food / Turn",
-  category: "Society",
-  trend: {
-    loggerKey: "Food",
-    yTitle: "Food / turn",
-    summary: {
-      id: "Food",
-      scope: "City"
-    }
-  }
-}, {
   id: "Population",
   label: "Population",
   category: "Society",
@@ -282,6 +368,18 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     yTitle: "Population",
     summary: {
       id: "Population",
+      scope: "City"
+    }
+  }
+}, {
+  id: "Food",
+  label: "Food / Turn",
+  category: "Society",
+  trend: {
+    loggerKey: "Food",
+    yTitle: "Food / turn",
+    summary: {
+      id: "Food",
       scope: "City"
     }
   }
@@ -354,6 +452,34 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     }
   }
 }, {
+  id: "trendCities",
+  label: "Cities",
+  category: "Expansion",
+  trend: {
+    loggerKey: "cityN",
+    stepped: !0,
+    yTitle: "Cities (promoted settlements)"
+  }
+}, {
+  id: "trendTowns",
+  label: "Towns",
+  category: "Expansion",
+  trend: {
+    loggerKey: "townN",
+    stepped: !0,
+    yTitle: "Towns"
+  }
+}, {
+  id: "trendSettlementsLost",
+  label: "Settlements Lost",
+  category: "Expansion",
+  trend: {
+    loggerKey: "sLost",
+    stepped: !0,
+    includeDead: !0,
+    yTitle: "Settlements lost"
+  }
+}, {
   id: "trendSettlementCap",
   label: "Settlement Cap",
   category: "Expansion",
@@ -374,51 +500,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
       dp: 0
     },
     yTitle: "% of settlement cap used"
-  }
-}, {
-  id: "trendCities",
-  label: "Cities",
-  category: "Expansion",
-  trend: {
-    loggerKey: "cityN",
-    stepped: !0,
-    yTitle: "Cities (promoted settlements)"
-  }
-}, {
-  id: "trendTowns",
-  label: "Towns",
-  category: "Expansion",
-  trend: {
-    loggerKey: "townN",
-    stepped: !0,
-    yTitle: "Towns"
-  }
-}, {
-  id: "CitiesConquered",
-  label: "Settlements Conquered",
-  category: "Expansion",
-  trend: {
-    loggerKey: "conq",
-    stepped: !0,
-    yTitle: "Settlements conquered",
-    summary: {
-      id: "CitiesConquered",
-      scope: "Player",
-      delta: !0
-    }
-  }
-}, {
-  id: "ratioConquest",
-  label: "Conquest %",
-  category: "Expansion",
-  trend: {
-    ratioKey: {
-      num: "conq",
-      den: "set",
-      scale: 100,
-      dp: 0
-    },
-    yTitle: "% of settlements taken by force"
   }
 }, {
   id: "uKill",
@@ -451,18 +532,22 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     }
   }
 }, {
-  id: "UnitsTrainedByType",
-  label: "Units Trained",
+  id: "UnitsOwnedByType",
+  label: "Units Owned",
   category: "Military",
   kind: "bar",
+  byType: "stock",
   lookup: "Units",
   xTitle: "Unit type",
-  yTitle: "Number trained"
+  yTitle: "Number owned"
 }, {
   id: "UnitsKilledByType",
   label: "Kills by Unit",
   category: "Military",
   kind: "bar",
+  byType: "event",
+  eventKey: "kbt",
+  majorsOnly: !0,
   lookup: "Units",
   xTitle: "Your unit type",
   yTitle: "Enemy units it killed"
@@ -471,30 +556,94 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   label: "Losses by Unit",
   category: "Military",
   kind: "bar",
+  byType: "event",
+  eventKey: "lbt",
+  majorsOnly: !0,
   lookup: "Units",
   xTitle: "Your unit type",
   yTitle: "Number lost"
 }, {
-  id: "BuildingsBuiltByType",
+  id: "CitiesConquered",
+  label: "Settlements Conquered",
+  category: "Military",
+  trend: {
+    loggerKey: "conqA",
+    campaignFromAgeLocal: !0,
+    stepped: !0,
+    yTitle: "Settlements conquered",
+    summary: {
+      id: "CitiesConquered",
+      scope: "Player",
+      delta: !0
+    }
+  }
+}, {
+  id: "ratioConquest",
+  label: "Conquest %",
+  category: "Military",
+  trend: {
+    ratioKey: {
+      num: "conqA",
+      den: "set",
+      scale: 100,
+      dp: 0,
+      campaignSumNum: !0
+    },
+    yTitle: "% of settlements taken by force"
+  }
+}, {
+  id: "trendRazed",
+  label: "Settlements Razed",
+  category: "Military",
+  trend: {
+    loggerKey: "rz",
+    stepped: !0,
+    includeDead: !0,
+    yTitle: "Settlements razed"
+  }
+}, {
+  id: "trendIndDisp",
+  label: "IPs Dispersed",
+  category: "Military",
+  trend: {
+    loggerKey: "indDisp",
+    stepped: !0,
+    includeDead: !0,
+    yTitle: "Independent powers dispersed"
+  }
+}, {
+  id: "BuildingsOwnedByType",
   label: "Buildings",
   category: "World",
   kind: "bar",
+  byType: "stock",
   lookup: "Constructibles",
   xTitle: "Building",
-  yTitle: "Number built"
+  yTitle: "Number owned"
 }, {
-  id: "DistrictsBuiltByType",
+  id: "ImprovementsOwnedByType",
+  label: "Improvements",
+  category: "World",
+  kind: "bar",
+  byType: "stock",
+  lookup: "Constructibles",
+  xTitle: "Improvement",
+  yTitle: "Number owned"
+}, {
+  id: "DistrictsOwnedByType",
   label: "Districts",
   category: "World",
   kind: "bar",
+  byType: "stock",
   lookup: "Districts",
   xTitle: "District",
-  yTitle: "Number built"
+  yTitle: "Number owned"
 }, {
-  id: "WondersBuiltByType",
-  label: "Wonders Built",
+  id: "WondersOwnedByType",
+  label: "Wonders",
   category: "World",
   kind: "board",
+  byType: "stock",
   lookup: "Constructibles"
 }, {
   id: "liveLargestCities",
@@ -674,7 +823,7 @@ function ownerColor(obj) {
         for (const k in viewMode.store.ages) {
           const turns = viewMode.store.ages[k].turns || {};
           for (const t in turns) {
-            const p = turns[t].p || {};
+            const turnRow = turns[t], p = turnRow && turnRow.p || {};
             for (const pid in p) seen.add(Number(pid));
           }
         }
@@ -803,7 +952,153 @@ function isFromGameStart(firstCi, firstT, earliestCi) {
   return null != firstCi && null != earliestCi && firstCi === earliestCi && null != firstT && firstT <= 1;
 }
 
-function trendSource(trend) {
+function countLoggerTurns(metric, layout, earliestCi) {
+  const empty = {
+    turnCount: 0,
+    firstCi: null,
+    firstT: null,
+    firstAgeLabel: "",
+    fromGameStart: !1,
+    lineOk: !1,
+    standOk: !1
+  };
+  if (!layout || !layout.length || !metric.loggerKey && !metric.ratioKey) return empty;
+  const valueOf = loggerValueOf(metric);
+  let turnCount = 0, firstCi = null, firstT = null, firstAgeLabel = "";
+  for (const L of layout) for (const t of L.turns) {
+    const turnRow = L.age.turns[t], p = turnRow && turnRow.p || {};
+    let has = !1;
+    for (const pid in p) if (isMajorPid(pid) && null != valueOf(p[pid], p)) {
+      has = !0;
+      break;
+    }
+    has && (turnCount++, null == firstCi && (firstCi = L.age.ci || 0, firstT = t, firstAgeLabel = L.age.label || L.age.key));
+  }
+  const fromGameStart = isFromGameStart(firstCi, firstT, earliestCi);
+  return {
+    turnCount: turnCount,
+    firstCi: firstCi,
+    firstT: firstT,
+    firstAgeLabel: firstAgeLabel,
+    fromGameStart: fromGameStart,
+    lineOk: turnCount >= (fromGameStart ? 2 : 3),
+    standOk: turnCount >= 1
+  };
+}
+
+function countReligionTurns(metric, layout, earliestCi) {
+  const empty = {
+    turnCount: 0,
+    firstCi: null,
+    firstT: null,
+    firstAgeLabel: "",
+    fromGameStart: !1,
+    lineOk: !1,
+    standOk: !1
+  }, key = metric.religionKey;
+  if (!key || !layout || !layout.length) return empty;
+  let turnCount = 0, firstCi = null, firstT = null, firstAgeLabel = "";
+  for (const L of layout) for (const t of L.turns) {
+    const turnRow = L.age.turns[t], rel = turnRow && turnRow.rel;
+    if (!rel) continue;
+    let has = !1;
+    for (const h in rel) if (rel[h] && null != rel[h][key]) {
+      has = !0;
+      break;
+    }
+    has && (turnCount++, null == firstCi && (firstCi = L.age.ci || 0, firstT = t, firstAgeLabel = L.age.label || L.age.key));
+  }
+  const fromGameStart = isFromGameStart(firstCi, firstT, earliestCi);
+  return {
+    turnCount: turnCount,
+    firstCi: firstCi,
+    firstT: firstT,
+    firstAgeLabel: firstAgeLabel,
+    fromGameStart: fromGameStart,
+    lineOk: turnCount >= (fromGameStart ? 2 : 3),
+    standOk: turnCount >= 1
+  };
+}
+
+function trendIdentityKey(trend) {
+  if (!trend) return "";
+  if (trend.religionKey) return "rel:" + trend.religionKey;
+  const parts = [];
+  if (trend.loggerKey && parts.push("k:" + trend.loggerKey), trend.ratioKey) {
+    const r = trend.ratioKey;
+    parts.push("r:" + r.num + "/" + (null != r.den ? r.den : "") + "/" + (null != r.denSum ? r.denSum : "") + (r.campaignSumNum ? "+c" : ""));
+  }
+  return trend.campaignFromAgeLocal && parts.push("camp"), trend.includeDead && parts.push("dead"), 
+  trend.summary && trend.summary.id && parts.push("s:" + trend.summary.id + ":" + (trend.summary.scope || "")), 
+  parts.join("|") || "anon";
+}
+
+function probeTrend(trend) {
+  if (!trend) return {
+    standOk: !1,
+    trendOk: !1,
+    loggerLineOk: !1,
+    loggerTurnCount: 0,
+    summaryTurnCount: 0
+  };
+  _probeTrendCache || (_probeTrendCache = new Map);
+  const id = trendIdentityKey(trend);
+  if (_probeTrendCache.has(id)) return _probeTrendCache.get(id);
+  let loggerTurnCount = 0, loggerLineOk = !1, loggerStandOk = !1;
+  if (trend.religionKey || trend.loggerKey || trend.ratioKey) {
+    const ctx = ensureStoreLayout(), layout = ctx ? ctx.layout : [], earliestCi = ctx ? ctx.earliestCi : null, counted = trend.religionKey ? countReligionTurns(trend, layout, earliestCi) : countLoggerTurns(trend, layout, earliestCi);
+    loggerTurnCount = counted.turnCount, loggerLineOk = counted.lineOk, loggerStandOk = counted.standOk;
+  }
+  const summaryTurnCount = !isHistoricalView() && trend.summary ? function(trend) {
+    const spec = trend && trend.summary;
+    if (!spec || isHistoricalView()) return 0;
+    if ("undefined" == typeof Game || !Game.Summary || "function" != typeof Game.Summary.getDataSets) return 0;
+    _summaryTurnCache || (_summaryTurnCache = new Map);
+    const cacheKey = String(spec.id) + ":" + String(spec.scope) + ":" + (spec.delta ? "1" : "0");
+    if (_summaryTurnCache.has(cacheKey)) return _summaryTurnCache.get(cacheKey);
+    let n = 0;
+    try {
+      const objectMap = new Map;
+      Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o));
+      const sets = Game.Summary.getDataSets(spec.id);
+      if (!sets || !sets.length) return _summaryTurnCache.set(cacheKey, 0), 0;
+      const curTurn = null != Game.turn ? Game.turn : 1 / 0, turnSet = new Set;
+      for (const ds of sets) {
+        const o = null != ds.owner ? objectMap.get(ds.owner) : null;
+        if (o && o.type === spec.scope && null != o.ownerPlayer && ds.values && ds.values.length) for (const pt of ds.values) null == pt.x || null == pt.y || pt.x > curTurn || turnSet.add(pt.x);
+      }
+      n = turnSet.size;
+    } catch (e) {
+      n = 0;
+    }
+    return _summaryTurnCache.set(cacheKey, n), n;
+  }(trend) : 0, result = {
+    standOk: loggerStandOk || summaryTurnCount >= 1,
+    trendOk: loggerLineOk || summaryTurnCount >= 2,
+    loggerLineOk: loggerLineOk,
+    loggerTurnCount: loggerTurnCount,
+    summaryTurnCount: summaryTurnCount
+  };
+  return _probeTrendCache.set(id, result), result;
+}
+
+function trendAvailable(metric) {
+  try {
+    return !!(metric && metric.trend && probeTrend(metric.trend).trendOk);
+  } catch (e) {
+    return !1;
+  }
+}
+
+function standAvailable(metric) {
+  try {
+    return !!(metric && metric.trend && probeTrend(metric.trend).standOk);
+  } catch (e) {
+    return !1;
+  }
+}
+
+function trendSourceUncached(trend) {
   if (trend.religionKey) return buildReligionDatasets(trend);
   const logged = function(metric) {
     if (metric.religionKey) return buildReligionDatasets(metric);
@@ -820,57 +1115,49 @@ function trendSource(trend) {
       label: null,
       currentAgeOnly: !1,
       source: "logger"
-    }, store = loadLoggerStore();
-    if (!store || !store.ages || !metric.loggerKey && !metric.ratioKey) return empty;
-    const ages = Object.keys(store.ages).map(k => {
-      const m = resolveAgeMeta(k, store.ages[k]);
-      return {
-        key: k,
-        turns: store.ages[k].turns,
-        ci: m.ci,
-        label: m.label
-      };
-    }).sort((a, b) => a.ci - b.ci), {curCi: curCi, curTurn: curTurn} = bracketCiTurn();
-    let cursor = 0;
-    const layout = [], pids = new Set;
-    for (const age of ages) {
-      if (null != curCi && age.ci > curCi) continue;
-      let turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
-      if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
-      !turns.length) continue;
-      const minT = turns[0], maxT = turns[turns.length - 1];
-      layout.push({
-        age: age,
-        turns: turns,
-        minT: minT,
-        offset: cursor
-      }), cursor += maxT - minT + 2;
-      for (const t of turns) {
-        const p = age.turns[t].p || {};
-        for (const pid in p) pids.add(pid);
-      }
-    }
-    const end = Math.max(0, cursor - 2);
-    let turnCount = 0, firstCi = null, firstT = null;
+    }, ctx = ensureStoreLayout();
+    if (!ctx || !ctx.store || !ctx.store.ages || !metric.loggerKey && !metric.ratioKey) return empty;
+    const layout = ctx.layout, end = ctx.end, counted = countLoggerTurns(metric, layout, ctx.earliestCi);
+    if (!counted.lineOk) return empty;
+    const {turnCount: turnCount, firstCi: firstCi, firstT: firstT, firstAgeLabel: firstAgeLabel, fromGameStart: fromGameStart} = counted, pids = new Set;
     for (const L of layout) for (const t of L.turns) {
-      const p = L.age.turns[t].p || {};
-      let has = !1;
-      for (const pid in p) if (null != valueOf(p[pid], p)) {
-        has = !0;
-        break;
-      }
-      has && (turnCount++, null == firstCi && (firstCi = L.age.ci || 0, firstT = t));
+      const turnRow = L.age.turns[t], p = turnRow && turnRow.p || {};
+      for (const pid in p) isMajorPid(pid) && pids.add(pid);
     }
-    if (turnCount < (isFromGameStart(firstCi, firstT, layout.length ? layout[0].age.ci || 0 : null) ? 2 : 3)) return empty;
-    const datasets = [];
+    const campaignPlain = !!metric.campaignFromAgeLocal, campaignRatio = !(!metric.ratioKey || !metric.ratioKey.campaignSumNum), ratioSpec = metric.ratioKey, datasets = [];
     for (const pid of pids) {
       const data = [];
-      for (const L of layout) for (const t of L.turns) {
-        const p = L.age.turns[t].p || {}, y = valueOf(p[pid], p);
-        null != y && data.push({
-          x: L.offset + (t - L.minT),
-          y: y
-        });
+      let pastLocal = 0;
+      for (const L of layout) {
+        let lastLocal = null;
+        for (const t of L.turns) {
+          const turnRow = L.age.turns[t], p = turnRow && turnRow.p || {}, row = p[pid], x = L.offset + (t - L.minT);
+          if (campaignRatio && ratioSpec) {
+            const local = row && null != row[ratioSpec.num] ? row[ratioSpec.num] : null;
+            null != local && (lastLocal = local);
+            const den = row && null != row[ratioSpec.den] ? row[ratioSpec.den] : null;
+            if (null != local && null != den && 0 !== den) {
+              const scale = null != ratioSpec.scale ? ratioSpec.scale : 1, dp = null != ratioSpec.dp ? ratioSpec.dp : 1, f = Math.pow(10, dp), cum = pastLocal + local;
+              data.push({
+                x: x,
+                y: Math.round(scale * cum / den * f) / f
+              });
+            }
+          } else if (campaignPlain) {
+            const y = valueOf(row, p);
+            null != y && (lastLocal = y, data.push({
+              x: x,
+              y: pastLocal + y
+            }));
+          } else {
+            const y = valueOf(row, p);
+            null != y && data.push({
+              x: x,
+              y: y
+            });
+          }
+        }
+        null != lastLocal && (pastLocal += lastLocal);
       }
       if (!data.length) continue;
       const color = ownerColor({
@@ -890,7 +1177,7 @@ function trendSource(trend) {
         tension: metric.stepped ? 0 : .15
       });
     }
-    const first = layout[0], startedLate = !!first && first.minT > 1, blocks = layout.map(L => ({
+    const startedLate = !fromGameStart && null != firstT, blocks = layout.map(L => ({
       offset: L.offset,
       minT: L.minT,
       maxT: L.turns[L.turns.length - 1],
@@ -909,8 +1196,8 @@ function trendSource(trend) {
       blocks: blocks,
       turnCount: turnCount,
       startedLate: startedLate,
-      firstAgeLabel: first ? first.age.label || first.age.key : "",
-      firstTurn: first ? first.minT : 0,
+      firstAgeLabel: firstAgeLabel,
+      firstTurn: null != firstT ? firstT : 0,
       yTitle: metric.yTitle,
       label: null,
       currentAgeOnly: !1,
@@ -968,6 +1255,7 @@ function trendSource(trend) {
     if (!byPid.size) return empty;
     const minT = turns[0], maxT = turns[turns.length - 1], datasets = [];
     for (const [pid, vals] of byPid) {
+      if (!isMajorPid(pid)) continue;
       const owner = {
         ownerPlayer: Number(pid)
       }, color = ownerColor(owner);
@@ -1010,8 +1298,12 @@ function trendSource(trend) {
   return logged.turnCount >= native.turnCount ? logged : native;
 }
 
-function canDrawLine(src) {
-  return src.turnCount >= 2;
+function trendSource(trend) {
+  _trendSourceCache || (_trendSourceCache = new Map);
+  const id = trendIdentityKey(trend);
+  if (_trendSourceCache.has(id)) return _trendSourceCache.get(id);
+  const src = trendSourceUncached(trend);
+  return _trendSourceCache.set(id, src), src;
 }
 
 function sourceLabel(src) {
@@ -1020,11 +1312,14 @@ function sourceLabel(src) {
 
 function metricLabel(metric) {
   if (!metric.trend) return metric.label;
+  const spec = metric.trend.summary;
+  if (!spec || !spec.label) return metric.label;
+  if (isHistoricalView()) return metric.label;
   try {
-    return trendSource(metric.trend).label || metric.label;
-  } catch (e) {
-    return metric.label;
-  }
+    const p = probeTrend(metric.trend), effectiveLogger = p.loggerLineOk ? p.loggerTurnCount : 0;
+    if (p.summaryTurnCount > effectiveLogger) return spec.label;
+  } catch (e) {}
+  return metric.label;
 }
 
 function isPlayerAlive(pid) {
@@ -1095,29 +1390,47 @@ function buildStandings(trend) {
     label: ds.label,
     value: ds.data[ds.data.length - 1].y,
     color: ds.borderColor
-  }); else if (includeDead) for (const [pid, y] of function(trend) {
+  }); else for (const [pid, y] of function(trend) {
     const out = new Map, store = loadLoggerStore();
     if (!store || !store.ages) return out;
-    const valueOf = loggerValueOf(trend), {curCi: curCi, curTurn: curTurn} = bracketCiTurn(), ages = Object.keys(store.ages).map(k => {
+    const valueOf = loggerValueOf(trend), campaignPlain = !!trend.campaignFromAgeLocal, campaignRatio = !(!trend.ratioKey || !trend.ratioKey.campaignSumNum), ratioSpec = trend.ratioKey, {curCi: curCi, curTurn: curTurn} = bracketCiTurn(), ages = Object.keys(store.ages).map(k => {
       const m = resolveAgeMeta(k, store.ages[k]);
       return {
         turns: store.ages[k].turns,
         ci: m.ci
       };
-    }).filter(a => null == curCi || a.ci <= curCi).sort((a, b) => a.ci - b.ci);
+    }).filter(a => null == curCi || a.ci <= curCi).sort((a, b) => a.ci - b.ci), pastLocal = {};
     for (const age of ages) {
       let turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
       null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn));
+      const lastLocal = {};
       for (const t of turns) {
-        const p = age.turns[t].p || {};
+        const turnRow = age.turns[t], p = turnRow && turnRow.p || {};
         for (const pid in p) {
-          const y = valueOf(p[pid], p);
-          null != y && out.set(Number(pid), y);
+          if (!isMajorPid(pid)) continue;
+          const row = p[pid], nPid = Number(pid);
+          if (campaignRatio && ratioSpec) {
+            const local = row && null != row[ratioSpec.num] ? row[ratioSpec.num] : null;
+            null != local && (lastLocal[pid] = local);
+            const den = row && null != row[ratioSpec.den] ? row[ratioSpec.den] : null;
+            if (null != local && null != den && 0 !== den) {
+              const scale = null != ratioSpec.scale ? ratioSpec.scale : 1, dp = null != ratioSpec.dp ? ratioSpec.dp : 1, f = Math.pow(10, dp), cum = (pastLocal[pid] || 0) + local;
+              out.set(nPid, Math.round(scale * cum / den * f) / f);
+            }
+          } else if (campaignPlain) {
+            const y = valueOf(row, p);
+            null != y && (lastLocal[pid] = y, out.set(nPid, (pastLocal[pid] || 0) + y));
+          } else {
+            const y = valueOf(row, p);
+            null != y && out.set(nPid, y);
+          }
         }
       }
+      for (const pid in lastLocal) pastLocal[pid] = (pastLocal[pid] || 0) + lastLocal[pid];
     }
     return out;
   }(trend)) {
+    if (!includeDead && !isPlayerAlive(pid)) continue;
     const owner = {
       ownerPlayer: pid
     };
@@ -1126,39 +1439,6 @@ function buildStandings(trend) {
       value: y,
       color: ownerColor(owner)
     });
-  } else {
-    const row = function() {
-      const store = loadLoggerStore();
-      if (!store || !store.ages) return null;
-      const {curCi: curCi, curTurn: curTurn} = bracketCiTurn(), ages = Object.keys(store.ages).map(k => {
-        const m = resolveAgeMeta(k, store.ages[k]);
-        return {
-          turns: store.ages[k].turns,
-          ci: m.ci
-        };
-      }).filter(a => null == curCi || a.ci <= curCi).sort((a, b) => b.ci - a.ci);
-      for (const age of ages) {
-        let turns = Object.keys(age.turns || {}).map(Number);
-        if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
-        !turns.length) continue;
-        const maxT = turns.reduce((a, b) => b > a ? b : a, turns[0]);
-        return age.turns[maxT].p || {};
-      }
-      return null;
-    }(), valueOf = loggerValueOf(trend);
-    if (row) for (const pid in row) {
-      if (!isPlayerAlive(pid)) continue;
-      const y = valueOf(row[pid], row);
-      if (null == y) continue;
-      const owner = {
-        ownerPlayer: Number(pid)
-      };
-      rows.push({
-        label: ownerName(owner),
-        value: y,
-        color: ownerColor(owner)
-      });
-    }
   }
   return rows.sort((a, b) => b.value - a.value), {
     labels: rows.map(r => r.label),
@@ -1355,56 +1635,22 @@ function buildReligionDatasets(metric) {
     source: "logger"
   }, key = metric.religionKey;
   if (!key) return empty;
-  const store = loadLoggerStore();
-  if (!store || !store.ages) return empty;
-  const ages = Object.keys(store.ages).map(k => {
-    const m = resolveAgeMeta(k, store.ages[k]);
-    return {
-      key: k,
-      turns: store.ages[k].turns,
-      ci: m.ci,
-      label: m.label
-    };
-  }).sort((a, b) => a.ci - b.ci), {curCi: curCi, curTurn: curTurn} = bracketCiTurn();
-  let cursor = 0;
-  const layout = [], hashes = new Set;
-  for (const age of ages) {
-    if (null != curCi && age.ci > curCi) continue;
-    let turns = Object.keys(age.turns || {}).map(Number).sort((a, b) => a - b);
-    if (null != curCi && age.ci === curCi && (turns = turns.filter(t => t <= curTurn)), 
-    !turns.length) continue;
-    const minT = turns[0], maxT = turns[turns.length - 1];
-    layout.push({
-      age: age,
-      turns: turns,
-      minT: minT,
-      offset: cursor
-    }), cursor += maxT - minT + 2;
-    for (const t of turns) {
-      const rel = age.turns[t] && age.turns[t].rel;
-      if (rel) for (const h in rel) rel[h] && null != rel[h][key] && hashes.add(h);
-    }
-  }
-  const end = Math.max(0, cursor - 2);
-  let turnCount = 0, firstCi = null, firstT = null;
+  const ctx = ensureStoreLayout();
+  if (!ctx || !ctx.store || !ctx.store.ages) return empty;
+  const layout = ctx.layout, end = ctx.end, counted = countReligionTurns(metric, layout, ctx.earliestCi);
+  if (!counted.lineOk) return empty;
+  const {turnCount: turnCount, firstT: firstT, firstAgeLabel: firstAgeLabel, fromGameStart: fromGameStart} = counted, hashes = new Set;
   for (const L of layout) for (const t of L.turns) {
-    const rel = L.age.turns[t] && L.age.turns[t].rel;
-    if (!rel) continue;
-    let has = !1;
-    for (const h in rel) if (rel[h] && null != rel[h][key]) {
-      has = !0;
-      break;
-    }
-    has && (turnCount++, null == firstCi && (firstCi = L.age.ci || 0, firstT = t));
+    const turnRow = L.age.turns[t], rel = turnRow && turnRow.rel;
+    if (rel) for (const h in rel) rel[h] && null != rel[h][key] && hashes.add(h);
   }
-  if (turnCount < (isFromGameStart(firstCi, firstT, layout.length ? layout[0].age.ci || 0 : null) ? 2 : 3)) return empty;
   if (!hashes.size) return empty;
   const datasets = [];
   for (const h of hashes) {
     const data = [];
     let seen = !1;
     for (const L of layout) for (const t of L.turns) {
-      const rel = L.age.turns[t] && L.age.turns[t].rel, raw = rel && rel[h] && null != rel[h][key] ? rel[h][key] : null;
+      const turnRow = L.age.turns[t], rel = turnRow && turnRow.rel, raw = rel && rel[h] && null != rel[h][key] ? rel[h][key] : null;
       null != raw && (seen = !0), seen && data.push({
         x: L.offset + (t - L.minT),
         y: null != raw ? raw : 0
@@ -1423,7 +1669,7 @@ function buildReligionDatasets(metric) {
       tension: metric.stepped ? 0 : .15
     });
   }
-  const first = layout[0], startedLate = !!first && first.minT > 1, blocks = layout.map(L => ({
+  const startedLate = !fromGameStart && null != firstT, blocks = layout.map(L => ({
     offset: L.offset,
     minT: L.minT,
     maxT: L.turns[L.turns.length - 1],
@@ -1442,8 +1688,8 @@ function buildReligionDatasets(metric) {
     blocks: blocks,
     turnCount: turnCount,
     startedLate: startedLate,
-    firstAgeLabel: first ? first.age.label || first.age.key : "",
-    firstTurn: first ? first.minT : 0,
+    firstAgeLabel: firstAgeLabel,
+    firstTurn: null != firstT ? firstT : 0,
     yTitle: metric.yTitle,
     label: null,
     currentAgeOnly: !1,
@@ -1475,82 +1721,135 @@ function resolveTypeName(table, type) {
   return pretty && pretty.trim() ? pretty : String(type).trim();
 }
 
-function pastAgeByType(dpId) {
-  const out = {
-    rows: [],
-    labels: []
-  }, store = loadLoggerStore();
-  if (!store || !store.ages) return out;
-  const curCi = currentAgeCi(), ages = Object.keys(store.ages).map(k => {
-    const m = resolveAgeMeta(k, store.ages[k]);
-    return {
-      obj: store.ages[k],
-      ci: m.ci,
-      label: m.label
-    };
-  }).filter(a => null != curCi && a.ci < curCi).sort((a, b) => a.ci - b.ci);
-  for (const a of ages) {
-    const bt = a.obj.bt && a.obj.bt[dpId];
-    if (!bt) continue;
-    let any = !1;
-    for (const pid in bt) for (const type in bt[pid]) {
-      const v = bt[pid][type];
-      null != v && (out.rows.push({
-        pid: Number(pid),
-        type: type,
-        val: v
-      }), any = !0);
+function isMajorPid(pid) {
+  const n = Number(pid);
+  try {
+    if ("undefined" != typeof Players && "function" == typeof Players.get) {
+      const p = Players.get(n);
+      if (p && null != p.isMajor) return !!p.isMajor;
     }
-    any && out.labels.push(prettifyType(a.label));
-  }
-  return out;
+  } catch (e) {}
+  try {
+    const store = loadLoggerStore(), m = store && store.meta && store.meta.players && (store.meta.players[n] || store.meta.players[String(n)]);
+    if (m && null != m.isMajor) return !!m.isMajor;
+    if (m) return !0;
+  } catch (e) {}
+  return !1;
 }
 
 function readByTypeData(metric) {
-  const objectMap = new Map;
-  Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o));
-  const validPlayers = new Set;
-  for (const o of objectMap.values()) "Player" === o.type && validPlayers.add(o.ownerPlayer);
-  let dps = [];
-  try {
-    dps = Game.Summary.getDataPoints();
-  } catch (e) {}
-  const rows = [], rawTypes = new Set, cur = new Map;
-  for (const dp of dps) {
-    if (dp.ID !== metric.id || !dp.value || null == dp.value.numeric) continue;
-    if (null == dp.type || "" === String(dp.type).trim()) continue;
-    const owner = null != dp.owner ? objectMap.get(dp.owner) : null, pid = owner ? owner.ownerPlayer : null;
-    null != pid && validPlayers.has(pid) && cur.set(`${pid}|${dp.type}`, dp.value.numeric);
-  }
-  for (const r of function(dpId) {
-    const out = [], store = loadLoggerStore();
-    if (!store || !store.ages) return out;
-    const curCi = currentAgeCi();
-    for (const k of Object.keys(store.ages)) {
-      const meta = resolveAgeMeta(k, store.ages[k]);
-      if (null == curCi || meta.ci !== curCi) continue;
-      const bt = store.ages[k].bt && store.ages[k].bt[dpId];
-      if (bt) for (const pid in bt) for (const type in bt[pid]) null != bt[pid][type] && out.push({
+  const rows = [], rawTypes = new Set;
+  if ("event" === metric.byType) {
+    const map = function(eventKey) {
+      const store = loadLoggerStore();
+      if (!store || !eventKey) return {};
+      const m = store[eventKey];
+      return m && "object" == typeof m ? m : {};
+    }(metric.eventKey);
+    for (const pid in map) if (!metric.majorsOnly || isMajorPid(pid)) for (const type in map[pid]) {
+      const val = map[pid][type];
+      null != val && ("26" !== type && (rows.push({
         pid: Number(pid),
         type: type,
-        val: bt[pid][type]
-      });
+        val: val
+      }), rawTypes.add(type)));
     }
-    return out;
-  }(metric.id)) {
-    const k = `${r.pid}|${r.type}`;
-    r.val > (cur.get(k) || 0) && cur.set(k, r.val);
+  } else {
+    const cur = new Map, livePids = new Set;
+    if (!isHistoricalView()) {
+      const live = function(metricId) {
+        const empty = {};
+        try {
+          if ("undefined" == typeof Players || "function" != typeof Players.getAlive) return empty;
+          const byPid = {};
+          for (const p of Players.getAlive()) {
+            if (!p || !p.isMajor) continue;
+            const pid = p.id, tally = {};
+            if ("UnitsOwnedByType" === metricId) try {
+              const pu = p.Units, ids = pu && ("function" == typeof pu.getUnitIds ? pu.getUnitIds() : "function" == typeof pu.getUnits ? pu.getUnits() : null);
+              if (ids) for (const uid of ids) try {
+                const u = "undefined" != typeof Units && Units.get ? Units.get(uid) : null;
+                if (!u) continue;
+                let name = null;
+                try {
+                  const def = GameInfo.Units.lookup(u.type);
+                  def && def.UnitType && (name = def.UnitType);
+                } catch (e) {}
+                if (!name || "26" === name) continue;
+                tally[name] = (tally[name] || 0) + 1;
+              } catch (e) {}
+            } catch (e) {} else if ("BuildingsOwnedByType" === metricId || "ImprovementsOwnedByType" === metricId || "WondersOwnedByType" === metricId || "DistrictsOwnedByType" === metricId) try {
+              if (p.Cities && "function" == typeof p.Cities.getCities) for (const c of p.Cities.getCities() || []) if ("DistrictsOwnedByType" === metricId) try {
+                if (c.Districts && "function" == typeof c.Districts.getIds) for (const did of c.Districts.getIds() || []) try {
+                  const d = "undefined" != typeof Districts && Districts.get ? Districts.get(did) : null;
+                  if (!d) continue;
+                  const raw = null != d.type ? d.type : d.districtType;
+                  let name = String(raw);
+                  try {
+                    const def = GameInfo.Districts.lookup(raw);
+                    def && def.DistrictType && (name = def.DistrictType);
+                  } catch (e) {}
+                  tally[name] = (tally[name] || 0) + 1;
+                } catch (e) {}
+              } catch (e) {} else try {
+                if (c.Constructibles && "function" == typeof c.Constructibles.getIds) for (const cid of c.Constructibles.getIds() || []) try {
+                  const inst = "undefined" != typeof Constructibles && Constructibles.getByComponentID ? Constructibles.getByComponentID(cid) : null;
+                  if (!inst) continue;
+                  if (!1 === inst.complete) continue;
+                  if (null != inst.percentComplete && inst.percentComplete < 100) continue;
+                  let cls = null, name = String(inst.type);
+                  try {
+                    const def = GameInfo.Constructibles.lookup(inst.type);
+                    def && (cls = def.ConstructibleClass || null, def.ConstructibleType && (name = def.ConstructibleType));
+                  } catch (e) {}
+                  ("BuildingsOwnedByType" === metricId && "BUILDING" === cls || "ImprovementsOwnedByType" === metricId && "IMPROVEMENT" === cls || "WondersOwnedByType" === metricId && "WONDER" === cls) && (tally[name] = (tally[name] || 0) + 1);
+                } catch (e) {}
+              } catch (e) {}
+            } catch (e) {}
+            Object.keys(tally).length && (byPid[pid] = tally);
+          }
+          return byPid;
+        } catch (e) {
+          return empty;
+        }
+      }(metric.id);
+      for (const pid in live) {
+        livePids.add(Number(pid));
+        for (const type in live[pid]) cur.set(`${pid}|${type}`, live[pid][type]);
+      }
+      try {
+        for (const p of Players.getAlive()) p && p.isMajor && livePids.add(p.id);
+      } catch (e) {}
+    }
+    for (const r of function(metricId) {
+      const rows = [], store = loadLoggerStore();
+      if (!store || !store.ages) return rows;
+      const curCi = currentAgeCi();
+      for (const k of Object.keys(store.ages)) {
+        const meta = resolveAgeMeta(k, store.ages[k]);
+        if (null != curCi && meta.ci !== curCi) continue;
+        const bt = store.ages[k].bt && store.ages[k].bt[metricId];
+        if (bt) for (const pid in bt) for (const type in bt[pid]) null != bt[pid][type] && rows.push({
+          pid: Number(pid),
+          type: type,
+          val: bt[pid][type]
+        });
+      }
+      return rows;
+    }(metric.id)) {
+      if (livePids.has(r.pid)) continue;
+      const k = `${r.pid}|${r.type}`;
+      cur.set(k, r.val);
+    }
+    for (const [k, val] of cur) {
+      const sep = k.indexOf("|");
+      rows.push({
+        pid: Number(k.slice(0, sep)),
+        type: k.slice(sep + 1),
+        val: val
+      }), rawTypes.add(k.slice(sep + 1));
+    }
   }
-  for (const [k, val] of cur) {
-    const sep = k.indexOf("|"), type = k.slice(sep + 1);
-    rows.push({
-      pid: Number(k.slice(0, sep)),
-      type: type,
-      val: val
-    }), rawTypes.add(type);
-  }
-  const past = pastAgeByType(metric.id);
-  for (const r of past.rows) rows.push(r), rawTypes.add(r.type);
   const canon = function(types, table) {
     const stripNum = id => {
       const tk = String(id).split("_");
@@ -1583,8 +1882,7 @@ function readByTypeData(metric) {
 }
 
 function byTypeNote(metric) {
-  const past = pastAgeByType(metric.id).labels, here = prettifyType(resolveAgeMeta(String("undefined" != typeof Game ? Game.age : ""), null).label);
-  return past.length ? `Current standings · ${past.concat([ here ]).join(" + ")}` : `Current standings · ${here} only`;
+  return "event" === metric.byType ? "Chronicle log · Whole game" : "Current standings · Owned stock";
 }
 
 function buildBarChart(metric, page) {
@@ -1865,7 +2163,7 @@ function renderChart(ui, metric, view, page) {
   setNote(ui, byTypeNote(metric)), ui.chartInner.style.display = "none", ui.board.style.display = "block", 
   void function(container, metric) {
     const {perPlayer: perPlayer, players: players} = readByTypeData(metric);
-    if (container.textContent = "", !players.length) return container.textContent = `No data recorded for ${metric.label} this Age.`, 
+    if (container.textContent = "", !players.length) return container.textContent = `No ${metric.label.toLowerCase()} to show.`, 
     void (container.style.color = AXIS_TICK);
     const row = document.createElement("div");
     row.setAttribute("style", "display:flex;gap:14px;align-items:stretch;height:100%;padding-bottom:6px");
@@ -2021,7 +2319,9 @@ function renderChart(ui, metric, view, page) {
     };
   } else {
     const trend = metric.trend, src = trendSource(trend);
-    if (!canDrawLine(src)) return setNote(ui, ""), void setNoData(ui.canvas, `No ${metricLabel(metric)} recorded yet (tracked only while Chronicle is enabled).`);
+    if (!function(src) {
+      return src && src.turnCount >= 2;
+    }(src)) return setNote(ui, ""), void setNoData(ui.canvas, `No ${metricLabel(metric)} recorded yet (tracked only while Chronicle is enabled).`);
     {
       const {datasets: datasets, start: start, end: end} = src;
       setNoData(ui.canvas, "");
@@ -2147,7 +2447,7 @@ function highlightButton(button, active) {
 }
 
 function makeScrollRow(opts) {
-  (opts = opts || {}).name;
+  opts = opts || {};
   let items = [], startIdx = 0, endIdx = 0, overflowing = !1, retryPending = !1;
   const root = document.createElement("div"), mb = null != opts.marginBottom ? opts.marginBottom : 0;
   root.setAttribute("style", "position:relative;width:100%;max-width:100%;min-width:0;flex:0 0 auto;box-sizing:border-box;overflow:visible;" + (mb ? `margin-bottom:${mb}px;` : ""));
@@ -2185,7 +2485,7 @@ function makeScrollRow(opts) {
     btn.style.cursor = enabled ? "pointer" : "default", btn.style.pointerEvents = enabled ? "auto" : "none", 
     btn.style.color = enabled ? "#C9BFA6" : "#6B6350";
   }
-  function scheduleRetry(why) {
+  function scheduleRetry() {
     retryPending || (retryPending = !0, requestAnimationFrame(() => {
       retryPending = !1, relayout();
     }));
@@ -2197,63 +2497,129 @@ function makeScrollRow(opts) {
       el.style.flexShrink = "0", el.style.flexGrow = "0", el.style.marginLeft = "0", el.style.marginRight = i < hi - 1 ? "9px" : "0";
     }
   }
+  function widthsCached() {
+    for (let i = 0; i < items.length; i++) if ((items[i].w || 0) < 1) return !1;
+    return items.length > 0;
+  }
+  function sumBtnW(from, end) {
+    let s = 0;
+    for (let i = from; i < end; i++) s += items[i].w || 0;
+    return s;
+  }
+  function planGaps(count, btnW, vw, opts) {
+    opts = opts || {};
+    const gaps = Math.max(0, count - 1);
+    if (count < 1) return {
+      used: 0,
+      gapEach: 0,
+      extraRem: 0
+    };
+    if (0 === gaps) return btnW > vw + .5 ? null : {
+      used: btnW,
+      gapEach: 0,
+      extraRem: 0
+    };
+    if (btnW + 4 * gaps > vw + .5) return null;
+    let gapEach = 9, used = btnW + gaps * gapEach;
+    if (used > vw + .5) {
+      const avail = Math.max(0, Math.floor(vw - btnW));
+      gapEach = Math.max(4, Math.floor(avail / gaps));
+      const extraRem = Math.max(0, avail - gapEach * gaps);
+      return used = btnW + gapEach * gaps + extraRem, {
+        used: used,
+        gapEach: gapEach,
+        extraRem: extraRem
+      };
+    }
+    const leftover = Math.max(0, Math.floor(vw - used)), avgW = count > 0 ? btnW / count : 0, widthCapped = !!opts.widthCapped, nearlyFull = leftover > 0 && leftover <= Math.max(32, .35 * avgW), doSpread = leftover > 0 && (widthCapped || nearlyFull), extraEach = doSpread ? Math.floor(leftover / gaps) : 0, extraRem = doSpread ? leftover - extraEach * gaps : 0;
+    return gapEach = 9 + extraEach, used = btnW + gapEach * gaps + extraRem, {
+      used: used,
+      gapEach: gapEach,
+      extraRem: extraRem
+    };
+  }
+  function packEnd(from, vw, n) {
+    let end = from;
+    for (let i = from; i < n; i++) {
+      const trialEnd = i + 1;
+      if (!planGaps(trialEnd - from, sumBtnW(from, trialEnd), vw, {})) break;
+      end = trialEnd;
+    }
+    if (end === from && from < n) return end = from + 1, {
+      end: end,
+      plan: {
+        used: items[from].w || 0,
+        gapEach: 0,
+        extraRem: 0
+      }
+    };
+    const btnW = sumBtnW(from, end);
+    return {
+      end: end,
+      plan: planGaps(end - from, btnW, vw, {
+        widthCapped: end < n
+      }) || {
+        used: btnW,
+        gapEach: 4,
+        extraRem: 0
+      }
+    };
+  }
   function relayout() {
     root.style.width = "100%", root.style.maxWidth = "100%", root.style.minWidth = "0", 
     root.style.height = "", root.style.minHeight = "", viewport.style.width = "100%", 
     viewport.style.maxWidth = "100%", viewport.style.height = "", viewport.style.minHeight = "", 
-    track.style.height = "", track.style.minHeight = "";
+    track.style.height = "", track.style.minHeight = "", track.style.width = "100%";
     const n = items.length;
     if (n < 1) return track.textContent = "", track.style.visibility = "visible", overflowing = !1, 
     startIdx = 0, endIdx = 0, setArrowState(prev, !1), void setArrowState(next, !1);
     const vw = viewport.clientWidth || root.clientWidth || 0;
-    if (vw < 1) return void scheduleRetry();
-    !function() {
+    if (vw < 1) return track.style.visibility = "hidden", void scheduleRetry();
+    if (track.style.visibility = "hidden", !widthsCached() && !function() {
       const n = items.length;
-      let need = !1;
-      for (let i = 0; i < n; i++) if ((items[i].w || 0) < 1) {
-        need = !0;
-        break;
-      }
-      if (need) {
-        track.textContent = "", applyBaseGaps(0, n);
-        for (let i = 0; i < n; i++) track.appendChild(items[i].el);
-      }
+      if (n < 1) return !0;
+      const prevOverflow = viewport.style.overflow;
+      track.textContent = "", track.style.width = "10000px", viewport.style.overflow = "visible", 
+      applyBaseGaps(0, n);
+      for (let i = 0; i < n; i++) track.appendChild(items[i].el);
+      let allOk = !0;
       for (let i = 0; i < n; i++) {
         const el = items[i].el;
         let w = el.offsetWidth || 0;
         if (w < 1) try {
           w = el.getBoundingClientRect().width || 0;
         } catch (e) {}
-        w > 1 ? items[i].w = w : el.parentNode;
+        w > 1 ? items[i].w = w : (items[i].w || 0) > 1 || (allOk = !1);
       }
-    }();
-    let anyW = !1;
-    for (let i = 0; i < n; i++) if ((items[i].w || 0) > 1) {
-      anyW = !0;
-      break;
-    }
-    if (!anyW) return void scheduleRetry();
-    let totalW = 0;
-    for (let i = 0; i < n; i++) totalW += items[i].w || 0, i < n - 1 && (totalW += 9);
-    overflowing = totalW > vw + 1, overflowing ? (startIdx > n - 1 && (startIdx = Math.max(0, n - 1)), 
-    startIdx < 0 && (startIdx = 0)) : startIdx = 0;
-    let used = 0;
-    endIdx = startIdx;
-    for (let i = startIdx; i < n; i++) {
-      const need = (items[i].w || 0) + (i > startIdx ? 9 : 0);
-      if (i > startIdx && used + need > vw + .5) break;
-      used += need, endIdx = i + 1;
-    }
-    endIdx === startIdx && startIdx < n && (endIdx = startIdx + 1, used = items[startIdx].w || 0), 
-    overflowing || (startIdx = 0, endIdx = n, used = totalW), track.textContent = "", 
-    track.style.marginLeft = "0", track.style.left = "0", track.style.transform = "";
-    const count = endIdx - startIdx, leftover = Math.max(0, Math.floor(vw - used)), gaps = Math.max(0, count - 1), avgW = count > 0 ? used / count : 0, widthCapped = overflowing && endIdx < n, nearlyFull = leftover > 0 && leftover <= Math.max(32, .35 * avgW), doSpread = gaps > 0 && leftover > 0 && (widthCapped || nearlyFull), extraEach = doSpread ? Math.floor(leftover / gaps) : 0;
-    let extraRem = doSpread ? leftover - extraEach * gaps : 0;
+      return track.style.width = "100%", viewport.style.overflow = prevOverflow || "hidden", 
+      allOk;
+    }()) return void scheduleRetry();
+    const allBtnW = sumBtnW(0, n), allPlan = planGaps(n, allBtnW, vw, {});
+    let plan;
+    if (overflowing = !allPlan, overflowing) {
+      startIdx > n - 1 && (startIdx = Math.max(0, n - 1)), startIdx < 0 && (startIdx = 0);
+      let packed = packEnd(startIdx, vw, n);
+      if (endIdx = packed.end, plan = packed.plan, endIdx >= n && startIdx > 0) {
+        let s = startIdx;
+        for (;s > 0; ) {
+          const trial = packEnd(s - 1, vw, n);
+          if (trial.end < n) break;
+          s -= 1, endIdx = trial.end, plan = trial.plan;
+        }
+        startIdx = s;
+      }
+    } else startIdx = 0, endIdx = n, plan = planGaps(n, allBtnW, vw, {
+      widthCapped: !1
+    }) || allPlan;
+    track.textContent = "", track.style.marginLeft = "0", track.style.left = "0", track.style.transform = "", 
+    track.style.width = "100%";
+    let extraRem = plan.extraRem || 0;
+    const gapEach = plan.gapEach || 0;
     for (let i = startIdx; i < endIdx; i++) {
       const el = items[i].el;
       if (el.style.flexShrink = "0", el.style.flexGrow = "0", el.style.marginLeft = "0", 
       i < endIdx - 1) {
-        let mr = 9 + extraEach;
+        let mr = gapEach;
         extraRem > 0 && (mr += 1, extraRem -= 1), el.style.marginRight = mr + "px";
       } else el.style.marginRight = "0";
       track.appendChild(el);
@@ -2285,8 +2651,18 @@ function makeScrollRow(opts) {
         idx = i;
         break;
       }
-      idx < 0 || idx >= startIdx && idx < endIdx || (startIdx = idx, relayout(), (idx >= endIdx || idx < startIdx) && (startIdx = Math.max(0, idx), 
-      relayout()));
+      if (idx < 0) return;
+      if (idx >= startIdx && idx < endIdx) return;
+      const vw = viewport.clientWidth || root.clientWidth || 0;
+      if (vw > 1 && widthsCached()) {
+        let s = Math.max(0, idx);
+        for (;s > 0; ) {
+          if (packEnd(s - 1, vw, items.length).end <= idx) break;
+          s -= 1;
+        }
+        startIdx = s;
+      } else startIdx = Math.max(0, idx);
+      relayout(), (idx >= endIdx || idx < startIdx) && (startIdx = Math.max(0, idx), relayout());
     },
     remeasure: function() {
       for (let i = 0; i < items.length; i++) items[i].w = 0;
@@ -2313,7 +2689,7 @@ const CANCEL_ACTIONS = [ "cancel", "keyboard-escape", "mousebutton-right", "sys-
 function closeOverlay() {
   activeChart && (activeChart.destroy(), activeChart = null), document.getElementById(OVERLAY_ID)?.remove();
   const onClose = viewMode && viewMode.onClose;
-  if (viewMode = null, colorMapCache = null, "function" == typeof onClose) try {
+  if (viewMode = null, colorMapCache = null, invalidateOpenCaches(), "function" == typeof onClose) try {
     onClose();
   } catch (e) {}
 }
@@ -2347,7 +2723,7 @@ try {
     open: openOverlay,
     openForStore: openOverlayForStore,
     close: closeOverlay,
-    version: "0.31.0"
+    version: "0.31.26"
   };
 } catch (e) {
   try {
@@ -2355,10 +2731,25 @@ try {
       open: openOverlay,
       openForStore: openOverlayForStore,
       close: closeOverlay,
-      version: "0.31.0"
+      version: "0.31.26"
     };
   } catch (e2) {}
 }
+
+function openNowMs() {
+  try {
+    if ("undefined" != typeof performance && "function" == typeof performance.now) return performance.now();
+  } catch (e) {}
+  return Date.now();
+}
+
+function openLog(msg) {
+  try {
+    console.error(LOG + " " + msg);
+  } catch (e) {}
+}
+
+let openSeq = 0;
 
 function openOverlay() {
   if (document.getElementById(OVERLAY_ID)) return;
@@ -2384,8 +2775,35 @@ function openOverlay() {
       }
     }
   }(() => openOverlay());
+  const seq = ++openSeq, tOpen0 = openNowMs();
   applyChartDefaults(), legendHintShown = !1;
-  const historical = isHistoricalView(), root = document.createElement("div");
+  const historical = isHistoricalView();
+  let flushMs = 0;
+  if (invalidateOpenCaches(), !historical) try {
+    const log = "undefined" != typeof globalThis && globalThis.ozqChronicleLog || "undefined" != typeof window && window.ozqChronicleLog;
+    if (log && "function" == typeof log.flushNow) {
+      const fr = log.flushNow("open");
+      fr && null != fr.totalMs && (flushMs = fr.totalMs);
+    }
+  } catch (e) {}
+  invalidateOpenCaches();
+  const tProbe0 = openNowMs(), byTypeIds = isHistoricalView() ? new Set : function() {
+    const withData = new Set;
+    for (const m of METRICS) if ("bar" === m.kind || "board" === m.kind) try {
+      const {typeTotal: typeTotal} = readByTypeData(m);
+      typeTotal && typeTotal.size && withData.add(m.id);
+    } catch (e) {}
+    return withData;
+  }(), metrics = METRICS.filter(m => {
+    if (isHistoricalView() && ("bar" === m.kind || "board" === m.kind)) return !1;
+    if ("live" === m.kind) try {
+      const r = m.compute();
+      return !!(r && r.data && r.data.length);
+    } catch (e) {
+      return !1;
+    }
+    return "bar" === m.kind || "board" === m.kind ? byTypeIds.has(m.id) : standAvailable(m) || trendAvailable(m);
+  }), catList = CATEGORIES.filter(c => metrics.some(m => m.category === c)), probeMs = Math.round(openNowMs() - tProbe0), root = document.createElement("div");
   root.id = OVERLAY_ID;
   const backdrop = document.createElement("div");
   backdrop.setAttribute("style", "position:fixed;left:0;top:0;width:100%;height:100%;z-index:999998;background:rgba(6,7,10,0.78);pointer-events:auto"), 
@@ -2427,45 +2845,12 @@ function openOverlay() {
     muteHeaderBtn(hofBtn), hofBtn.style.marginRight = "9px", headerActions.appendChild(hofBtn);
   }
   const closeBtn = makeNativeButton("Close", closeOverlay, {});
-  muteHeaderBtn(closeBtn), headerActions.appendChild(closeBtn), header.appendChild(headerActions), 
-  panel.appendChild(header);
-  const trendAvailable = m => {
-    try {
-      return canDrawLine(trendSource(m.trend));
-    } catch (e) {
-      return !1;
-    }
-  }, standAvailable = m => {
-    try {
-      const r = buildStandings(m.trend);
-      return !!(r && r.data && r.data.length);
-    } catch (e) {
-      return !1;
-    }
-  }, dataPointIds = isHistoricalView() ? new Set : function() {
-    const withData = new Set;
-    let dps = [];
-    try {
-      dps = Game.Summary.getDataPoints();
-    } catch (e) {}
-    for (const dp of dps) dp.value && null != dp.value.numeric && withData.add(dp.ID);
-    for (const m of METRICS) "bar" !== m.kind && "board" !== m.kind || withData.has(m.id) || pastAgeByType(m.id).rows.length && withData.add(m.id);
-    return withData;
-  }(), metrics = METRICS.filter(m => {
-    if (isHistoricalView() && ("bar" === m.kind || "board" === m.kind)) return !1;
-    if ("live" === m.kind) try {
-      const r = m.compute();
-      return !!(r && r.data && r.data.length);
-    } catch (e) {
-      return !1;
-    }
-    return "bar" === m.kind || "board" === m.kind ? dataPointIds.has(m.id) : standAvailable(m) || trendAvailable(m);
-  }), catList = CATEGORIES.filter(c => metrics.some(m => m.category === c));
-  if (!catList.length) {
+  if (muteHeaderBtn(closeBtn), headerActions.appendChild(closeBtn), header.appendChild(headerActions), 
+  panel.appendChild(header), !catList.length) {
     const empty = document.createElement("div");
     return empty.textContent = "No stats recorded yet. Chronicle logs each turn while it is enabled.", 
     empty.setAttribute("style", "flex:1 1 auto;display:flex;align-items:center;justify-content:center;color:#C9BFA6;font-size:1.15rem;text-align:center;padding:2rem"), 
-    panel.appendChild(empty), void document.body.appendChild(root);
+    panel.appendChild(empty), document.body.appendChild(root), void openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " empty=1 historical=" + (historical ? 1 : 0));
   }
   const categoryRow = makeScrollRow({
     name: "cat",
@@ -2549,9 +2934,7 @@ function openOverlay() {
         secondary: !0
       }), viewButtons.trend._avail = tAvail, viewButtons.stand._avail = sAvail, viewBar.appendChild(viewButtons.trend), 
       viewBar.appendChild(viewButtons.stand), tAvail ? "trend" : "stand";
-    })(curMetric)), requestAnimationFrame(() => {
-      chartRow.remeasure(), chartButtons[index] && chartRow.scrollToShow(chartButtons[index]);
-    });
+    })(curMetric)), chartButtons[index] && chartRow.scrollToShow(chartButtons[index]);
   }, selectCategory = (catIndex, preferId) => {
     catButtons.forEach((b, i) => highlightButton(b, i === catIndex)), catButtons[catIndex] && categoryRow.scrollToShow(catButtons[catIndex]), 
     chartButtons.length = 0;
@@ -2566,11 +2949,15 @@ function openOverlay() {
       selectChart(inCat, idx < 0 ? 0 : idx);
     }
   }, catButtons = catList.map((cat, i) => makeNativeButton(cat, () => selectCategory(i), {}));
-  document.body.appendChild(root), categoryRow.setButtons(catButtons);
+  document.body.appendChild(root), categoryRow.setButtons(catButtons), openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " metrics=" + metrics.length + " cats=" + catList.length + " historical=" + (historical ? 1 : 0));
   const def = metrics.find(m => m.default) || metrics[0], defCat = def ? Math.max(0, catList.indexOf(def.category)) : 0;
   requestAnimationFrame(() => {
-    selectCategory(defCat, def && def.id), requestAnimationFrame(() => {
-      categoryRow.remeasure(), chartRow.remeasure();
+    if (seq !== openSeq || !document.getElementById(OVERLAY_ID)) return;
+    const tChart0 = openNowMs();
+    selectCategory(defCat, def && def.id), openLog("open-first-chart " + Math.round(openNowMs() - tChart0) + "ms"), 
+    requestAnimationFrame(() => {
+      seq === openSeq && document.getElementById(OVERLAY_ID) && (categoryRow.remeasure(), 
+      chartRow.remeasure());
     });
   });
 }
@@ -2638,7 +3025,7 @@ function install() {
         }
       }).catch(() => {});
     } catch (e) {}
-  }(), console.error("[ozq-chronicle] loaded.");
+  }(), console.error(`${LOG} loaded.`);
 }
 
 !function scheduleInstall() {

@@ -33,16 +33,16 @@ religion charts have full Trends ⇄ Standings like everything else.
 - **Research** — Science, Culture, Technologies, Civics, and Great Works, plus
   per-citizen ratios.
 - **Economy** — net Gold per turn, treasury, Gold per Citizen, Trade Routes,
-  Production, Wonders, and Great People.
-- **Society** — Food, Population, Happiness, Influence, Urban Districts,
+  Production, Buildings and Improvements owned, Overbuilds, Wonders, and Great People.
+- **Society** — Population, Food, Happiness, Influence, Urban Districts,
   urbanization, and Tourism.
-- **Expansion** — Settlements, Settlement Cap, Cities vs Towns, and conquests.
-- **Military** — Units Killed and Units Lost over time, plus Units Trained and kills
-  and losses broken down by unit type.
+- **Expansion** — Settlements Total, Cities vs Towns, Settlements Lost, and Settlement Cap.
+- **Military** — Units Killed and Lost, Units Owned, kills and losses by unit type,
+  Settlements Conquered / Conquest %, Settlements Razed, and IPs Dispersed.
 - **Overall** — Score and the four victory-path point totals (Cultural, Economic,
   Military, Scientific).
-- **World** — Buildings and Districts by type (paged when there are many), a
-  per-player board of every Wonder each civ built, then whole-map settlement
+- **World** — Buildings, Improvements, and Districts by type (paged when there are many),
+  a per-player board of every Wonder each civ owns, then whole-map settlement
   leaderboards/histograms (live snapshots), plus Population Share, Religion Spread,
   and Religion by Population as Trends ⇄ Standings over time.
 

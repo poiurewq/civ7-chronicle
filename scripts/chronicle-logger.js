@@ -232,7 +232,13 @@ function snapshotLiveScalars(p, s) {
     try {
       if ("function" == typeof st.getNumConqueredSettlements) {
         const v = st.getNumConqueredSettlements(!0, !0, !0, !1);
-        null != v && (s.conq = v);
+        null != v && (s.conqA = v);
+      }
+    } catch (e) {}
+    try {
+      if ("function" == typeof st.getNumIndependentsDispersed) {
+        const v = st.getNumIndependentsDispersed();
+        null != v && (s.indDisp = v);
       }
     } catch (e) {}
   }
@@ -319,50 +325,405 @@ function snapshotPlayer(p) {
   return snapshotVictoryPoints(p, s), snapshotLiveScalars(p, s), s;
 }
 
-const kills = {}, losses = {};
+const razes = {}, settlementsLost = {};
+
+function applySettlementEventCounts(players) {
+  for (const pid in players) null != razes[pid] && (players[pid].rz = razes[pid]), 
+  null != settlementsLost[pid] && (players[pid].sLost = settlementsLost[pid]);
+}
+
+function installSettlementEventHandlers() {
+  try {
+    engine.on("CityRazingStarted", data => {
+      try {
+        !function(data) {
+          if (!data || !data.cityID) return;
+          const razer = null != data.cityID.owner ? data.cityID.owner : null;
+          null != razer && (razes[razer] = (razes[razer] || 0) + 1, stampEventCounters());
+        }(data);
+      } catch (e) {}
+    });
+  } catch (e) {
+    err(`settlement events: could not subscribe CityRazingStarted: ${e && e.message}`);
+  }
+  try {
+    engine.on("CityTransfered", data => {
+      try {
+        !function(data) {
+          if (!data || null == data.fromPlayer) return;
+          const from = data.fromPlayer;
+          let to = null;
+          try {
+            data.cityID && null != data.cityID.owner && (to = data.cityID.owner);
+          } catch (e) {}
+          null != to && to === from || (settlementsLost[from] = (settlementsLost[from] || 0) + 1, 
+          stampEventCounters());
+        }(data);
+      } catch (e) {}
+    });
+  } catch (e) {
+    err(`settlement events: could not subscribe CityTransfered: ${e && e.message}`);
+  }
+}
+
+const kills = {}, losses = {}, killsByType = {}, lossesByType = {}, overbuilds = {}, overbuildsByType = {}, pendingOverbuildRemovals = {};
 
 function ownerOf(cid) {
   return cid && null != cid.owner ? cid.owner : null;
 }
 
-function onUnitKilled(data) {
-  if (!data) return;
-  const victim = ownerOf(data.unitKilled), killer = ownerOf(data.unitKiller);
-  null != killer && (kills[killer] = (kills[killer] || 0) + 1), null != victim && (losses[victim] = (losses[victim] || 0) + 1), 
-  function() {
-    if (!store || !container) return;
-    try {
-      const bucket = store.ages[currentAge().key], row = bucket && bucket.turns ? bucket.turns[Game.turn] : null;
-      if (!row || !row.p) return;
-      applyKillCounts(row.p), store.updated = Date.now(), saveContainer(container, guid);
+const unitTypeByCid = {}, UNIT_TYPE_CACHE_CAP = 5e3;
+
+function cidKey(cid) {
+  if (!cid || null == cid.id) return null;
+  return (null != cid.owner ? cid.owner : null != cid.ownerPlayer ? cid.ownerPlayer : "?") + ":" + cid.id;
+}
+
+function unitTypeName(typeOrHash) {
+  if (null == typeOrHash) return null;
+  try {
+    if ("undefined" != typeof GameInfo && GameInfo.Units) {
+      const def = GameInfo.Units.lookup(typeOrHash);
+      if (def && def.UnitType) return def.UnitType;
+    }
+  } catch (e) {}
+  const s = String(typeOrHash);
+  return "26" === s ? null : 0 === s.indexOf("UNIT_") ? s : null;
+}
+
+function rememberUnitType(cid, typeOrHash) {
+  const name = unitTypeName(typeOrHash);
+  if (!name) return null;
+  const k = cidKey(cid);
+  if (!k) return name;
+  unitTypeByCid[k] = name;
+  try {
+    const keys = Object.keys(unitTypeByCid);
+    if (keys.length > UNIT_TYPE_CACHE_CAP) {
+      const drop = Math.floor(keys.length / 2);
+      for (let i = 0; i < drop; i++) delete unitTypeByCid[keys[i]];
+    }
+  } catch (e) {}
+  return name;
+}
+
+function unitTypeFromCid(cid) {
+  if (!cid) return null;
+  try {
+    if ("undefined" != typeof Units && "function" == typeof Units.get) {
+      const u = Units.get(cid);
+      if (u && null != u.type) {
+        const n = rememberUnitType(cid, u.type);
+        if (n) return n;
+      }
+    }
+  } catch (e) {}
+  const k = cidKey(cid);
+  if (k && unitTypeByCid[k]) return unitTypeByCid[k];
+  try {
+    if (null != cid.unitType) {
+      const n = rememberUnitType(cid, cid.unitType);
+      if (n) return n;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function seedUnitTypeCacheFromMap() {
+  try {
+    if ("undefined" == typeof Players || "function" != typeof Players.getAlive) return;
+    for (const p of Players.getAlive()) if (p) try {
+      const pu = p.Units, ids = pu && ("function" == typeof pu.getUnitIds ? pu.getUnitIds() : "function" == typeof pu.getUnits ? pu.getUnits() : null);
+      if (!ids) continue;
+      for (const uid of ids) try {
+        const u = "undefined" != typeof Units && Units.get ? Units.get(uid) : null;
+        if (!u || null == u.type) continue;
+        let cid = null;
+        if (null != u.id && "object" == typeof u.id && null != u.id.id) cid = u.id; else if (null != uid && "object" == typeof uid && null != uid.id) cid = uid; else {
+          const owner = null != u.owner ? u.owner : null != p.id ? p.id : null, id = null != u.id && "object" != typeof u.id ? u.id : uid;
+          null != owner && null != id && (cid = {
+            owner: owner,
+            id: id
+          });
+        }
+        cid && rememberUnitType(cid, u.type);
+      } catch (e) {}
     } catch (e) {}
-  }();
+  } catch (e) {}
+}
+
+function installUnitTypeCacheHandlers() {
+  try {
+    engine.on("UnitAddedToMap", data => {
+      try {
+        !function(data) {
+          if (!data) return;
+          const unit = null != data.unit ? data.unit : null != data.unitID ? data.unitID : null;
+          null != data.unitType && unit ? rememberUnitType(unit, data.unitType) : unit && unitTypeFromCid(unit);
+        }(data);
+      } catch (e) {}
+    });
+  } catch (e) {
+    err(`unit-type cache: could not subscribe UnitAddedToMap: ${e && e.message}`);
+  }
+}
+
+function bumpByType(map, pid, typeName) {
+  if (null == pid || !typeName) return;
+  const byPid = map[pid] || (map[pid] = {});
+  byPid[typeName] = (byPid[typeName] || 0) + 1;
 }
 
 function applyKillCounts(players) {
-  const anyKills = Object.keys(kills).length > 0, anyLosses = Object.keys(losses).length > 0;
-  if (anyKills || anyLosses) for (const pid in players) anyKills && (players[pid].uKill = kills[pid] || 0), 
-  anyLosses && (players[pid].uLost = losses[pid] || 0);
+  for (const pid in players) null != kills[pid] && (players[pid].uKill = kills[pid]), 
+  null != losses[pid] && (players[pid].uLost = losses[pid]);
+}
+
+function applyOverbuildCounts(players) {
+  for (const pid in players) null != overbuilds[pid] && (players[pid].ob = overbuilds[pid]);
+}
+
+function sumMergeByType(dst, src) {
+  if (src) for (const pid in src) {
+    const row = src[pid];
+    if (!row) continue;
+    const out = dst[pid] || (dst[pid] = {});
+    for (const t in row) null != row[t] && (out[t] = (out[t] || 0) + row[t]);
+  }
+}
+
+function maxMergeByType(dst, src) {
+  if (src) for (const pid in src) {
+    const row = src[pid];
+    if (!row) continue;
+    const out = dst[pid] || (dst[pid] = {});
+    for (const t in row) null != row[t] && (out[t] = Math.max(out[t] || 0, row[t]));
+  }
 }
 
 function seedKillCounters() {
-  if (!store || !store.ages) return;
-  let best = null, bestCi = -1, bestTurn = -1;
-  for (const k in store.ages) {
-    const a = store.ages[k], ci = null != a.ci ? a.ci : 0;
-    for (const t in a.turns) {
-      const turn = Number(t);
-      (ci > bestCi || ci === bestCi && turn > bestTurn) && (bestCi = ci, bestTurn = turn, 
-      best = a.turns[t]);
+  if (store) {
+    if (store.kbt && "object" == typeof store.kbt) for (const pid in store.kbt) killsByType[pid] = Object.assign({}, store.kbt[pid]);
+    if (store.lbt && "object" == typeof store.lbt) for (const pid in store.lbt) lossesByType[pid] = Object.assign({}, store.lbt[pid]);
+    if (store.obt && "object" == typeof store.obt) for (const pid in store.obt) overbuildsByType[pid] = Object.assign({}, store.obt[pid]);
+    try {
+      !function() {
+        if (!store || !store.ages) return;
+        if (store._kbtMigrated) return;
+        const floorK = {}, floorL = {};
+        for (const k in store.ages) {
+          const bt = store.ages[k].bt;
+          bt && (sumMergeByType(floorK, bt.UnitsKilledByType), sumMergeByType(floorL, bt.UnitsLostByType));
+        }
+        maxMergeByType(killsByType, floorK), maxMergeByType(lossesByType, floorL), Object.keys(killsByType).length && (store.kbt = cloneByTypeMap(killsByType)), 
+        Object.keys(lossesByType).length && (store.lbt = cloneByTypeMap(lossesByType)), 
+        store._kbtMigrated = 1;
+      }();
+    } catch (e) {}
+    if (store.ages) {
+      for (const k in store.ages) {
+        const a = store.ages[k];
+        if (a && a.turns) for (const t in a.turns) {
+          const row = a.turns[t] && a.turns[t].p;
+          if (row) for (const pid in row) {
+            const r = row[pid];
+            null != r.uKill && (kills[pid] = Math.max(kills[pid] || 0, r.uKill)), null != r.uLost && (losses[pid] = Math.max(losses[pid] || 0, r.uLost)), 
+            null != r.ob && (overbuilds[pid] = Math.max(overbuilds[pid] || 0, r.ob)), null != r.rz && (razes[pid] = Math.max(razes[pid] || 0, r.rz)), 
+            null != r.sLost && (settlementsLost[pid] = Math.max(settlementsLost[pid] || 0, r.sLost));
+          }
+        }
+      }
+      try {
+        !function() {
+          if (!store || !store.ages) return;
+          const ages = Object.keys(store.ages).map(k => {
+            const a = store.ages[k];
+            return {
+              k: k,
+              a: a,
+              ci: a && null != a.ci ? a.ci : 0
+            };
+          }).sort((x, y) => x.ci - y.ci || String(x.k).localeCompare(String(y.k))), runK = {}, runL = {}, runOb = {}, runRz = {}, runSL = {};
+          let dirty = !1;
+          for (const {a: a} of ages) {
+            if (!a || !a.turns) continue;
+            const turns = Object.keys(a.turns).map(Number).filter(n => !isNaN(n)).sort((x, y) => x - y);
+            for (const t of turns) {
+              const row = a.turns[t] && a.turns[t].p;
+              if (row) for (const pid in row) {
+                const r = row[pid];
+                null != r.uKill && (null != runK[pid] && r.uKill < runK[pid] ? (r.uKill = runK[pid], 
+                dirty = !0) : runK[pid] = r.uKill), null != r.uLost && (null != runL[pid] && r.uLost < runL[pid] ? (r.uLost = runL[pid], 
+                dirty = !0) : runL[pid] = r.uLost), null != r.ob && (null != runOb[pid] && r.ob < runOb[pid] ? (r.ob = runOb[pid], 
+                dirty = !0) : runOb[pid] = r.ob), null != r.rz && (null != runRz[pid] && r.rz < runRz[pid] ? (r.rz = runRz[pid], 
+                dirty = !0) : runRz[pid] = r.rz), null != r.sLost && (null != runSL[pid] && r.sLost < runSL[pid] ? (r.sLost = runSL[pid], 
+                dirty = !0) : runSL[pid] = r.sLost);
+              }
+            }
+          }
+          for (const pid in runK) kills[pid] = Math.max(kills[pid] || 0, runK[pid]);
+          for (const pid in runL) losses[pid] = Math.max(losses[pid] || 0, runL[pid]);
+          for (const pid in runOb) overbuilds[pid] = Math.max(overbuilds[pid] || 0, runOb[pid]);
+          for (const pid in runRz) razes[pid] = Math.max(razes[pid] || 0, runRz[pid]);
+          for (const pid in runSL) settlementsLost[pid] = Math.max(settlementsLost[pid] || 0, runSL[pid]);
+          if (dirty && container && guid) {
+            store.updated = Date.now();
+            try {
+              saveContainer(container, guid);
+            } catch (e) {}
+          }
+        }();
+      } catch (e) {}
+      try {
+        !function() {
+          if (!store || !store.ages) return;
+          if (store._conqAOnly) return;
+          let dirty = !1;
+          const hadCumFlag = !!store._conqCum;
+          for (const k in store.ages) {
+            const a = store.ages[k];
+            if (a && a.turns) for (const t of Object.keys(a.turns)) {
+              const row = a.turns[t] && a.turns[t].p;
+              if (row) for (const pid in row) {
+                const r = row[pid];
+                null != r.conqA || null == r.conq || hadCumFlag || (r.conqA = r.conq, dirty = !0), 
+                null != r.conq && (delete r.conq, dirty = !0);
+              }
+            }
+          }
+          store._conqAOnly = 1;
+          try {
+            delete store._conqCum;
+          } catch (e) {}
+          if (dirty && container && guid) {
+            store.updated = Date.now();
+            try {
+              saveContainer(container, guid);
+            } catch (e) {}
+          }
+        }();
+      } catch (e) {}
     }
-  }
-  if (best && best.p) for (const pid in best.p) {
-    const row = best.p[pid];
-    null != row.uKill && (kills[pid] = row.uKill), null != row.uLost && (losses[pid] = row.uLost);
   }
 }
 
-const BYTYPE_IDS = [ "UnitsTrainedByType", "UnitsKilledByType", "UnitsLostByType", "BuildingsBuiltByType", "DistrictsBuiltByType", "WondersBuiltByType" ];
+function plotLocKey(loc) {
+  return loc && null != loc.x && null != loc.y ? loc.x + "," + loc.y : null;
+}
+
+function ownerFromConstructibleEvent(data) {
+  if (!data) return null;
+  try {
+    if (data.district && null != data.district.owner) return data.district.owner;
+  } catch (e) {}
+  try {
+    if (data.constructible && null != data.constructible.owner) return data.constructible.owner;
+  } catch (e) {}
+  return null;
+}
+
+function installOverbuildHandlers() {
+  try {
+    engine.on("ConstructibleRemovedFromMap", data => {
+      try {
+        !function(data) {
+          if (!data) return;
+          const meta = constructibleTypeName(data.constructibleType);
+          if (!meta || "BUILDING" !== meta.cls && "IMPROVEMENT" !== meta.cls) return;
+          const key = plotLocKey(data.location);
+          if (!key) return;
+          let turn = null;
+          try {
+            turn = Game.turn;
+          } catch (e) {}
+          pendingOverbuildRemovals[key] = {
+            type: meta.type,
+            cls: meta.cls,
+            owner: ownerFromConstructibleEvent(data),
+            turn: turn
+          };
+        }(data);
+      } catch (e) {}
+    });
+  } catch (e) {
+    err(`overbuild: could not subscribe ConstructibleRemovedFromMap: ${e && e.message}`);
+  }
+  try {
+    engine.on("ConstructibleAddedToMap", data => {
+      try {
+        !function(data) {
+          if (!data) return;
+          const key = plotLocKey(data.location);
+          if (!key) return;
+          const pending = pendingOverbuildRemovals[key];
+          if (!pending) return;
+          delete pendingOverbuildRemovals[key];
+          const meta = constructibleTypeName(data.constructibleType);
+          if (!meta || "BUILDING" !== meta.cls && "IMPROVEMENT" !== meta.cls) return;
+          const owner = ownerFromConstructibleEvent(data);
+          null != owner && (overbuilds[owner] = (overbuilds[owner] || 0) + 1, pending.type && bumpByType(overbuildsByType, owner, pending.type), 
+          stampEventCounters());
+        }(data);
+      } catch (e) {}
+    });
+  } catch (e) {
+    err(`overbuild: could not subscribe ConstructibleAddedToMap: ${e && e.message}`);
+  }
+}
+
+const STOCK_IDS = {
+  units: "UnitsOwnedByType",
+  buildings: "BuildingsOwnedByType",
+  improvements: "ImprovementsOwnedByType",
+  districts: "DistrictsOwnedByType",
+  wonders: "WondersOwnedByType"
+};
+
+function constructibleTypeName(typeOrHash) {
+  if (null == typeOrHash) return null;
+  try {
+    if ("undefined" != typeof GameInfo && GameInfo.Constructibles) {
+      const def = GameInfo.Constructibles.lookup(typeOrHash);
+      if (def) return {
+        type: def.ConstructibleType || String(typeOrHash),
+        cls: def.ConstructibleClass || null
+      };
+    }
+  } catch (e) {}
+  return {
+    type: String(typeOrHash),
+    cls: null
+  };
+}
+
+function districtTypeName(typeOrHash) {
+  if (null == typeOrHash) return null;
+  try {
+    if ("undefined" != typeof GameInfo && GameInfo.Districts) {
+      const def = GameInfo.Districts.lookup(typeOrHash);
+      if (def && def.DistrictType) return def.DistrictType;
+    }
+  } catch (e) {}
+  return String(typeOrHash);
+}
+
+function inc(map, key) {
+  key && (map[key] = (map[key] || 0) + 1);
+}
+
+function sumTypeCounts(byType) {
+  if (!byType) return null;
+  let n = 0, any = !1;
+  for (const t in byType) null != byType[t] && (n += byType[t], any = !0);
+  return any ? n : null;
+}
+
+function cloneByTypeMap(src) {
+  const out = {};
+  if (!src) return out;
+  for (const pid in src) out[pid] = Object.assign({}, src[pid]);
+  return out;
+}
 
 function migrateContainer(c) {
   return c && "object" == typeof c && c.games ? (c.v = 2, c) : {
@@ -497,7 +858,62 @@ function saveContainer(c, currentGameId) {
   return !1;
 }
 
-let container = null, store = null, guid = "nogid", lastCaptureKey = null;
+let container = null, store = null, guid = "nogid", lastCaptureKey = null, storeDirty = !1;
+
+function eventCounterPids() {
+  const out = {};
+  for (const map of [ kills, losses, razes, settlementsLost, overbuilds ]) for (const pid in map) out[pid] = !0;
+  return out;
+}
+
+function isMajorPid(pid) {
+  const n = Number(pid);
+  try {
+    if ("undefined" != typeof Players && "function" == typeof Players.get) {
+      const p = Players.get(n);
+      if (p && null != p.isMajor) return !!p.isMajor;
+    }
+  } catch (e) {}
+  try {
+    if (store && store.meta && store.meta.players) {
+      const m = store.meta.players[n] || store.meta.players[String(n)];
+      if (m && null != m.isMajor) return !!m.isMajor;
+      if (m) return !0;
+    }
+  } catch (e) {}
+  return !1;
+}
+
+function stampEventCounters() {
+  if (store && container) try {
+    const age = currentAge(), turn = Game.turn;
+    if (null == turn) return;
+    const bucket = store.ages[age.key];
+    let row = bucket && bucket.turns ? bucket.turns[turn] : null;
+    if (!row || !row.p) return void captureTurn("stamp-bootstrap", !0);
+    const needPids = eventCounterPids();
+    for (const pid in needPids) isMajorPid(pid) && null == row.p[pid] && (row.p[pid] = {});
+    applyKillCounts(row.p), applyOverbuildCounts(row.p), applySettlementEventCounts(row.p), 
+    Object.keys(killsByType).length && (store.kbt = cloneByTypeMap(killsByType)), Object.keys(lossesByType).length && (store.lbt = cloneByTypeMap(lossesByType)), 
+    Object.keys(overbuildsByType).length && (store.obt = cloneByTypeMap(overbuildsByType)), 
+    store.updated = Date.now(), storeDirty = !0;
+  } catch (e) {}
+}
+
+function flushNow(reason) {
+  try {
+    return captureTurn(reason || "flush", !0);
+  } catch (e) {
+    return null;
+  }
+}
+
+function nowMs() {
+  try {
+    if ("undefined" != typeof performance && "function" == typeof performance.now) return performance.now();
+  } catch (e) {}
+  return Date.now();
+}
 
 function recordOutcome(reason) {
   if (!store || "undefined" == typeof Game) return;
@@ -540,14 +956,19 @@ function recordOutcome(reason) {
   } catch (e) {}
 }
 
-function maybeCapture(reason) {
-  if (!store || !container) return;
+function captureTurn(reason, force) {
+  if (!store || !container) return null;
   const age = currentAge(), ageKey = age.key, turn = Game.turn;
-  if (null == turn) return;
+  if (null == turn) return null;
   const dedup = ageKey + ":" + turn;
-  if (dedup === lastCaptureKey) return;
+  if (!force && dedup === lastCaptureKey) return null;
   lastCaptureKey = dedup;
-  const bucket = store.ages[ageKey] || (store.ages[ageKey] = {
+  const t0 = nowMs();
+  let mark = t0;
+  const phases = {}, lap = name => {
+    const n = nowMs();
+    phases[name] = Math.round(n - mark), mark = n;
+  }, bucket = store.ages[ageKey] || (store.ages[ageKey] = {
     ci: age.ci,
     label: age.label,
     turns: {}
@@ -571,6 +992,7 @@ function maybeCapture(reason) {
     }();
     Object.keys(civ).length && (bucket.civ = civ);
   }
+  lap("meta");
   const summaryByPid = function(turn) {
     const out = {};
     if ("undefined" == typeof Game || !Game.Summary || "function" != typeof Game.Summary.getDataSets) return out;
@@ -605,7 +1027,9 @@ function maybeCapture(reason) {
       }
     }
     return out;
-  }(turn), relSnap = function() {
+  }(turn);
+  lap("summary");
+  const relSnap = function() {
     const out = {
       tallies: {},
       types: {},
@@ -681,8 +1105,8 @@ function maybeCapture(reason) {
     store.relFounders = store.relFounders || {};
     for (const k in relSnap.founders) store.relFounders[k] = relSnap.founders[k];
   }
-  Object.keys(kills).length || Object.keys(losses).length || seedKillCounters();
-  const players = {};
+  lap("religion"), (Object.keys(kills).length || Object.keys(losses).length) && Object.keys(overbuilds).length || seedKillCounters();
+  const prevPlayers = bucket.turns[turn] && bucket.turns[turn].p ? bucket.turns[turn].p : null, players = {};
   for (const p of Players.getAlive()) {
     if (!p || !p.isMajor) continue;
     const s = snapshotPlayer(p), civics = countCompletedNodes(p.id, age.label, "SYSTEM_CULTURE");
@@ -693,37 +1117,98 @@ function maybeCapture(reason) {
     if (sm) for (const k in sm) s[k] = round1(sm[k]);
     players[p.id] = s;
   }
-  applyKillCounts(players);
+  const needPids = eventCounterPids();
+  for (const pid in needPids) if (isMajorPid(pid) && null == players[pid]) if (prevPlayers && prevPlayers[pid]) {
+    const copy = {};
+    for (const k in prevPlayers[pid]) copy[k] = prevPlayers[pid][k];
+    players[pid] = copy;
+  } else players[pid] = {};
+  applyKillCounts(players), applyOverbuildCounts(players), applySettlementEventCounts(players), 
+  lap("players");
+  try {
+    seedUnitTypeCacheFromMap();
+  } catch (e) {}
+  const bt = function() {
+    const out = {
+      [STOCK_IDS.units]: {},
+      [STOCK_IDS.buildings]: {},
+      [STOCK_IDS.improvements]: {},
+      [STOCK_IDS.districts]: {},
+      [STOCK_IDS.wonders]: {}
+    };
+    try {
+      for (const p of Players.getAlive()) {
+        if (!p || !p.isMajor) continue;
+        const pid = String(p.id), units = out[STOCK_IDS.units][pid] || (out[STOCK_IDS.units][pid] = {}), bld = out[STOCK_IDS.buildings][pid] || (out[STOCK_IDS.buildings][pid] = {}), imp = out[STOCK_IDS.improvements][pid] || (out[STOCK_IDS.improvements][pid] = {}), dist = out[STOCK_IDS.districts][pid] || (out[STOCK_IDS.districts][pid] = {}), won = out[STOCK_IDS.wonders][pid] || (out[STOCK_IDS.wonders][pid] = {});
+        try {
+          const pu = p.Units, ids = pu && ("function" == typeof pu.getUnitIds ? pu.getUnitIds() : "function" == typeof pu.getUnits ? pu.getUnits() : null);
+          if (ids) for (const uid of ids) try {
+            const u = "undefined" != typeof Units && Units.get ? Units.get(uid) : null;
+            if (!u) continue;
+            const un = unitTypeName(u.type);
+            if (un) {
+              inc(units, un);
+              try {
+                let cid = null;
+                if (null != uid && "object" == typeof uid && null != uid.id) cid = uid; else {
+                  const owner = null != u.owner ? u.owner : p.id, id = null != u.id && "object" != typeof u.id ? u.id : uid;
+                  null != owner && null != id && (cid = {
+                    owner: owner,
+                    id: id
+                  });
+                }
+                cid && rememberUnitType(cid, u.type);
+              } catch (e2) {}
+            }
+          } catch (e) {}
+        } catch (e) {}
+        try {
+          if (!p.Cities || "function" != typeof p.Cities.getCities) continue;
+          for (const c of p.Cities.getCities() || []) {
+            try {
+              if (c.Constructibles && "function" == typeof c.Constructibles.getIds) for (const cid of c.Constructibles.getIds() || []) try {
+                const inst = "undefined" != typeof Constructibles && Constructibles.getByComponentID ? Constructibles.getByComponentID(cid) : null;
+                if (!inst) continue;
+                if (!1 === inst.complete) continue;
+                if (null != inst.percentComplete && inst.percentComplete < 100) continue;
+                const meta = constructibleTypeName(inst.type);
+                if (!meta || !meta.type) continue;
+                "BUILDING" === meta.cls ? inc(bld, meta.type) : "IMPROVEMENT" === meta.cls ? inc(imp, meta.type) : "WONDER" === meta.cls && inc(won, meta.type);
+              } catch (e) {}
+            } catch (e) {}
+            try {
+              if (c.Districts && "function" == typeof c.Districts.getIds) for (const did of c.Districts.getIds() || []) try {
+                const d = "undefined" != typeof Districts && Districts.get ? Districts.get(did) : null;
+                if (!d) continue;
+                const dn = districtTypeName(null != d.type ? d.type : d.districtType);
+                dn && inc(dist, dn);
+              } catch (e) {}
+            } catch (e) {}
+          }
+        } catch (e) {}
+        Object.keys(units).length || delete out[STOCK_IDS.units][pid], Object.keys(bld).length || delete out[STOCK_IDS.buildings][pid], 
+        Object.keys(imp).length || delete out[STOCK_IDS.improvements][pid], Object.keys(dist).length || delete out[STOCK_IDS.districts][pid], 
+        Object.keys(won).length || delete out[STOCK_IDS.wonders][pid];
+      }
+    } catch (e) {}
+    for (const id of Object.keys(out)) Object.keys(out[id]).length || delete out[id];
+    return out;
+  }();
+  Object.keys(bt).length && (bucket.bt = bt), function(players, bt) {
+    if (!players || !bt) return;
+    const bRoot = bt[STOCK_IDS.buildings] || {}, iRoot = bt[STOCK_IDS.improvements] || {};
+    for (const pid in players) {
+      const sp = String(pid), bn = sumTypeCounts(bRoot[sp] || bRoot[pid]), inn = sumTypeCounts(iRoot[sp] || iRoot[pid]);
+      null != bn && (players[pid].bld = bn), null != inn && (players[pid].imp = inn);
+    }
+  }(players, bt), lap("stock");
   const turnRow = {
     t: turn,
     p: players
   };
-  Object.keys(rel).length && (turnRow.rel = rel), bucket.turns[turn] = turnRow;
-  const bt = function() {
-    const out = {};
-    if ("undefined" == typeof Game || !Game.Summary || "function" != typeof Game.Summary.getDataPoints) return out;
-    let objectMap, dps;
-    try {
-      objectMap = new Map, Game.Summary.getObjects().forEach(o => objectMap.set(o.ID, o)), 
-      dps = Game.Summary.getDataPoints();
-    } catch (e) {
-      return out;
-    }
-    if (!dps) return out;
-    const validPlayers = new Set;
-    for (const o of objectMap.values()) "Player" === o.type && validPlayers.add(o.ownerPlayer);
-    for (const dp of dps) {
-      if (BYTYPE_IDS.indexOf(dp.ID) < 0) continue;
-      if (!dp.value || null == dp.value.numeric) continue;
-      if (null == dp.type || "" === String(dp.type).trim()) continue;
-      const o = null != dp.owner ? objectMap.get(dp.owner) : null, pid = o ? o.ownerPlayer : null;
-      if (null == pid || !validPlayers.has(pid)) continue;
-      const byId = out[dp.ID] || (out[dp.ID] = {}), byPid = byId[pid] || (byId[pid] = {});
-      byPid[dp.type] = (byPid[dp.type] || 0) + dp.value.numeric;
-    }
-    return out;
-  }();
-  Object.keys(bt).length && (bucket.bt = bt);
+  Object.keys(rel).length && (turnRow.rel = rel), bucket.turns[turn] = turnRow, Object.keys(killsByType).length && (store.kbt = cloneByTypeMap(killsByType)), 
+  Object.keys(lossesByType).length && (store.lbt = cloneByTypeMap(lossesByType)), 
+  Object.keys(overbuildsByType).length && (store.obt = cloneByTypeMap(overbuildsByType));
   const ss = function() {
     const out = [];
     try {
@@ -761,10 +1246,42 @@ function maybeCapture(reason) {
     } catch (e) {}
     return out;
   }();
-  ss.length && (store.ss = ss), store.updated = Date.now(), saveContainer(container, guid);
+  ss.length && (store.ss = ss);
+  try {
+    !function() {
+      let turn = null;
+      try {
+        turn = Game.turn;
+      } catch (e) {
+        return;
+      }
+      if (null != turn) for (const k of Object.keys(pendingOverbuildRemovals)) {
+        const p = pendingOverbuildRemovals[k];
+        p && null != p.turn && p.turn < turn - 1 && delete pendingOverbuildRemovals[k];
+      }
+    }();
+  } catch (e) {}
+  try {
+    store._rzPend && delete store._rzPend, store._rzFrom && delete store._rzFrom;
+  } catch (e) {}
+  store.updated = Date.now(), lap("settlements"), saveContainer(container, guid), 
+  storeDirty = !1, lap("save");
   try {
     recordOutcome("capture");
   } catch (e) {}
+  lap("outcome");
+  const totalMs = Math.round(nowMs() - t0);
+  if (force || totalMs >= 50) {
+    err(`capture ${reason || "?"} force=${force ? 1 : 0} total=${totalMs}ms ${Object.keys(phases).map(k => k + "=" + phases[k]).join(" ")}`);
+  }
+  return {
+    totalMs: totalMs,
+    phases: phases
+  };
+}
+
+function maybeCapture(reason) {
+  captureTurn(reason, !1);
 }
 
 function init() {
@@ -799,19 +1316,77 @@ function init() {
   }(store)} prior rows across ${Object.keys(store.ages).length} ages; container has ${Object.keys(container.games).length} game(s), ${containerBytes(container)} B; storage: ${bootNotes.join(", ")}`), 
   seedKillCounters();
   try {
-    maybeCapture();
+    installOverbuildHandlers();
+  } catch (e) {
+    err(`overbuild install threw: ${e && e.message}`);
+  }
+  try {
+    installSettlementEventHandlers();
+  } catch (e) {
+    err(`settlement events install threw: ${e && e.message}`);
+  }
+  try {
+    installUnitTypeCacheHandlers();
+  } catch (e) {
+    err(`unit-type cache install threw: ${e && e.message}`);
+  }
+  try {
+    !function() {
+      try {
+        engine.on("PlayerTurnDeactivated", () => {
+          try {
+            flushNow("PlayerTurnDeactivated");
+          } catch (e) {}
+        });
+      } catch (e) {
+        err(`PlayerTurnDeactivated subscribe failed: ${e && e.message}`);
+      }
+    }();
+  } catch (e) {
+    err(`deactivate install threw: ${e && e.message}`);
+  }
+  try {
+    !function() {
+      const api = {
+        flushNow: reason => flushNow(reason || "api"),
+        isDirty: () => !!storeDirty
+      };
+      try {
+        globalThis.ozqChronicleLog = api;
+      } catch (e) {}
+      try {
+        "undefined" != typeof window && (window.ozqChronicleLog = api);
+      } catch (e) {}
+    }();
+  } catch (e) {}
+  try {
+    seedUnitTypeCacheFromMap();
+  } catch (e) {}
+  try {
+    maybeCapture("load");
   } catch (e) {}
   try {
     engine.on("PlayerTurnActivated", () => {
       try {
-        maybeCapture();
+        maybeCapture("PlayerTurnActivated");
       } catch (e) {}
     });
   } catch (e) {}
   try {
     engine.on("UnitKilledInCombat", data => {
       try {
-        onUnitKilled(data);
+        !function(data) {
+          if (!data) return;
+          const victim = ownerOf(data.unitKilled), killer = ownerOf(data.unitKiller);
+          null != killer && (kills[killer] = (kills[killer] || 0) + 1), null != victim && (losses[victim] = (losses[victim] || 0) + 1);
+          try {
+            const kType = unitTypeFromCid(data.unitKiller), vType = unitTypeFromCid(data.unitKilled);
+            null != killer && kType && bumpByType(killsByType, killer, kType), null != victim && vType && bumpByType(lossesByType, victim, vType);
+            const vk = cidKey(data.unitKilled);
+            vk && delete unitTypeByCid[vk];
+          } catch (e) {}
+          stampEventCounters();
+        }(data);
       } catch (e) {}
     });
   } catch (e) {}
