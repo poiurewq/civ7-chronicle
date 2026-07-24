@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database>
+    <LocalizedText>
+        <Row Tag="LOC_MOD_OZQ_CHRONICLE_NAME" Language="zh_Hans_CN">
+            <Text>编年史 - 统计、图表与名人堂</Text>
+        </Row>
+        <Row Tag="LOC_MOD_OZQ_CHRONICLE_DESC" Language="zh_Hans_CN">
+            <Text>每回合统计图表与名人堂。仅界面，不改玩法。</Text>
+        </Row>
+    </LocalizedText>
+</Database>

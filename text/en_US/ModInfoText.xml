@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database>
+    <EnglishText>
+        <Row Tag="LOC_MOD_OZQ_CHRONICLE_NAME">
+            <Text>Chronicle - Stats, Graphs &amp; Hall of Fame</Text>
+        </Row>
+        <Row Tag="LOC_MOD_OZQ_CHRONICLE_DESC">
+            <Text>Per-turn stats graphs and Hall of Fame. UI only — no gameplay changes.</Text>
+        </Row>
+    </EnglishText>
+</Database>

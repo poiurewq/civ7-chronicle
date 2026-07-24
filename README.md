@@ -17,6 +17,13 @@ Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss recor
 per-leader and per-civilization stats, game history, and high-score / fastest-finish
 boards, with per-game trend graphs from the Chronicle log.
 
+### Languages
+
+The full Chronicle and Hall of Fame UI is available in **English**, **Simplified
+Chinese (简体中文)**, and **Traditional Chinese (繁體中文)**. The Add-Ons menu name
+and description follow the same languages. Dynamic game names (Ages, leaders, unit
+types, victory paths, and so on) use the game's own translations.
+
 ### Two views of most stats
 
 Most stats have a **Trends** line (how it moved turn by turn) and a **Standings** bar

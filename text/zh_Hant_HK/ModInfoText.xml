@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database>
+    <LocalizedText>
+        <Row Tag="LOC_MOD_OZQ_CHRONICLE_NAME" Language="zh_Hant_HK">
+            <Text>編年史 - 統計、圖表與名人堂</Text>
+        </Row>
+        <Row Tag="LOC_MOD_OZQ_CHRONICLE_DESC" Language="zh_Hant_HK">
+            <Text>每回合統計圖表與名人堂。僅介面，不改玩法。</Text>
+        </Row>
+    </LocalizedText>
+</Database>

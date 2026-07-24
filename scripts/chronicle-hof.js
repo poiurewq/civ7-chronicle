@@ -6,46 +6,27 @@ function err(msg) {
   } catch (e) {}
 }
 
-const LOC_FALLBACK = {
-  LOC_HOF_TITLE: "Hall of Fame",
-  LOC_HOF_OVERVIEW: "Overview",
-  LOC_HOF_HIGHLIGHTS: "Highlights",
-  LOC_HOF_HISTORY: "History",
-  LOC_HOF_REPORTS: "Reports",
-  LOC_HOF_VICTORY: "Victory",
-  LOC_HOF_DEFEAT: "Defeat",
-  LOC_HOF_NOBODY_WON: "Nobody Won",
-  LOC_HOF_VIEWDETAILS: "Game Details",
-  LOC_HOF_HISTORY_SCORE: "Score",
-  LOC_HOF_HISTORY_RESULTS: "Results",
-  LOC_HOF_HISTORY_SETTINGS: "Settings",
-  LOC_HOF_UNKNOWN: "Unknown",
-  LOC_PROFILE_TAB_OVERVIEW: "Overview",
-  LOC_PROFILE_TAB_LEADERS: "Leaders",
-  LOC_PROFILE_TAB_CIVILIZATIONS: "Civilizations",
-  LOC_PROFILE_TAB_HISTORY: "History",
-  LOC_HOF_TURNS: "{1} turns",
-  LOC_HOF_ERA_STARTED: "Started in {1}",
-  LOC_HOF_LAST_PLAYED: "Last played {1}",
-  LOC_HOF_LEADERPROGRESS_PLAYCOUNT: "Played {1} games.",
-  LOC_HOF_LEADERPROGRESS_WINCOUNT: "Won {1} out of {2} games."
-};
-
-function L(tag) {
+function chronicleI18n() {
   try {
-    if ("undefined" != typeof Locale && "function" == typeof Locale.compose) {
-      const s = Locale.compose(tag);
-      if (s && s !== tag && 0 !== String(s).indexOf("LOC_")) return String(s).replace(/\[COLOR_[^\]]*\]/g, "").replace(/\[ENDCOLOR\]/g, "").trim() || s;
-    }
-  } catch (e) {}
-  return LOC_FALLBACK[tag] || tag;
+    return "undefined" != typeof globalThis && globalThis.ozqChronicleI18n || "undefined" != typeof window && window.ozqChronicleI18n || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function L() {
+  const api = chronicleI18n();
+  return api && api.L ? api.L.apply(api, arguments) : "";
 }
 
 function prettifyType(t) {
   if (null == t || "" === t) return L("LOC_HOF_UNKNOWN");
-  let s = String(t);
-  return s = s.replace(/^(LEADER_|CIVILIZATION_|DIFFICULTY_|AGE_|VICTORY_CLASS_|MAPSIZE_|VICTORY_)/, ""), 
-  s = s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase()), s || L("LOC_HOF_UNKNOWN");
+  const api = chronicleI18n();
+  if (api && api.typeDisplayName) {
+    const n = api.typeDisplayName(t);
+    if (n) return n;
+  }
+  return L("LOC_HOF_UNKNOWN");
 }
 
 const LEADER_PERSONA_NAMES = {
@@ -92,6 +73,8 @@ function civName(type) {
 }
 
 function fmtDate(ms) {
+  const api = chronicleI18n();
+  if (api && "function" == typeof api.formatDate) return api.formatDate(ms);
   if (!ms) return "";
   try {
     const d = new Date(ms);
@@ -239,12 +222,12 @@ function turnsLabel(g) {
   }(g);
   if (null == m.turn) return "";
   const a = ageName(m.age);
-  return a ? a + " turn " + m.turn : m.turn + " turns";
+  return a ? L("LOC_CHRONICLE_AGE_TURN", a, m.turn) : L("LOC_CHRONICLE_HOF_N_TURNS", m.turn);
 }
 
 function speedLabel(g) {
   const t = turnsLabel(g);
-  return g.totalTurns > 0 ? t ? g.totalTurns + " turns · " + t : g.totalTurns + " turns" : t;
+  return g.totalTurns > 0 ? t ? L("LOC_CHRONICLE_HOF_SPEED", g.totalTurns, t) : L("LOC_CHRONICLE_HOF_N_TURNS", g.totalTurns) : t;
 }
 
 function summarizeGame(id, store) {
@@ -353,8 +336,9 @@ function isDecided(g) {
 
 function progressLine(r) {
   const parts = [];
-  return parts.push(1 === r.played ? "Played 1 game" : "Played " + r.played + " games"), 
-  r.decided > 0 && parts.push("Won " + r.won + " out of " + r.decided), null != r.bestScore && parts.push("Best score " + Math.round(r.bestScore)), 
+  return parts.push(1 === r.played ? L("LOC_CHRONICLE_HOF_PLAYED_ONE") : L("LOC_CHRONICLE_HOF_PLAYED_N", r.played)), 
+  r.decided > 0 && parts.push(L("LOC_CHRONICLE_HOF_WON_OUT_OF", r.won, r.decided)), 
+  null != r.bestScore && parts.push(L("LOC_CHRONICLE_HOF_BEST_SCORE", Math.round(r.bestScore))), 
   parts.join("  ·  ");
 }
 
@@ -372,7 +356,7 @@ function pidColor(store, pid, i) {
 
 function pidLabel(store, pid) {
   const players = store.meta && store.meta.players || {}, rec = players[pid] || players[String(pid)];
-  return rec && rec.leader ? leaderName(rec.leader) : "Player " + pid;
+  return rec && rec.leader ? leaderName(rec.leader) : L("LOC_CHRONICLE_PLAYER", pid);
 }
 
 const DETAIL_METRICS = [ {
@@ -413,6 +397,13 @@ const DETAIL_METRICS = [ {
   key: "CivicsAcquired"
 } ];
 
+function detailMetricLabel(m) {
+  return function(id) {
+    const api = chronicleI18n();
+    return api && api.metricLabel && api.metricLabel(id) || "";
+  }(m.id) || m.label;
+}
+
 function makeNativeButton(label, onClick, opts) {
   opts = opts || {};
   const button = document.createElement("div");
@@ -451,7 +442,7 @@ function outcomeText(g) {
     const cls = g.result && g.result.victoryClass ? " (" + victoryClassLabel(g.result.victoryClass) + ")" : "";
     return L("LOC_HOF_DEFEAT") + cls;
   }
-  return g.result && null != g.result.victorTeam ? L("LOC_HOF_NOBODY_WON") : "In progress";
+  return g.result && null != g.result.victorTeam ? L("LOC_HOF_NOBODY_WON") : L("LOC_CHRONICLE_HOF_IN_PROGRESS");
 }
 
 function outcomeColor(g) {
@@ -642,7 +633,7 @@ function renderEntityGrid(body, rows, opts) {
     mid.appendChild(el("div", "color:#B7A987;font-size:1.38rem;margin-bottom:13px", progressLine(r))), 
     mid.appendChild(makeWinBar(r.won, r.decided, 227)), r.decided > 0) {
       const pct = Math.round(100 * r.won / r.decided);
-      mid.appendChild(el("div", "color:#8A7F63;font-size:1.22rem;margin-top:6px", pct + "% of finished games"));
+      mid.appendChild(el("div", "color:#8A7F63;font-size:1.22rem;margin-top:6px", L("LOC_CHRONICLE_HOF_PCT_FINISHED", pct)));
     }
     card.appendChild(mid), grid.appendChild(card);
   }
@@ -670,7 +661,7 @@ function renderLeaders(body, games) {
     return [ ...map.values() ].sort((a, b) => b.played - a.played || b.won - a.won);
   }(games), {
     kind: "leader",
-    emptyMsg: "No leader data yet."
+    emptyMsg: L("LOC_CHRONICLE_HOF_NO_LEADERS")
   });
 }
 
@@ -694,7 +685,7 @@ function renderCivs(body, games) {
     return [ ...map.values() ].sort((a, b) => b.played - a.played || b.won - a.won);
   }(games), {
     kind: "civ",
-    emptyMsg: "No civilization data yet."
+    emptyMsg: L("LOC_CHRONICLE_HOF_NO_CIVS")
   });
 }
 
@@ -703,7 +694,7 @@ function renderDetail(panel, g, back) {
   const header = el("div", "display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0"), titleCol = el("div", "display:flex;flex-direction:column;gap:4px;min-width:0");
   titleCol.appendChild(el("div", "font-size:1.5rem;color:#F0E6D2", L("LOC_HOF_VIEWDETAILS"), "font-title uppercase tracking-150"));
   const sub = el("div", "color:#B7A987;font-size:0.9rem"), bits = [ gameTitle(g), outcomeText(g) ];
-  null != g.score && bits.push("Score " + Math.round(g.score));
+  null != g.score && bits.push(L("LOC_CHRONICLE_HOF_SCORE_N", Math.round(g.score)));
   const tl = turnsLabel(g);
   tl && bits.push(tl), g.diff && bits.push(prettifyType(g.diff)), g.mapSize && bits.push(prettifyType(g.mapSize));
   const when = fmtDate(g.updated);
@@ -714,16 +705,16 @@ function renderDetail(panel, g, back) {
   }
   header.appendChild(titleCol);
   const actions = el("div", "display:flex;gap:8px;flex-shrink:0");
-  actions.appendChild(makeNativeButton("Back", back, {
+  actions.appendChild(makeNativeButton(L("LOC_GENERIC_BACK"), back, {
     secondary: !0
-  })), actions.appendChild(makeNativeButton("Close", closeHof, {})), header.appendChild(actions), 
-  panel.appendChild(header);
+  })), actions.appendChild(makeNativeButton(L("LOC_GENERIC_CLOSE"), closeHof, {})), 
+  header.appendChild(actions), panel.appendChild(header);
   const metricBar = el("div", "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;flex-shrink:0");
   panel.appendChild(metricBar);
   const chartWrap = el("div", "position:relative;flex:1 1 auto;width:100%;min-height:0;overflow:hidden"), chartInner = el("div", "position:relative;width:100%;height:100%"), canvas = document.createElement("canvas");
   canvas.setAttribute("style", "display:block;width:100%;height:100%"), chartInner.appendChild(canvas), 
   chartWrap.appendChild(chartInner), panel.appendChild(chartWrap);
-  const note = el("div", "color:#B7A987;font-size:0.85rem;margin-top:8px;flex-shrink:0", "Chronicle log");
+  const note = el("div", "color:#B7A987;font-size:0.85rem;margin-top:8px;flex-shrink:0", L("LOC_CHRONICLE_SOURCE_LOGGER"));
   panel.appendChild(note);
   const buttons = [];
   let curMetric = DETAIL_METRICS[0];
@@ -734,7 +725,7 @@ function renderDetail(panel, g, back) {
       } catch (e) {}
       activeChart = null;
     }
-    if ("undefined" == typeof Chart) return void (note.textContent = "Chart.js not available.");
+    if ("undefined" == typeof Chart) return void (note.textContent = L("LOC_CHRONICLE_HOF_CHART_UNAVAILABLE"));
     if (!chartInner.clientWidth || !chartInner.clientHeight) return void requestAnimationFrame(draw);
     const src = function(store, key) {
       const ages = agesOrdered(store);
@@ -786,11 +777,14 @@ function renderDetail(panel, g, back) {
         end: end,
         blocks: layout
       };
-    }(g.store, curMetric.key);
-    if (!src.datasets.length) return void (note.textContent = "No " + curMetric.label + " data in this game's log.");
-    note.textContent = "Chronicle log  ·  " + curMetric.label + (src.blocks.length > 1 ? "  ·  " + src.blocks.map(b => b.label).join(" + ") : "");
+    }(g.store, curMetric.key), mLabel = detailMetricLabel(curMetric);
+    if (!src.datasets.length) return void (note.textContent = L("LOC_CHRONICLE_HOF_NO_METRIC_DATA", mLabel));
+    note.textContent = L("LOC_CHRONICLE_HOF_LOG_METRIC", mLabel) + (src.blocks.length > 1 ? "  ·  " + src.blocks.map(b => b.label).join(" + ") : "");
     const tickFont = {
       size: 14
+    }, fmtNum = n => {
+      const api = chronicleI18n();
+      return api && "function" == typeof api.formatChartNumber ? api.formatChartNumber(n) : null != n && isFinite(Number(n)) ? String(n) : "";
     };
     activeChart = new Chart(canvas.getContext("2d"), {
       type: "line",
@@ -824,6 +818,14 @@ function renderDetail(panel, g, back) {
           },
           title: {
             display: !1
+          },
+          tooltip: {
+            callbacks: {
+              label: item => {
+                const y = item.raw && null != item.raw.y ? item.raw.y : item.parsed && item.parsed.y;
+                return L("LOC_CHRONICLE_VALUE_SEP", item.dataset.label || "", fmtNum(y));
+              }
+            }
           }
         },
         scales: {
@@ -845,14 +847,15 @@ function renderDetail(panel, g, back) {
             min: 0,
             ticks: {
               color: "#C9BFA6",
-              font: tickFont
+              font: tickFont,
+              callback: v => fmtNum(v)
             },
             grid: {
               color: "rgba(232,226,208,0.08)"
             },
             title: {
               display: !0,
-              text: curMetric.label,
+              text: mLabel,
               color: "#B7A987",
               font: {
                 size: 15
@@ -866,7 +869,7 @@ function renderDetail(panel, g, back) {
     });
   }
   DETAIL_METRICS.forEach((m, i) => {
-    const b = makeNativeButton(m.label, () => {
+    const b = makeNativeButton(detailMetricLabel(m), () => {
       curMetric = m, buttons.forEach((btn, j) => highlightButton(btn, j === i)), draw();
     }, {
       secondary: !0
@@ -882,7 +885,7 @@ function renderDetail(panel, g, back) {
       reject(e);
     }
   }), chartLoading)).then(() => requestAnimationFrame(draw)).catch(e => {
-    note.textContent = "Could not load Chart.js: " + (e && e.message);
+    note.textContent = L("LOC_CHRONICLE_HOF_CHART_LOAD_FAIL", e && e.message || "");
   });
 }
 
@@ -899,9 +902,9 @@ function openHof(opts) {
     back: !0
   }));
   const header = el("div", "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-shrink:0;width:100%;min-width:0;box-sizing:border-box"), titleCol = el("div", "display:flex;flex-direction:row;align-items:flex-end;min-width:0;overflow:hidden;flex:1 1 auto"), titleEl = el("div", "font-size:1.8rem;color:#F0E6D2;flex-shrink:0;line-height:1.2;margin-right:20px", L("LOC_HOF_TITLE"), "font-title uppercase tracking-150");
-  titleCol.appendChild(titleEl), titleCol.appendChild(el("div", "color:#B7A987;font-size:0.85rem;padding-bottom:0.3rem;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", games.length ? games.length + " campaign" + (1 === games.length ? "" : "s") : "Chronicle campaigns")), 
+  titleCol.appendChild(titleEl), titleCol.appendChild(el("div", "color:#B7A987;font-size:0.85rem;padding-bottom:0.3rem;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", games.length ? 1 === games.length ? L("LOC_CHRONICLE_HOF_ONE_CAMPAIGN") : L("LOC_CHRONICLE_HOF_N_CAMPAIGNS", games.length) : L("LOC_CHRONICLE_HOF_CAMPAIGNS_CAPTION"))), 
   header.appendChild(titleCol);
-  const headerActions = el("div", "display:flex;align-items:center;flex-shrink:0;margin-left:16px"), closeBtn = makeNativeButton("Close", closeHof, {});
+  const headerActions = el("div", "display:flex;align-items:center;flex-shrink:0;margin-left:16px"), closeBtn = makeNativeButton(L("LOC_GENERIC_CLOSE"), closeHof, {});
   closeBtn.style.opacity = "0.72";
   const closeLabel = closeBtn.querySelector(".ozq-btn-label");
   closeLabel && (closeLabel.style.color = "#E8E2D0"), headerActions.appendChild(closeBtn), 
@@ -934,7 +937,7 @@ function openHof(opts) {
     } catch (e) {}
     if (api && "function" == typeof api.openForStore) {
       const bits = [ gameTitle(g), outcomeText(g) ];
-      null != g.score && bits.push("Score " + Math.round(g.score));
+      null != g.score && bits.push(L("LOC_CHRONICLE_HOF_SCORE_N", Math.round(g.score)));
       const tl = turnsLabel(g);
       tl && bits.push(tl), g.diff && bits.push(prettifyType(g.diff)), g.mapSize && bits.push(prettifyType(g.mapSize));
       const when = fmtDate(g.updated);
@@ -976,8 +979,8 @@ function openHof(opts) {
       }(games);
       if (body.textContent = "", !games.length) {
         const empty = el("div", "color:#C9BFA6;margin-top:52px;text-align:center;font-size:1.78rem");
-        return empty.appendChild(el("div", "margin-bottom:13px", "No campaigns tracked yet.")), 
-        empty.appendChild(el("div", "color:#8A7F63;font-size:1.54rem", "Play with Chronicle enabled and your games will appear here.")), 
+        return empty.appendChild(el("div", "margin-bottom:13px", L("LOC_CHRONICLE_HOF_EMPTY_CAMPAIGNS"))), 
+        empty.appendChild(el("div", "color:#8A7F63;font-size:1.54rem", L("LOC_CHRONICLE_HOF_EMPTY_CAMPAIGNS_HINT"))), 
         void body.appendChild(empty);
       }
       const hero = el("div", "display:flex;flex-wrap:nowrap;margin:0 0 32px 0;flex-shrink:0;width:100%;box-sizing:border-box");
@@ -989,13 +992,13 @@ function openHof(opts) {
         hero.appendChild(t);
       }
       const winPct = st.decided ? Math.round(100 * st.wins / st.decided) : null;
-      heroTile("Campaigns", st.games, st.decided ? st.decided + " finished" : "in progress"), 
-      heroTile("Record", st.wins + "–" + st.losses, null != winPct ? winPct + "% win rate" : "no finished games yet", st.wins > st.losses ? "#6BCB77" : st.losses > st.wins ? "#D96B6B" : "#F0E6D2"), 
-      heroTile("Turns logged", st.totalTurns, "across all campaigns"), hero.lastChild && (hero.lastChild.style.marginRight = "0"), 
-      body.appendChild(hero);
+      heroTile(L("LOC_CHRONICLE_HOF_CAMPAIGNS"), st.games, st.decided ? L("LOC_CHRONICLE_HOF_FINISHED", st.decided) : L("LOC_CHRONICLE_HOF_IN_PROGRESS_SUB")), 
+      heroTile(L("LOC_CHRONICLE_HOF_RECORD"), st.wins + "–" + st.losses, null != winPct ? L("LOC_CHRONICLE_HOF_WIN_RATE", winPct) : L("LOC_CHRONICLE_HOF_NO_FINISHED"), st.wins > st.losses ? "#6BCB77" : st.losses > st.wins ? "#D96B6B" : "#F0E6D2"), 
+      heroTile(L("LOC_CHRONICLE_HOF_TURNS_LOGGED"), st.totalTurns, L("LOC_CHRONICLE_HOF_ACROSS_CAMPAIGNS")), 
+      hero.lastChild && (hero.lastChild.style.marginRight = "0"), body.appendChild(hero);
       const classes = Object.keys(st.byClass).sort((a, b) => st.byClass[b] - st.byClass[a]);
       if (classes.length) {
-        body.appendChild(sectionTitle("Victories by path"));
+        body.appendChild(sectionTitle(L("LOC_CHRONICLE_HOF_VICTORIES_BY_PATH")));
         const vrow = el("div", "display:flex;flex-wrap:wrap;margin:0 0 36px 0;flex-shrink:0");
         for (const cls of classes) {
           const card = el("div", "display:flex;align-items:center;background:#1E1A14;border:1px solid #4A3F32;padding:16px 23px;margin:0 16px 16px 0;flex:1 1 18%;min-width:12rem;max-width:48%;box-sizing:border-box"), badge = makeVictoryBadge(cls, 112);
@@ -1033,11 +1036,11 @@ function openHof(opts) {
         main.appendChild(topRow), main.appendChild(el("div", "color:" + (valueColor || "#FFD98A") + ";font-size:1.86rem;font-weight:600;white-space:nowrap;align-self:flex-end;margin-top:10px", valueText)), 
         card.appendChild(main), records.appendChild(card);
       }
-      recordCard("Highest score", st.highScore, st.highScore && null != st.highScore.score ? String(Math.round(st.highScore.score)) : "—"), 
-      recordCard("Fastest victory", st.fastestWin, st.fastestWin ? speedLabel(st.fastestWin) : "—", "#6BCB77"), 
-      recordCard("Biggest empire", st.biggestEmpire, st.biggestEmpire && null != st.biggestEmpire.peakSettlements ? st.biggestEmpire.peakSettlements + " settlements" : "—"), 
-      recordCard("Most units killed", st.mostKills, st.mostKills && null != st.mostKills.unitsKilled ? String(st.mostKills.unitsKilled) : "—", "#D96B6B"), 
-      records.children.length || records.appendChild(el("div", "color:#B7A987;padding:19px;font-size:1.54rem", "No record games yet. Finish a campaign with Chronicle enabled.")), 
+      recordCard(L("LOC_CHRONICLE_HOF_HIGH_SCORE"), st.highScore, st.highScore && null != st.highScore.score ? String(Math.round(st.highScore.score)) : "—"), 
+      recordCard(L("LOC_CHRONICLE_HOF_FASTEST_VICTORY"), st.fastestWin, st.fastestWin ? speedLabel(st.fastestWin) : "—", "#6BCB77"), 
+      recordCard(L("LOC_CHRONICLE_HOF_BIGGEST_EMPIRE"), st.biggestEmpire, st.biggestEmpire && null != st.biggestEmpire.peakSettlements ? L("LOC_CHRONICLE_HOF_N_SETTLEMENTS", st.biggestEmpire.peakSettlements) : "—"), 
+      recordCard(L("LOC_CHRONICLE_HOF_MOST_KILLS"), st.mostKills, st.mostKills && null != st.mostKills.unitsKilled ? String(st.mostKills.unitsKilled) : "—", "#D96B6B"), 
+      records.children.length || records.appendChild(el("div", "color:#B7A987;padding:19px;font-size:1.54rem", L("LOC_CHRONICLE_HOF_NO_RECORDS"))), 
       body.appendChild(records);
     }(body, games, openDetail) : "leaders" === id ? renderLeaders(body, games) : "civs" === id ? renderCivs(body, games) : "reports" === id ? function(body, games, openDetail) {
       const boards = el("div", "display:flex;flex-wrap:wrap;align-items:flex-start");
@@ -1069,13 +1072,15 @@ function openHof(opts) {
           mid.appendChild(sub), row.appendChild(mid), col.appendChild(row);
         }), boards.appendChild(col);
       }
-      rankBoard("High Score", "No scores recorded yet (needs Overall Score logged — Chronicle 0.29.7+).", games.filter(g => null != g.score).slice().sort((a, b) => b.score - a.score).slice(0, 10), g => String(Math.round(g.score)), "#FFD98A"), 
-      rankBoard("Fastest Finish", "No victories recorded yet (outcome capture needs a finished game on Chronicle 0.29.7+).", games.filter(g => "victory" === g.outcome && g.totalTurns > 0).slice().sort((a, b) => a.totalTurns - b.totalTurns).slice(0, 10), g => speedLabel(g), "#6BCB77");
+      const byScore = games.filter(g => null != g.score).slice().sort((a, b) => b.score - a.score).slice(0, 10);
+      rankBoard(L("LOC_CHRONICLE_HOF_HIGH_SCORE"), L("LOC_CHRONICLE_HOF_NO_SCORES"), byScore, g => String(Math.round(g.score)), "#FFD98A");
+      const bySpeed = games.filter(g => "victory" === g.outcome && g.totalTurns > 0).slice().sort((a, b) => a.totalTurns - b.totalTurns).slice(0, 10);
+      rankBoard(L("LOC_CHRONICLE_HOF_FASTEST_VICTORY"), L("LOC_CHRONICLE_HOF_NO_VICTORIES"), bySpeed, g => speedLabel(g), "#6BCB77");
       const byKills = games.filter(g => null != g.unitsKilled && g.unitsKilled > 0).slice().sort((a, b) => b.unitsKilled - a.unitsKilled).slice(0, 10);
-      byKills.length && rankBoard("Most Units Killed", "", byKills, g => String(g.unitsKilled), "#D96B6B"), 
+      byKills.length && rankBoard(L("LOC_CHRONICLE_HOF_MOST_KILLS"), "", byKills, g => String(g.unitsKilled), "#D96B6B"), 
       body.appendChild(boards);
     }(body, games, openDetail) : "history" === id && function(body, games, openDetail) {
-      if (!games.length) return void body.appendChild(el("div", "color:#C9BFA6;text-align:center;padding:3rem;font-size:1.78rem", "No games recorded yet."));
+      if (!games.length) return void body.appendChild(el("div", "color:#C9BFA6;text-align:center;padding:3rem;font-size:1.78rem", L("LOC_CHRONICLE_HOF_NO_GAMES")));
       const list = el("div", "display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:auto;width:100%;box-sizing:border-box");
       for (const g of games) {
         const row = makeCard({
@@ -1108,7 +1113,7 @@ function openHof(opts) {
         outcomeRow.appendChild(el("div", "color:" + outcomeColor(g) + ";font-size:1.49rem;font-weight:600;white-space:nowrap", outcomeText(g))), 
         right.appendChild(outcomeRow);
         const statsLine = el("div", "display:flex;align-items:center");
-        null != g.score && statsLine.appendChild(el("div", "color:#FFD98A;font-size:1.43rem;margin-right:19px;white-space:nowrap", Math.round(g.score) + " pts"));
+        null != g.score && statsLine.appendChild(el("div", "color:#FFD98A;font-size:1.43rem;margin-right:19px;white-space:nowrap", L("LOC_CHRONICLE_HOF_PTS", Math.round(g.score))));
         const tl = turnsLabel(g);
         tl && statsLine.appendChild(el("div", "color:#B7A987;font-size:1.38rem;white-space:nowrap", tl)), 
         statsLine.children.length && right.appendChild(statsLine), row.appendChild(right), 
@@ -1128,14 +1133,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.31.26"
+    version: "0.32.10"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.31.26"
+      version: "0.32.10"
     };
   } catch (e2) {}
 }
@@ -1153,15 +1158,13 @@ function injectMainMenuButton(container) {
     btn.addEventListener("action-activate", () => {
       openHof();
     });
-    const kids = container.children;
-    let insertBefore = null;
-    for (let i = 0; i < kids.length; i++) {
-      const cap = kids[i].getAttribute && kids[i].getAttribute("caption") || "";
-      if (/OPTION|EXIT|QUIT|OPTIONS/i.test(cap)) {
-        insertBefore = kids[i];
-        break;
-      }
+    const buttons = [];
+    for (let i = 0; i < container.children.length; i++) {
+      const el = container.children[i];
+      el.tagName && "fxs-text-button" === String(el.tagName).toLowerCase() && buttons.push(el);
     }
+    let insertBefore = null;
+    buttons.length >= 2 ? insertBefore = buttons[buttons.length - 2] : 1 === buttons.length && (insertBefore = buttons[0]), 
     insertBefore ? container.insertBefore(btn, insertBefore) : container.appendChild(btn);
   } catch (e) {}
 }

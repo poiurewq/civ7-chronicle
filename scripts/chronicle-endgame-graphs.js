@@ -1,4 +1,42 @@
-const LOG = "[ozq-chronicle]", PANEL_BOX = [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 36px", "overflow-x:hidden", "overflow-y:hidden" ].join(";"), OVERLAY_ID = "ozq-chronicle-graphs-overlay";
+const LOG = "[ozq-chronicle]";
+
+function chronicleI18n() {
+  try {
+    return "undefined" != typeof globalThis && globalThis.ozqChronicleI18n || "undefined" != typeof window && window.ozqChronicleI18n || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function T() {
+  const api = chronicleI18n();
+  return api && api.L ? api.L.apply(api, arguments) : "";
+}
+
+function metricKeyLabel(id) {
+  const api = chronicleI18n();
+  return api && api.metricLabel && api.metricLabel(id) || "";
+}
+
+function metricYTitle(id, opts) {
+  const api = chronicleI18n();
+  return api && api.metricYTitle && api.metricYTitle(id, opts) || "";
+}
+
+function formatChartNumber(n, opts) {
+  const api = chronicleI18n();
+  return api && api.formatChartNumber ? api.formatChartNumber(n, opts) : null != n && isFinite(Number(n)) ? String(n) : "";
+}
+
+function locSrcYTitle(metric, src) {
+  if (!metric) return "";
+  const summary = !(!src || "summary" !== src.source);
+  return metricYTitle(metric.id, {
+    summary: summary
+  }) || "";
+}
+
+const PANEL_BOX = [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 36px", "overflow-x:hidden", "overflow-y:hidden" ].join(";"), OVERLAY_ID = "ozq-chronicle-graphs-overlay";
 
 let viewMode = null;
 
@@ -447,7 +485,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
       id: "CitiesFounded",
       scope: "Player",
       delta: !0,
-      label: "Settlements Founded",
       yTitle: "Settlements founded"
     }
   }
@@ -538,7 +575,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   kind: "bar",
   byType: "stock",
   lookup: "Units",
-  xTitle: "Unit type",
   yTitle: "Number owned"
 }, {
   id: "UnitsKilledByType",
@@ -549,7 +585,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   eventKey: "kbt",
   majorsOnly: !0,
   lookup: "Units",
-  xTitle: "Your unit type",
   yTitle: "Enemy units it killed"
 }, {
   id: "UnitsLostByType",
@@ -560,7 +595,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   eventKey: "lbt",
   majorsOnly: !0,
   lookup: "Units",
-  xTitle: "Your unit type",
   yTitle: "Number lost"
 }, {
   id: "CitiesConquered",
@@ -618,7 +652,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   kind: "bar",
   byType: "stock",
   lookup: "Constructibles",
-  xTitle: "Building",
   yTitle: "Number owned"
 }, {
   id: "ImprovementsOwnedByType",
@@ -627,7 +660,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   kind: "bar",
   byType: "stock",
   lookup: "Constructibles",
-  xTitle: "Improvement",
   yTitle: "Number owned"
 }, {
   id: "DistrictsOwnedByType",
@@ -636,7 +668,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   kind: "bar",
   byType: "stock",
   lookup: "Districts",
-  xTitle: "District",
   yTitle: "Number owned"
 }, {
   id: "WondersOwnedByType",
@@ -661,7 +692,7 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
         ownerPlayer: r.pid
       })),
       indexAxis: "y",
-      valueTitle: "Population",
+      valueTitle: metricKeyLabel("Population"),
       catTitle: ""
     };
   }
@@ -697,7 +728,7 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
         ownerPlayer: r.pid
       })),
       indexAxis: "y",
-      valueTitle: "% urban",
+      valueTitle: metricKeyLabel("ratioUrban"),
       catTitle: ""
     };
   }
@@ -729,8 +760,8 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
       data: counts,
       colors: SIZE_BUCKETS.map((_, i) => SIZE_BAR_COLORS[i]),
       indexAxis: "x",
-      valueTitle: "Settlements",
-      catTitle: "Population"
+      valueTitle: metricKeyLabel("set"),
+      catTitle: metricKeyLabel("Population")
     };
   }
 }, {
@@ -1307,19 +1338,11 @@ function trendSource(trend) {
 }
 
 function sourceLabel(src) {
-  return "summary" === src.source ? "Native log" : "Chronicle log";
+  return "summary" === src.source ? T("LOC_CHRONICLE_SOURCE_NATIVE") : T("LOC_CHRONICLE_SOURCE_LOGGER");
 }
 
 function metricLabel(metric) {
-  if (!metric.trend) return metric.label;
-  const spec = metric.trend.summary;
-  if (!spec || !spec.label) return metric.label;
-  if (isHistoricalView()) return metric.label;
-  try {
-    const p = probeTrend(metric.trend), effectiveLogger = p.loggerLineOk ? p.loggerTurnCount : 0;
-    if (p.summaryTurnCount > effectiveLogger) return spec.label;
-  } catch (e) {}
-  return metric.label;
+  return metricKeyLabel(metric.id) || metric.label || "";
 }
 
 function isPlayerAlive(pid) {
@@ -1333,13 +1356,13 @@ function isPlayerAlive(pid) {
 
 function buildStandings(trend) {
   if (trend.religionKey) return function(trend) {
-    const key = trend.religionKey, empty = {
+    const key = trend.religionKey, relCat = T("LOC_CHRONICLE_RELIGION"), empty = {
       labels: [],
       data: [],
       colors: [],
       indexAxis: "x",
       valueTitle: trend.yTitle || "",
-      catTitle: "Religion",
+      catTitle: relCat,
       signed: !1
     };
     if (!key) return empty;
@@ -1381,7 +1404,7 @@ function buildStandings(trend) {
       colors: rows.map(r => r.color),
       indexAxis: "x",
       valueTitle: trend.yTitle || "",
-      catTitle: "Religion",
+      catTitle: relCat,
       signed: !1
     };
   }(trend);
@@ -1478,7 +1501,7 @@ function bankedRelLookup(map, hash) {
 function isSyntheticReligionLabel(s) {
   if (null == s) return !0;
   const t = String(s).trim();
-  return !t || (0 === t.indexOf("LOC_") || (!!/^custom\s+\d+$/i.test(t) || !!/^religion[\s_-]?-?\d+$/i.test(t)));
+  return !t || (0 === String(t).indexOf("LOC_") || (!!/^custom\s+\d+$/i.test(t) || !!/^religion[\s_-]?-?\d+$/i.test(t)));
 }
 
 function resolvePlayerReligionName(playerRel) {
@@ -1705,11 +1728,17 @@ function currentAgeCi() {
 }
 
 function prettifyType(type) {
+  const api = chronicleI18n();
+  if (api && "function" == typeof api.typeDisplayName) {
+    const n = api.typeDisplayName(type);
+    if (n) return n;
+  }
+  if (null == type) return "";
   return String(type).replace(/^[A-Z]+_/, "").toLowerCase().replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function resolveTypeName(table, type) {
-  if (null == type || "" === String(type).trim()) return "Unknown";
+  if (null == type || "" === String(type).trim()) return T("LOC_CHRONICLE_UNKNOWN");
   try {
     const def = GameInfo[table] && GameInfo[table].lookup(type);
     if (def && def.Name) {
@@ -1882,7 +1911,7 @@ function readByTypeData(metric) {
 }
 
 function byTypeNote(metric) {
-  return "event" === metric.byType ? "Chronicle log · Whole game" : "Current standings · Owned stock";
+  return "event" === metric.byType ? T("LOC_CHRONICLE_NOTE_EVENT") : T("LOC_CHRONICLE_NOTE_STOCK");
 }
 
 function buildBarChart(metric, page) {
@@ -1948,7 +1977,7 @@ function bankedSettlementRows() {
   if (!ss || !ss.length) return [];
   const out = [];
   for (const r of ss) r && null != r.p && !isNaN(r.p) && out.push({
-    name: null != r.n && "" !== r.n ? r.n : "Settlement",
+    name: null != r.n && "" !== r.n ? r.n : T("LOC_CHRONICLE_SETTLEMENT"),
     pop: r.p,
     urb: r.u,
     pid: r.o
@@ -2163,7 +2192,7 @@ function renderChart(ui, metric, view, page) {
   setNote(ui, byTypeNote(metric)), ui.chartInner.style.display = "none", ui.board.style.display = "block", 
   void function(container, metric) {
     const {perPlayer: perPlayer, players: players} = readByTypeData(metric);
-    if (container.textContent = "", !players.length) return container.textContent = `No ${metric.label.toLowerCase()} to show.`, 
+    if (container.textContent = "", !players.length) return container.textContent = T("LOC_CHRONICLE_NO_TO_SHOW", metricLabel(metric)), 
     void (container.style.color = AXIS_TICK);
     const row = document.createElement("div");
     row.setAttribute("style", "display:flex;gap:14px;align-items:stretch;height:100%;padding-bottom:6px");
@@ -2219,12 +2248,17 @@ function renderChart(ui, metric, view, page) {
   }, tickOpts = {
     color: AXIS_TICK,
     font: tickFont
-  };
+  }, valTicks = (base = tickOpts, Object.assign({}, base || {}, {
+    callback: function(value) {
+      return formatChartNumber(value);
+    }
+  }));
+  var base;
   let config;
   if ("bar" === metric.kind) {
     setNote(ui, byTypeNote(metric));
     const {labels: labels, datasets: datasets} = buildBarChart(metric, page), hasData = datasets.length > 0 && labels.length > 0;
-    if (setNoData(ui.canvas, hasData ? "" : `No data recorded for ${metricLabel(metric)}.`), 
+    if (setNoData(ui.canvas, hasData ? "" : T("LOC_CHRONICLE_NO_DATA_RECORDED", metricLabel(metric))), 
     !hasData) return;
     config = {
       type: "bar",
@@ -2236,11 +2270,17 @@ function renderChart(ui, metric, view, page) {
         maintainAspectRatio: !1,
         animation: !1,
         color: "#E8E2D0",
-        plugins: plugins,
+        plugins: {
+          ...plugins,
+          tooltip: {
+            callbacks: {
+              label: item => T("LOC_CHRONICLE_VALUE_SEP", item.dataset.label || item.label || "", formatChartNumber(null != item.parsed ? null != item.parsed.y ? item.parsed.y : item.parsed.x : item.raw))
+            }
+          }
+        },
         scales: {
           x: {
             type: "category",
-            title: axisTitle(metric.xTitle),
             ticks: tickOpts,
             grid: {
               color: "#4A4034"
@@ -2249,8 +2289,8 @@ function renderChart(ui, metric, view, page) {
           y: {
             type: "linear",
             min: 0,
-            title: axisTitle(metric.yTitle),
-            ticks: tickOpts,
+            title: axisTitle(metricYTitle(metric.id)),
+            ticks: valTicks,
             grid: {
               color: "#4A4034"
             }
@@ -2260,15 +2300,15 @@ function renderChart(ui, metric, view, page) {
     };
   } else if ("live" === metric.kind || "stand" === view) {
     const isLive = "live" === metric.kind;
-    if (isLive && isHistoricalView() && bankedSettlementRows().length > 0) setNote(ui, "Chronicle log  ·  Last logged standings"); else {
-      const stand = [ "Current standings" ];
+    if (isLive && isHistoricalView() && bankedSettlementRows().length > 0) setNote(ui, T("LOC_CHRONICLE_NOTE_BANKED")); else {
+      const stand = [ T("LOC_CHRONICLE_CURRENT_STANDINGS") ];
       !isLive && metric.trend && stand.unshift(sourceLabel(trendSource(metric.trend))), 
       setNote(ui, stand.join("  ·  "));
     }
     const res = isLive ? metric.compute() : buildStandings(metric.trend), hasData = res && res.data && res.data.length > 0;
-    if (setNoData(ui.canvas, hasData ? "" : `No data available for ${metricLabel(metric)}.`), 
+    if (setNoData(ui.canvas, hasData ? "" : T("LOC_CHRONICLE_NO_DATA_AVAILABLE", metricLabel(metric))), 
     !hasData) return;
-    const horiz = "y" === res.indexAxis, catAxis = {
+    const horiz = "y" === res.indexAxis, valueTitle = isLive ? res.valueTitle : locSrcYTitle(metric, metric.trend ? trendSource(metric.trend) : null), catAxis = {
       type: "category",
       title: axisTitle(res.catTitle),
       ticks: tickOpts,
@@ -2278,8 +2318,8 @@ function renderChart(ui, metric, view, page) {
     }, valAxis = {
       type: "linear",
       min: res.signed ? void 0 : 0,
-      title: axisTitle(res.valueTitle),
-      ticks: tickOpts,
+      title: axisTitle(valueTitle || res.valueTitle),
+      ticks: valTicks,
       grid: {
         color: "#4A4034"
       }
@@ -2306,6 +2346,11 @@ function renderChart(ui, metric, view, page) {
           },
           title: {
             display: !1
+          },
+          tooltip: {
+            callbacks: {
+              label: item => formatChartNumber(null != item.parsed ? horiz ? item.parsed.x : item.parsed.y : item.raw)
+            }
           }
         },
         scales: horiz ? {
@@ -2321,21 +2366,23 @@ function renderChart(ui, metric, view, page) {
     const trend = metric.trend, src = trendSource(trend);
     if (!function(src) {
       return src && src.turnCount >= 2;
-    }(src)) return setNote(ui, ""), void setNoData(ui.canvas, `No ${metricLabel(metric)} recorded yet (tracked only while Chronicle is enabled).`);
+    }(src)) return setNote(ui, ""), void setNoData(ui.canvas, T("LOC_CHRONICLE_NO_RECORDED_YET", metricLabel(metric)));
     {
       const {datasets: datasets, start: start, end: end} = src;
       setNoData(ui.canvas, "");
-      const scope = src.currentAgeOnly ? `${prettifyType(src.firstAgeLabel)} only` : src.startedLate ? `Tracked since ${prettifyType(src.firstAgeLabel)} turn ${src.firstTurn}` : "", provenance = [ sourceLabel(src), scope ].filter(Boolean).join("  ·  ");
+      const agePretty = prettifyType(src.firstAgeLabel), scope = src.currentAgeOnly ? T("LOC_CHRONICLE_AGE_ONLY", agePretty) : src.startedLate ? T("LOC_CHRONICLE_TRACKED_SINCE", agePretty, src.firstTurn) : "", provenance = [ sourceLabel(src), scope ].filter(Boolean).join("  ·  ");
       let hint = "";
-      !legendHintShown && datasets.length > 1 && (hint = "Click a civ in the legend to toggle it", 
+      !legendHintShown && datasets.length > 1 && (hint = T("LOC_CHRONICLE_LEGEND_HINT"), 
       legendHintShown = !0), setNote(ui, [ provenance, hint ].filter(Boolean).join("  ·  "));
       const turnLabel = x => {
         for (const b of src.blocks) {
           const bEndX = b.offset + (b.maxT - b.minT);
-          if (x >= b.offset && x <= bEndX) return `${b.label} turn ${b.minT + (x - b.offset)}`;
+          if (x >= b.offset && x <= bEndX) return T("LOC_CHRONICLE_AGE_TURN", b.label, b.minT + (x - b.offset));
         }
-        return `Turn ${x}`;
-      }, dp = trend.ratioKey ? trend.ratioKey.dp : null, fmtVal = y => null != dp ? Number(y).toFixed(dp) : Number.isInteger(y) ? String(y) : Number(y).toFixed(1), tk = turnAxisTicks(src.blocks, start, end);
+        return T("LOC_CHRONICLE_TURN", x);
+      }, dp = trend.ratioKey ? trend.ratioKey.dp : null, fmtVal = y => formatChartNumber(y, {
+        dp: null != dp ? dp : Number.isInteger(Number(y)) ? null : 1
+      }), tk = turnAxisTicks(src.blocks, start, end);
       config = {
         type: "line",
         data: {
@@ -2369,7 +2416,7 @@ function renderChart(ui, metric, view, page) {
               bodyFont: tickFont,
               callbacks: {
                 title: items => items && items.length ? turnLabel(items[0].raw.x) : "",
-                label: item => `${item.dataset.label}: ${fmtVal(item.raw.y)}`
+                label: item => T("LOC_CHRONICLE_VALUE_SEP", item.dataset.label, fmtVal(item.raw.y))
               }
             }
           },
@@ -2396,8 +2443,8 @@ function renderChart(ui, metric, view, page) {
             y: {
               type: "linear",
               min: trend.signed ? void 0 : 0,
-              title: axisTitle(src.yTitle),
-              ticks: tickOpts,
+              title: axisTitle(locSrcYTitle(metric, src)),
+              ticks: valTicks,
               grid: {
                 color: "#4A4034"
               }
@@ -2712,7 +2759,7 @@ function openOverlayForStore(store, opts) {
   opts = opts || {}, store && store.ages && (document.getElementById(OVERLAY_ID) && closeOverlay(), 
   viewMode = {
     store: store,
-    title: opts.title || "Game Details",
+    title: opts.title || T("LOC_HOF_VIEWDETAILS"),
     caption: opts.caption || "",
     onClose: opts.onClose || null
   }, colorMapCache = null, openOverlay());
@@ -2723,7 +2770,7 @@ try {
     open: openOverlay,
     openForStore: openOverlayForStore,
     close: closeOverlay,
-    version: "0.31.26"
+    version: "0.32.10"
   };
 } catch (e) {
   try {
@@ -2731,7 +2778,7 @@ try {
       open: openOverlay,
       openForStore: openOverlayForStore,
       close: closeOverlay,
-      version: "0.31.26"
+      version: "0.32.10"
     };
   } catch (e2) {}
 }
@@ -2817,7 +2864,7 @@ function openOverlay() {
   const titleRow = document.createElement("div");
   titleRow.setAttribute("style", "display:flex;flex-direction:row;align-items:flex-end;min-width:0;overflow:hidden;flex:1 1 auto");
   const title = document.createElement("div");
-  title.textContent = historical ? viewMode && viewMode.title || "Game Details" : "Chronicle — Game Statistics", 
+  title.textContent = historical ? viewMode && viewMode.title || T("LOC_HOF_VIEWDETAILS") : T("LOC_CHRONICLE_TITLE"), 
   title.className = "font-title uppercase tracking-150", title.setAttribute("style", "font-size:1.8rem;color:#F0E6D2;flex-shrink:0;line-height:1.2;margin-right:20px"), 
   titleRow.appendChild(title);
   const note = document.createElement("div");
@@ -2836,7 +2883,7 @@ function openOverlay() {
   }
   if (headerActions.setAttribute("style", "display:flex;align-items:center;flex-shrink:0;margin-left:16px"), 
   !historical) {
-    const hofBtn = makeNativeButton("Hall of Fame", () => {
+    const hofBtn = makeNativeButton(T("LOC_HOF_TITLE"), () => {
       try {
         const api = "undefined" != typeof globalThis && globalThis.ozqChronicleHof || "undefined" != typeof window && window.ozqChronicleHof;
         api && "function" == typeof api.open && api.open();
@@ -2844,12 +2891,11 @@ function openOverlay() {
     }, {});
     muteHeaderBtn(hofBtn), hofBtn.style.marginRight = "9px", headerActions.appendChild(hofBtn);
   }
-  const closeBtn = makeNativeButton("Close", closeOverlay, {});
+  const closeBtn = makeNativeButton(T("LOC_GENERIC_CLOSE"), closeOverlay, {});
   if (muteHeaderBtn(closeBtn), headerActions.appendChild(closeBtn), header.appendChild(headerActions), 
   panel.appendChild(header), !catList.length) {
     const empty = document.createElement("div");
-    return empty.textContent = "No stats recorded yet. Chronicle logs each turn while it is enabled.", 
-    empty.setAttribute("style", "flex:1 1 auto;display:flex;align-items:center;justify-content:center;color:#C9BFA6;font-size:1.15rem;text-align:center;padding:2rem"), 
+    return empty.textContent = T("LOC_CHRONICLE_EMPTY_STATS"), empty.setAttribute("style", "flex:1 1 auto;display:flex;align-items:center;justify-content:center;color:#C9BFA6;font-size:1.15rem;text-align:center;padding:2rem"), 
     panel.appendChild(empty), document.body.appendChild(root), void openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " empty=1 historical=" + (historical ? 1 : 0));
   }
   const categoryRow = makeScrollRow({
@@ -2895,18 +2941,18 @@ function openOverlay() {
       return Math.max(1, Math.ceil(typeTotal.size / 12));
     }(curMetric) : 1;
     if (pages <= 1) return;
-    const prev = makeNativeButton("‹ Prev", () => {
+    const prev = makeNativeButton(T("LOC_CHRONICLE_PREV"), () => {
       curPage > 0 && (curPage--, renderPage());
     }, {
       secondary: !0
-    }), next = makeNativeButton("Next ›", () => {
+    }), next = makeNativeButton(T("LOC_CHRONICLE_NEXT"), () => {
       curPage < pages - 1 && (curPage++, renderPage());
     }, {
       secondary: !0
     });
     0 === curPage && (prev.style.opacity = "0.4"), curPage === pages - 1 && (next.style.opacity = "0.4");
     const label = document.createElement("div");
-    label.textContent = `Page ${curPage + 1} / ${pages}`, label.setAttribute("style", "color:#E8E2D0;font-size:0.9rem;min-width:6rem;text-align:center"), 
+    label.textContent = T("LOC_CHRONICLE_PAGE", curPage + 1, pages), label.setAttribute("style", "color:#E8E2D0;font-size:0.9rem;min-width:6rem;text-align:center"), 
     pageBar.appendChild(prev), pageBar.appendChild(label), pageBar.appendChild(next);
   }, setView = v => {
     const btn = viewButtons[v];
@@ -2928,9 +2974,9 @@ function openOverlay() {
       "stand";
       viewBar.style.display = "flex";
       const tAvail = trendAvailable(metric), sAvail = standAvailable(metric);
-      return viewButtons.trend = makeNativeButton("Trends", () => setView("trend"), {
+      return viewButtons.trend = makeNativeButton(T("LOC_CHRONICLE_TRENDS"), () => setView("trend"), {
         secondary: !0
-      }), viewButtons.stand = makeNativeButton("Standings", () => setView("stand"), {
+      }), viewButtons.stand = makeNativeButton(T("LOC_CHRONICLE_STANDINGS"), () => setView("stand"), {
         secondary: !0
       }), viewButtons.trend._avail = tAvail, viewButtons.stand._avail = sAvail, viewBar.appendChild(viewButtons.trend), 
       viewBar.appendChild(viewButtons.stand), tAvail ? "trend" : "stand";
@@ -2948,7 +2994,9 @@ function openOverlay() {
       const idx = preferId ? Math.max(0, inCat.findIndex(m => m.id === preferId)) : 0;
       selectChart(inCat, idx < 0 ? 0 : idx);
     }
-  }, catButtons = catList.map((cat, i) => makeNativeButton(cat, () => selectCategory(i), {}));
+  }, catButtons = catList.map((cat, i) => makeNativeButton(function(cat) {
+    return T("LOC_CHRONICLE_CAT_" + cat);
+  }(cat), () => selectCategory(i), {}));
   document.body.appendChild(root), categoryRow.setButtons(catButtons), openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " metrics=" + metrics.length + " cats=" + catList.length + " historical=" + (historical ? 1 : 0));
   const def = metrics.find(m => m.default) || metrics[0], defCat = def ? Math.max(0, catList.indexOf(def.category)) : 0;
   requestAnimationFrame(() => {
@@ -2968,7 +3016,7 @@ function injectButton(screen) {
     if (screen.querySelector("#ozq-chronicle-graphs-button")) return;
     const row = screen.querySelector(".bottom-10.right-10");
     if (!row) return void (tries++ < 180 && requestAnimationFrame(attempt));
-    const button = makeNativeButton("Chronicle", openOverlay, {
+    const button = makeNativeButton(T("LOC_CHRONICLE_BUTTON"), openOverlay, {
       id: "ozq-chronicle-graphs-button",
       extraClass: "mr-8"
     });
@@ -2979,7 +3027,7 @@ function injectButton(screen) {
 
 function injectPauseMenuButton(container) {
   if (container.querySelector("#ozq-chronicle-pause-button")) return;
-  const button = makeNativeButton("Chronicle", openOverlay, {
+  const button = makeNativeButton(T("LOC_CHRONICLE_BUTTON"), openOverlay, {
     id: "ozq-chronicle-pause-button",
     extraClass: "pause-menu-button mt-4"
   }), resume = container.querySelector("#pause-menu-resume-button");
