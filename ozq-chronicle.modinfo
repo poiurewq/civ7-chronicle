@@ -6,7 +6,7 @@
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.32.12</Version>
+        <Version>0.33.1</Version>
     </Properties>
 
     <Dependencies>
@@ -30,6 +30,8 @@
             <Actions>
                 <UIScripts>
                     <Item>scripts/chronicle-i18n.js</Item>
+                    <Item>scripts/chronicle-common.js</Item>
+                    <Item>scripts/chronicle-options.js</Item>
                     <Item>scripts/chronicle-endgame-graphs.js</Item>
                     <Item>scripts/chronicle-logger.js</Item>
                     <Item>scripts/chronicle-hof.js</Item>
@@ -43,6 +45,8 @@
             <Actions>
                 <UIScripts>
                     <Item>scripts/chronicle-i18n.js</Item>
+                    <Item>scripts/chronicle-common.js</Item>
+                    <Item>scripts/chronicle-options.js</Item>
                     <Item>scripts/chronicle-endgame-graphs.js</Item>
                     <Item>scripts/chronicle-hof.js</Item>
                 </UIScripts>

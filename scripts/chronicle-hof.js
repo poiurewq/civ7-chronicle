@@ -1,4 +1,6 @@
-const PANEL_BOX = [ "position:fixed", "left:4%", "top:5%", "width:92%", "height:90%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px 36px", "overflow-x:hidden", "overflow-y:hidden" ].join(";"), LEGACY_KEYS = [ "!chronicle", "chronicle" ], OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
+globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
+
+const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
 
 function err(msg) {
   try {
@@ -6,70 +8,20 @@ function err(msg) {
   } catch (e) {}
 }
 
-function chronicleI18n() {
-  try {
-    return "undefined" != typeof globalThis && globalThis.ozqChronicleI18n || "undefined" != typeof window && window.ozqChronicleI18n || null;
-  } catch (e) {
-    return null;
-  }
+function typeNameOrUnknown(t) {
+  return null == t || "" === t ? L("LOC_HOF_UNKNOWN") : typeDisplayName(t) || L("LOC_HOF_UNKNOWN");
 }
 
-function L() {
-  const api = chronicleI18n();
-  return api && api.L ? api.L.apply(api, arguments) : "";
-}
-
-function prettifyType(t) {
-  if (null == t || "" === t) return L("LOC_HOF_UNKNOWN");
-  const api = chronicleI18n();
-  if (api && api.typeDisplayName) {
-    const n = api.typeDisplayName(t);
-    if (n) return n;
-  }
-  return L("LOC_HOF_UNKNOWN");
-}
-
-const LEADER_PERSONA_NAMES = {
-  LEADER_NAPOLEON_ALT: "Napoleon, Revolutionary",
-  LEADER_ASHOKA_ALT: "Ashoka, World Conqueror",
-  LEADER_HIMIKO_ALT: "Himiko, High Shaman",
-  LEADER_FRIEDRICH_ALT: "Friedrich, Baroque",
-  LEADER_XERXES_ALT: "Xerxes, the Achaemenid"
-};
-
-function isResolvedLoc(n, key) {
-  if (null == n) return !1;
-  const s = String(n).trim();
-  return !!s && ((null == key || s !== String(key)) && !/^LOC_[A-Z0-9_]+$/i.test(s));
-}
-
-function resolveName(table, typeField, type) {
-  if (null == type) return L("LOC_HOF_UNKNOWN");
-  const t = String(type);
-  try {
-    if ("undefined" != typeof GameInfo && GameInfo[table]) {
-      const def = GameInfo[table].lookup(t);
-      if (def && def.Name) {
-        const n = Locale.compose(def.Name);
-        if (isResolvedLoc(n, def.Name)) return n;
-      }
-    }
-  } catch (e) {}
-  try {
-    if ("undefined" != typeof Locale && "function" == typeof Locale.compose) {
-      const key = "LOC_" + t + "_NAME", n = Locale.compose(key);
-      if (isResolvedLoc(n, key)) return n;
-    }
-  } catch (e) {}
-  return "Leaders" === table && LEADER_PERSONA_NAMES[t] ? LEADER_PERSONA_NAMES[t] : prettifyType(t);
+function resolveName(table, type) {
+  return resolveTypeNameOrNull(table, type) || typeNameOrUnknown(type);
 }
 
 function leaderName(type) {
-  return resolveName("Leaders", 0, type);
+  return resolveName("Leaders", type);
 }
 
 function civName(type) {
-  return resolveName("Civilizations", 0, type);
+  return resolveName("Civilizations", type);
 }
 
 function fmtDate(ms) {
@@ -88,82 +40,9 @@ function fmtDate(ms) {
   }
 }
 
-function hofMergeContainers(base, add) {
-  for (const gid in add.games) {
-    const a = add.games[gid], b = base.games[gid];
-    (!b || (a.updated || 0) >= (b.updated || 0)) && (base.games[gid] = a);
-  }
-  return base;
-}
-
-function hofLoadShared() {
-  let folded = null;
-  const notes = [], fin = shared => ({
-    shared: shared,
-    container: folded || {
-      v: 2,
-      updated: 0,
-      games: {}
-    },
-    notes: notes
-  });
-  for (let hop = 0; hop < 4; hop++) {
-    let raw = null;
-    try {
-      raw = localStorage.getItem("modSettings");
-    } catch (e) {}
-    if (!raw) return notes.push("row0 empty"), fin({});
-    let row0 = null;
-    try {
-      row0 = JSON.parse(raw);
-    } catch (e) {}
-    if (!row0 || "object" != typeof row0) return notes.push("row0 not JSON (foreign)"), 
-    fin({});
-    const sub = row0["ozq-chronicle"];
-    if (sub && sub.games) return notes.push(0 !== hop || folded ? "reached modSettings after fold" : "steady"), 
-    delete row0["ozq-chronicle"], folded = folded ? hofMergeContainers(sub, folded) : sub, 
-    fin(row0);
-    if (row0.games) {
-      folded = folded ? hofMergeContainers(row0, folded) : row0, notes.push("folded pre-0.31 container");
-      let removed = !1;
-      for (const k of LEGACY_KEYS) try {
-        localStorage.removeItem(k), removed = !0;
-      } catch (e) {}
-      if (!removed) return fin({});
-      continue;
-    }
-    return notes.push("adopted row0 object"), fin(row0);
-  }
-  return notes.push("hop limit"), fin({});
-}
-
 try {
-  const r = hofLoadShared();
-  !function(shared, c) {
-    shared["ozq-chronicle"] = c;
-    const str = JSON.stringify(shared);
-    try {
-      localStorage.setItem("modSettings", str);
-    } catch (e) {
-      return !1;
-    }
-    let back = null;
-    try {
-      back = localStorage.getItem("modSettings");
-    } catch (e) {}
-    if (back === str) return !0;
-    try {
-      null != back && (shared._ozqRescued = {
-        t: Date.now(),
-        data: String(back).slice(0, 131072)
-      }), localStorage.clear();
-      const str2 = JSON.stringify(shared);
-      return localStorage.setItem("modSettings", str2), err("origin reads were blocked by an unknown first-sorting key; cleared as last resort (row-0 bytes kept in modSettings._ozqRescued)"), 
-      localStorage.getItem("modSettings") === str2;
-    } catch (e) {
-      return !1;
-    }
-  }(r.shared, r.container), err(`boot migration (${IS_GAME ? "game" : "shell"}): ${r.notes.join(", ")}; ${Object.keys(r.container.games).length} game(s) in container`);
+  const r = loadShared();
+  saveShared(r.shared, r.container), err(`boot migration (${IS_GAME ? "game" : "shell"}): ${r.notes.join(", ")}; ${Object.keys(r.container.games).length} game(s) in container`);
 } catch (e) {
   err(`boot migration threw: ${e}`);
 }
@@ -201,11 +80,11 @@ function lastValue(store, pid, key) {
 }
 
 function victoryClassLabel(cls) {
-  return cls ? prettifyType(cls) : "";
+  return cls ? typeNameOrUnknown(cls) : "";
 }
 
 function ageName(labelOrKey) {
-  return null == labelOrKey || "" === labelOrKey ? "" : prettifyType(labelOrKey);
+  return null == labelOrKey || "" === labelOrKey ? "" : typeNameOrUnknown(labelOrKey);
 }
 
 function turnsLabel(g) {
@@ -314,7 +193,7 @@ function isHofEligible(g) {
 function allGames() {
   const c = function() {
     try {
-      const c = hofLoadShared().container;
+      const c = loadShared().container;
       if (c && Object.keys(c.games).length) return c;
     } catch (e) {}
     return null;
@@ -340,85 +219,6 @@ function progressLine(r) {
   r.decided > 0 && parts.push(L("LOC_CHRONICLE_HOF_WON_OUT_OF", r.won, r.decided)), 
   null != r.bestScore && parts.push(L("LOC_CHRONICLE_HOF_BEST_SCORE", Math.round(r.bestScore))), 
   parts.join("  ·  ");
-}
-
-let chartLoading = null;
-
-const PALETTE = [ "#E8C547", "#5BA3D9", "#D96B6B", "#6BCB77", "#C77DFF", "#FF9F43", "#48DBFB", "#F368E0", "#B0B0B0" ];
-
-function pidColor(store, pid, i) {
-  try {
-    const players = store && store.meta && store.meta.players || {}, rec = players[pid] || players[String(pid)];
-    if (rec && rec.pri) return rec.pri;
-  } catch (e) {}
-  return PALETTE[i % PALETTE.length];
-}
-
-function pidLabel(store, pid) {
-  const players = store.meta && store.meta.players || {}, rec = players[pid] || players[String(pid)];
-  return rec && rec.leader ? leaderName(rec.leader) : L("LOC_CHRONICLE_PLAYER", pid);
-}
-
-const DETAIL_METRICS = [ {
-  id: "score",
-  label: "Score",
-  key: "score"
-}, {
-  id: "Science",
-  label: "Science / Turn",
-  key: "Science"
-}, {
-  id: "Culture",
-  label: "Culture / Turn",
-  key: "Culture"
-}, {
-  id: "gold",
-  label: "Treasury",
-  key: "gold"
-}, {
-  id: "tpop",
-  label: "Population",
-  key: "tpop"
-}, {
-  id: "set",
-  label: "Settlements",
-  key: "set"
-}, {
-  id: "uKill",
-  label: "Units Killed",
-  key: "uKill"
-}, {
-  id: "TechsAcquired",
-  label: "Technologies",
-  key: "TechsAcquired"
-}, {
-  id: "CivicsAcquired",
-  label: "Civics",
-  key: "CivicsAcquired"
-} ];
-
-function detailMetricLabel(m) {
-  return function(id) {
-    const api = chronicleI18n();
-    return api && api.metricLabel && api.metricLabel(id) || "";
-  }(m.id) || m.label;
-}
-
-function makeNativeButton(label, onClick, opts) {
-  opts = opts || {};
-  const button = document.createElement("div");
-  opts.id && (button.id = opts.id);
-  const sizing = opts.secondary ? "font-body text-sm tracking-100 px-4 py-1.5 " : "font-title text-base uppercase tracking-150 px-5 py-2 ";
-  return button.className = "pointer-events-auto fxs-button relative flex items-center justify-center text-accent-1 text-shadow-subtle leading-none text-center cursor-pointer " + sizing + (opts.extraClass || ""), 
-  button.setAttribute("data-name", "Button"), button.setAttribute("activatable", "true"), 
-  button.innerHTML = '<div class="absolute inset-0"><div class="absolute inset-0 fxs-button__bg fxs-button__bg--base"></div><div class="absolute inset-0 opacity-0 fxs-button__bg fxs-button__bg--focus"></div><div class="absolute inset-0 opacity-0 fxs-button__bg fxs-button__bg--active"></div></div><div class="ozq-btn-label relative flex flex-auto items-center justify-center"></div>', 
-  button.querySelector(".ozq-btn-label").textContent = label, button.addEventListener("click", onClick), 
-  button;
-}
-
-function highlightButton(button, active) {
-  const label = button.querySelector(".ozq-btn-label");
-  label && (label.style.color = active ? "#FFD98A" : "#E8E2D0"), button.style.opacity = active ? "1" : "0.72";
 }
 
 function el(tag, style, text, className) {
@@ -569,55 +369,22 @@ function sectionTitle(text) {
   return el("div", "color:#F0E6D2;font-size:1.53rem;margin-bottom:16px;letter-spacing:0.04em;text-transform:uppercase", text);
 }
 
-let activeChart = null, hofOpen = !1, detailGame = null;
-
 function destroyHofDom() {
-  if (activeChart) {
-    try {
-      activeChart.destroy();
-    } catch (e) {}
-    activeChart = null;
-  }
-  document.getElementById(OVERLAY_ID)?.remove(), hofOpen = !1;
+  document.getElementById(OVERLAY_ID)?.remove(), forgetOverlay(OVERLAY_ID);
 }
 
 function closeHof() {
-  destroyHofDom(), detailGame = null;
+  destroyHofDom();
 }
 
-const CANCEL_ACTIONS = [ "cancel", "keyboard-escape", "mousebutton-right", "sys-menu" ], hofInputHandler = {
+const hofInputHandler = {
   handleInput(e) {
     const d = e && e.detail || {};
-    return !!document.getElementById("ozq-chronicle-graphs-overlay") || (!document.getElementById(OVERLAY_ID) || (!d.name || CANCEL_ACTIONS.indexOf(d.name) < 0 || (function(e) {
-      if ("engine-input" !== e.type || !e.detail) return !1;
-      if ("undefined" == typeof InputActionStatuses) return !0;
-      return e.detail.status === InputActionStatuses.FINISH;
-    }(e) && (detailGame ? openHof({
-      back: !0
-    }) : closeHof()), !1)));
+    return !isTopOverlay(OVERLAY_ID) || (!d.name || CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeHof(), 
+    !1));
   },
   handleNavigation: () => !0
 };
-
-let inputHandlerInstalled = !1;
-
-function installInputHandler() {
-  if (!inputHandlerInstalled) {
-    inputHandlerInstalled = !0;
-    try {
-      import("/core/ui/context-manager/context-manager.js").then(m => {
-        const cm = m && m.default;
-        if (!cm || "function" != typeof cm.registerEngineInputHandler) return;
-        cm.registerEngineInputHandler(hofInputHandler);
-        const arr = cm.engineInputEventHandlers;
-        if (Array.isArray(arr)) {
-          const i = arr.indexOf(hofInputHandler);
-          i > 0 && (arr.splice(i, 1), arr.unshift(hofInputHandler));
-        }
-      }).catch(() => {});
-    } catch (e) {}
-  }
-}
 
 function renderEntityGrid(body, rows, opts) {
   if (!rows.length) return void body.appendChild(el("div", "color:#C9BFA6;text-align:center;padding:3rem;font-size:1.78rem", opts.emptyMsg));
@@ -689,222 +456,20 @@ function renderCivs(body, games) {
   });
 }
 
-function renderDetail(panel, g, back) {
-  panel.textContent = "";
-  const header = el("div", "display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-shrink:0"), titleCol = el("div", "display:flex;flex-direction:column;gap:4px;min-width:0");
-  titleCol.appendChild(el("div", "font-size:1.5rem;color:#F0E6D2", L("LOC_HOF_VIEWDETAILS"), "font-title uppercase tracking-150"));
-  const sub = el("div", "color:#B7A987;font-size:0.9rem"), bits = [ gameTitle(g), outcomeText(g) ];
-  null != g.score && bits.push(L("LOC_CHRONICLE_HOF_SCORE_N", Math.round(g.score)));
-  const tl = turnsLabel(g);
-  tl && bits.push(tl), g.diff && bits.push(prettifyType(g.diff)), g.mapSize && bits.push(prettifyType(g.mapSize));
-  const when = fmtDate(g.updated);
-  if (when && bits.push(when), sub.textContent = bits.join("  ·  "), titleCol.appendChild(sub), 
-  g.civs.length) {
-    const civLine = g.civs.map(c => prettifyType(c.ageLabel) + ": " + civName(c.civ)).join("  →  ");
-    titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.8rem", civLine));
-  }
-  header.appendChild(titleCol);
-  const actions = el("div", "display:flex;gap:8px;flex-shrink:0");
-  actions.appendChild(makeNativeButton(L("LOC_GENERIC_BACK"), back, {
-    secondary: !0
-  })), actions.appendChild(makeNativeButton(L("LOC_GENERIC_CLOSE"), closeHof, {})), 
-  header.appendChild(actions), panel.appendChild(header);
-  const metricBar = el("div", "display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;flex-shrink:0");
-  panel.appendChild(metricBar);
-  const chartWrap = el("div", "position:relative;flex:1 1 auto;width:100%;min-height:0;overflow:hidden"), chartInner = el("div", "position:relative;width:100%;height:100%"), canvas = document.createElement("canvas");
-  canvas.setAttribute("style", "display:block;width:100%;height:100%"), chartInner.appendChild(canvas), 
-  chartWrap.appendChild(chartInner), panel.appendChild(chartWrap);
-  const note = el("div", "color:#B7A987;font-size:0.85rem;margin-top:8px;flex-shrink:0", L("LOC_CHRONICLE_SOURCE_LOGGER"));
-  panel.appendChild(note);
-  const buttons = [];
-  let curMetric = DETAIL_METRICS[0];
-  function draw() {
-    if (activeChart) {
-      try {
-        activeChart.destroy();
-      } catch (e) {}
-      activeChart = null;
-    }
-    if ("undefined" == typeof Chart) return void (note.textContent = L("LOC_CHRONICLE_HOF_CHART_UNAVAILABLE"));
-    if (!chartInner.clientWidth || !chartInner.clientHeight) return void requestAnimationFrame(draw);
-    const src = function(store, key) {
-      const ages = agesOrdered(store);
-      let cursor = 0;
-      const layout = [], pids = new Set;
-      for (const age of ages) {
-        const turns = Object.keys(age.turns).map(Number).sort((a, b) => a - b);
-        if (!turns.length) continue;
-        const minT = turns[0], maxT = turns[turns.length - 1];
-        layout.push({
-          age: age,
-          turns: turns,
-          minT: minT,
-          offset: cursor,
-          label: prettifyType(age.label)
-        }), cursor += maxT - minT + 2;
-        for (const t of turns) {
-          const p = age.turns[t].p || {};
-          for (const pid in p) pids.add(pid);
-        }
-      }
-      const end = Math.max(0, cursor - 2), datasets = [];
-      let i = 0;
-      for (const pid of pids) {
-        const data = [];
-        for (const L of layout) for (const t of L.turns) {
-          const row = (L.age.turns[t].p || {})[pid];
-          row && null != row[key] && data.push({
-            x: L.offset + (t - L.minT),
-            y: row[key]
-          });
-        }
-        if (!data.length) continue;
-        const color = pidColor(store, pid, i++);
-        datasets.push({
-          label: pidLabel(store, pid),
-          data: data,
-          borderColor: color,
-          backgroundColor: color,
-          fill: !1,
-          tension: 0,
-          pointRadius: 0,
-          borderWidth: 2
-        });
-      }
-      return {
-        datasets: datasets,
-        start: 0,
-        end: end,
-        blocks: layout
-      };
-    }(g.store, curMetric.key), mLabel = detailMetricLabel(curMetric);
-    if (!src.datasets.length) return void (note.textContent = L("LOC_CHRONICLE_HOF_NO_METRIC_DATA", mLabel));
-    note.textContent = L("LOC_CHRONICLE_HOF_LOG_METRIC", mLabel) + (src.blocks.length > 1 ? "  ·  " + src.blocks.map(b => b.label).join(" + ") : "");
-    const tickFont = {
-      size: 14
-    }, fmtNum = n => {
-      const api = chronicleI18n();
-      return api && "function" == typeof api.formatChartNumber ? api.formatChartNumber(n) : null != n && isFinite(Number(n)) ? String(n) : "";
-    };
-    activeChart = new Chart(canvas.getContext("2d"), {
-      type: "line",
-      data: {
-        datasets: src.datasets
-      },
-      options: {
-        maintainAspectRatio: !1,
-        animation: !1,
-        color: "#E8E2D0",
-        interaction: {
-          mode: "nearest",
-          intersect: !0
-        },
-        elements: {
-          point: {
-            hitRadius: 24
-          }
-        },
-        plugins: {
-          legend: {
-            display: !0,
-            labels: {
-              color: "#E8E2D0",
-              font: {
-                size: 15
-              },
-              boxWidth: 18,
-              padding: 14
-            }
-          },
-          title: {
-            display: !1
-          },
-          tooltip: {
-            callbacks: {
-              label: item => {
-                const y = item.raw && null != item.raw.y ? item.raw.y : item.parsed && item.parsed.y;
-                return L("LOC_CHRONICLE_VALUE_SEP", item.dataset.label || "", fmtNum(y));
-              }
-            }
-          }
-        },
-        scales: {
-          x: {
-            type: "linear",
-            min: src.start,
-            max: src.end > src.start ? src.end : void 0,
-            ticks: {
-              color: "#C9BFA6",
-              maxRotation: 0,
-              font: tickFont
-            },
-            grid: {
-              color: "rgba(232,226,208,0.08)"
-            }
-          },
-          y: {
-            type: "linear",
-            min: 0,
-            ticks: {
-              color: "#C9BFA6",
-              font: tickFont,
-              callback: v => fmtNum(v)
-            },
-            grid: {
-              color: "rgba(232,226,208,0.08)"
-            },
-            title: {
-              display: !0,
-              text: mLabel,
-              color: "#B7A987",
-              font: {
-                size: 15
-              }
-            }
-          }
-        }
-      }
-    }), requestAnimationFrame(() => {
-      activeChart && activeChart.resize();
-    });
-  }
-  DETAIL_METRICS.forEach((m, i) => {
-    const b = makeNativeButton(detailMetricLabel(m), () => {
-      curMetric = m, buttons.forEach((btn, j) => highlightButton(btn, j === i)), draw();
-    }, {
-      secondary: !0
-    });
-    buttons.push(b), metricBar.appendChild(b);
-  }), highlightButton(buttons[0], !0), ("undefined" != typeof Chart ? Promise.resolve() : chartLoading || (chartLoading = new Promise((resolve, reject) => {
-    try {
-      const s = document.createElement("script");
-      s.src = "fs://game/core/ui/external/chart-js/chart.js", s.onload = () => {
-        "undefined" != typeof Chart ? resolve() : reject(new Error("Chart global missing after load"));
-      }, s.onerror = () => reject(new Error("Chart.js script failed to load")), (document.head || document.documentElement).appendChild(s);
-    } catch (e) {
-      reject(e);
-    }
-  }), chartLoading)).then(() => requestAnimationFrame(draw)).catch(e => {
-    note.textContent = L("LOC_CHRONICLE_HOF_CHART_LOAD_FAIL", e && e.message || "");
-  });
-}
-
 function openHof(opts) {
-  (opts = opts || {}).back && (detailGame = null), opts.game && (detailGame = opts.game), 
-  destroyHofDom(), installInputHandler(), hofOpen = !0;
+  opts = opts || {}, destroyHofDom(), installFrontInputHandler(hofInputHandler);
   const games = allGames(), root = document.createElement("div");
-  root.id = OVERLAY_ID;
+  root.id = OVERLAY_ID, noteOverlayOpened(OVERLAY_ID);
   const backdrop = el("div", "position:fixed;left:0;top:0;width:100%;height:100%;z-index:999998;background:rgba(6,7,10,0.78);pointer-events:auto");
   backdrop.addEventListener("click", closeHof), root.appendChild(backdrop);
   const panel = el("div", PANEL_BOX);
-  if (root.appendChild(panel), detailGame) return document.body.appendChild(root), 
-  void renderDetail(panel, detailGame, () => openHof({
-    back: !0
-  }));
-  const header = el("div", "display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;flex-shrink:0;width:100%;min-width:0;box-sizing:border-box"), titleCol = el("div", "display:flex;flex-direction:row;align-items:flex-end;min-width:0;overflow:hidden;flex:1 1 auto"), titleEl = el("div", "font-size:1.8rem;color:#F0E6D2;flex-shrink:0;line-height:1.2;margin-right:20px", L("LOC_HOF_TITLE"), "font-title uppercase tracking-150");
+  root.appendChild(panel);
+  const header = el("div", HEADER_BOX), titleCol = el("div", TITLE_COL_ROW), titleEl = el("div", TITLE_TEXT, L("LOC_HOF_TITLE"), "font-title uppercase tracking-150");
   titleCol.appendChild(titleEl), titleCol.appendChild(el("div", "color:#B7A987;font-size:0.85rem;padding-bottom:0.3rem;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", games.length ? 1 === games.length ? L("LOC_CHRONICLE_HOF_ONE_CAMPAIGN") : L("LOC_CHRONICLE_HOF_N_CAMPAIGNS", games.length) : L("LOC_CHRONICLE_HOF_CAMPAIGNS_CAPTION"))), 
   header.appendChild(titleCol);
-  const headerActions = el("div", "display:flex;align-items:center;flex-shrink:0;margin-left:16px"), closeBtn = makeNativeButton(L("LOC_GENERIC_CLOSE"), closeHof, {});
+  const headerActions = el("div", HEADER_ACTIONS), optionsBtn = makeSettingsButton({});
+  optionsBtn.style.marginRight = "9px", headerActions.appendChild(optionsBtn);
+  const closeBtn = makeNativeButton(L("LOC_GENERIC_CLOSE"), closeHof, {});
   closeBtn.style.opacity = "0.72";
   const closeLabel = closeBtn.querySelector(".ozq-btn-label");
   closeLabel && (closeLabel.style.color = "#E8E2D0"), headerActions.appendChild(closeBtn), 
@@ -935,18 +500,16 @@ function openHof(opts) {
     try {
       api = "undefined" != typeof globalThis && globalThis.ozqChronicleGraphs || "undefined" != typeof window && window.ozqChronicleGraphs;
     } catch (e) {}
-    if (api && "function" == typeof api.openForStore) {
-      const bits = [ gameTitle(g), outcomeText(g) ];
-      null != g.score && bits.push(L("LOC_CHRONICLE_HOF_SCORE_N", Math.round(g.score)));
-      const tl = turnsLabel(g);
-      tl && bits.push(tl), g.diff && bits.push(prettifyType(g.diff)), g.mapSize && bits.push(prettifyType(g.mapSize));
-      const when = fmtDate(g.updated);
-      return when && bits.push(when), void api.openForStore(g.store, {
-        title: L("LOC_HOF_VIEWDETAILS"),
-        caption: bits.join("  ·  ")
-      });
-    }
-    detailGame = g, openHof();
+    if (!api || "function" != typeof api.openForStore) return;
+    const bits = [ gameTitle(g), outcomeText(g) ];
+    null != g.score && bits.push(L("LOC_CHRONICLE_HOF_SCORE_N", Math.round(g.score)));
+    const tl = turnsLabel(g);
+    tl && bits.push(tl), g.diff && bits.push(typeNameOrUnknown(g.diff)), g.mapSize && bits.push(typeNameOrUnknown(g.mapSize));
+    const when = fmtDate(g.updated);
+    when && bits.push(when), api.openForStore(g.store, {
+      title: L("LOC_HOF_VIEWDETAILS"),
+      caption: bits.join("  ·  ")
+    });
   }
   function showTab(id) {
     curTab = id, tabButtons.forEach((b, i) => highlightButton(b, tabs[i].id === id)), 
@@ -1097,7 +660,7 @@ function openHof(opts) {
           titleLine.appendChild(civSym), titleLine.appendChild(el("div", "color:#B7A987;font-size:1.46rem;margin-left:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", civName(g.primaryCiv)));
         }
         mid.appendChild(titleLine);
-        const settings = [ g.diff ? prettifyType(g.diff) : "", g.mapSize ? prettifyType(g.mapSize) : "", g.startAge ? ageName(g.startAge) : "" ].filter(Boolean).join(" · "), subBits = [];
+        const settings = [ g.diff ? typeNameOrUnknown(g.diff) : "", g.mapSize ? typeNameOrUnknown(g.mapSize) : "", g.startAge ? ageName(g.startAge) : "" ].filter(Boolean).join(" · "), subBits = [];
         settings && subBits.push(settings);
         const when = fmtDate(g.updated);
         when && subBits.push(when), subBits.length && mid.appendChild(el("div", "color:#8A7F63;font-size:1.3rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", subBits.join("  ·  "))), 
@@ -1133,14 +696,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.32.10"
+    version: "0.33.1"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.32.10"
+      version: "0.33.1"
     };
   } catch (e2) {}
 }
@@ -1176,8 +739,8 @@ function inspectNode(node) {
   c && injectMainMenuButton(c);
 }
 
-function install() {
-  installInputHandler();
+scheduleInstall(function() {
+  installFrontInputHandler(hofInputHandler);
   const existing = document.querySelector(".main-menu-button-container");
   existing && injectMainMenuButton(existing);
   const observer = new MutationObserver(mutations => {
@@ -1190,12 +753,6 @@ function install() {
     });
   } catch (e) {}
   err("loaded (" + (IS_GAME ? "game" : "shell") + ").");
-}
-
-!function scheduleInstall() {
-  document.body ? install() : "loading" === document.readyState ? document.addEventListener("DOMContentLoaded", install, {
-    once: !0
-  }) : requestAnimationFrame(scheduleInstall);
-}();
+});
 
 export { };

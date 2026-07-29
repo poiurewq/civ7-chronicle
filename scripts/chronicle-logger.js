@@ -1,4 +1,6 @@
-const LEGACY_KEYS = [ "!chronicle", "chronicle" ], YIELD_METRICS = [ {
+globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
+
+const {isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, loadShared: loadShared, saveShared: saveShared} = globalThis.ozqChronicleCommon, YIELD_METRICS = [ {
   k: "hap",
   yield: "YIELD_HAPPINESS"
 }, {
@@ -172,30 +174,6 @@ function currentAge() {
   };
 }
 
-function isSyntheticReligionLabel(s) {
-  if (null == s) return !0;
-  const t = String(s).trim();
-  return !t || (0 === t.indexOf("LOC_") || (!!/^custom\s+\d+$/i.test(t) || !!/^religion[\s_-]?-?\d+$/i.test(t)));
-}
-
-function resolvePlayerReligionName(playerRel) {
-  if (!playerRel || "function" != typeof playerRel.getReligionName) return null;
-  let raw = null;
-  try {
-    raw = playerRel.getReligionName();
-  } catch (e) {
-    return null;
-  }
-  if (null == raw) return null;
-  const s = String(raw).trim();
-  if (!s) return null;
-  const ugc = function(s) {
-    const m = String(s).match(/:\s*ugc\s+\d+;([^;}]*)/i);
-    return m && m[1] && m[1].trim() ? m[1].trim() : null;
-  }(s);
-  return ugc && !isSyntheticReligionLabel(ugc) ? ugc : isSyntheticReligionLabel(s) ? null : s;
-}
-
 function snapshotLiveScalars(p, s) {
   const st = p.Stats;
   try {
@@ -366,7 +344,31 @@ function installSettlementEventHandlers() {
   }
 }
 
-const kills = {}, losses = {}, killsByType = {}, lossesByType = {}, overbuilds = {}, overbuildsByType = {}, pendingOverbuildRemovals = {};
+const kills = {}, losses = {}, killsByType = {}, lossesByType = {}, overbuilds = {}, overbuildsByType = {}, pendingOverbuildRemovals = {}, MONOTONIC_COUNTERS = [ {
+  key: "uKill",
+  counter: kills
+}, {
+  key: "uLost",
+  counter: losses
+}, {
+  key: "ob",
+  counter: overbuilds
+}, {
+  key: "rz",
+  counter: razes
+}, {
+  key: "sLost",
+  counter: settlementsLost
+} ], BY_TYPE_BANKS = [ {
+  field: "kbt",
+  map: killsByType
+}, {
+  field: "lbt",
+  map: lossesByType
+}, {
+  field: "obt",
+  map: overbuildsByType
+} ];
 
 function ownerOf(cid) {
   return cid && null != cid.owner ? cid.owner : null;
@@ -503,9 +505,10 @@ function maxMergeByType(dst, src) {
 
 function seedKillCounters() {
   if (store) {
-    if (store.kbt && "object" == typeof store.kbt) for (const pid in store.kbt) killsByType[pid] = Object.assign({}, store.kbt[pid]);
-    if (store.lbt && "object" == typeof store.lbt) for (const pid in store.lbt) lossesByType[pid] = Object.assign({}, store.lbt[pid]);
-    if (store.obt && "object" == typeof store.obt) for (const pid in store.obt) overbuildsByType[pid] = Object.assign({}, store.obt[pid]);
+    for (const bank of BY_TYPE_BANKS) {
+      const banked = store[bank.field];
+      if (banked && "object" == typeof banked) for (const pid in banked) bank.map[pid] = Object.assign({}, banked[pid]);
+    }
     try {
       !function() {
         if (!store || !store.ages) return;
@@ -527,9 +530,7 @@ function seedKillCounters() {
           const row = a.turns[t] && a.turns[t].p;
           if (row) for (const pid in row) {
             const r = row[pid];
-            null != r.uKill && (kills[pid] = Math.max(kills[pid] || 0, r.uKill)), null != r.uLost && (losses[pid] = Math.max(losses[pid] || 0, r.uLost)), 
-            null != r.ob && (overbuilds[pid] = Math.max(overbuilds[pid] || 0, r.ob)), null != r.rz && (razes[pid] = Math.max(razes[pid] || 0, r.rz)), 
-            null != r.sLost && (settlementsLost[pid] = Math.max(settlementsLost[pid] || 0, r.sLost));
+            for (const {key: key, counter: counter} of MONOTONIC_COUNTERS) null != r[key] && (counter[pid] = Math.max(counter[pid] || 0, r[key]));
           }
         }
       }
@@ -543,7 +544,7 @@ function seedKillCounters() {
               a: a,
               ci: a && null != a.ci ? a.ci : 0
             };
-          }).sort((x, y) => x.ci - y.ci || String(x.k).localeCompare(String(y.k))), runK = {}, runL = {}, runOb = {}, runRz = {}, runSL = {};
+          }).sort((x, y) => x.ci - y.ci || String(x.k).localeCompare(String(y.k))), runs = MONOTONIC_COUNTERS.map(() => ({}));
           let dirty = !1;
           for (const {a: a} of ages) {
             if (!a || !a.turns) continue;
@@ -552,20 +553,17 @@ function seedKillCounters() {
               const row = a.turns[t] && a.turns[t].p;
               if (row) for (const pid in row) {
                 const r = row[pid];
-                null != r.uKill && (null != runK[pid] && r.uKill < runK[pid] ? (r.uKill = runK[pid], 
-                dirty = !0) : runK[pid] = r.uKill), null != r.uLost && (null != runL[pid] && r.uLost < runL[pid] ? (r.uLost = runL[pid], 
-                dirty = !0) : runL[pid] = r.uLost), null != r.ob && (null != runOb[pid] && r.ob < runOb[pid] ? (r.ob = runOb[pid], 
-                dirty = !0) : runOb[pid] = r.ob), null != r.rz && (null != runRz[pid] && r.rz < runRz[pid] ? (r.rz = runRz[pid], 
-                dirty = !0) : runRz[pid] = r.rz), null != r.sLost && (null != runSL[pid] && r.sLost < runSL[pid] ? (r.sLost = runSL[pid], 
-                dirty = !0) : runSL[pid] = r.sLost);
+                for (let i = 0; i < MONOTONIC_COUNTERS.length; i++) {
+                  const key = MONOTONIC_COUNTERS[i].key, run = runs[i];
+                  null != r[key] && (null != run[pid] && r[key] < run[pid] ? (r[key] = run[pid], dirty = !0) : run[pid] = r[key]);
+                }
               }
             }
           }
-          for (const pid in runK) kills[pid] = Math.max(kills[pid] || 0, runK[pid]);
-          for (const pid in runL) losses[pid] = Math.max(losses[pid] || 0, runL[pid]);
-          for (const pid in runOb) overbuilds[pid] = Math.max(overbuilds[pid] || 0, runOb[pid]);
-          for (const pid in runRz) razes[pid] = Math.max(razes[pid] || 0, runRz[pid]);
-          for (const pid in runSL) settlementsLost[pid] = Math.max(settlementsLost[pid] || 0, runSL[pid]);
+          for (let i = 0; i < MONOTONIC_COUNTERS.length; i++) {
+            const counter = MONOTONIC_COUNTERS[i].counter, run = runs[i];
+            for (const pid in run) counter[pid] = Math.max(counter[pid] || 0, run[pid]);
+          }
           if (dirty && container && guid) {
             store.updated = Date.now();
             try {
@@ -711,6 +709,73 @@ function inc(map, key) {
   key && (map[key] = (map[key] || 0) + 1);
 }
 
+function snapshotLiveStockByType() {
+  const out = {
+    [STOCK_IDS.units]: {},
+    [STOCK_IDS.buildings]: {},
+    [STOCK_IDS.improvements]: {},
+    [STOCK_IDS.districts]: {},
+    [STOCK_IDS.wonders]: {}
+  };
+  try {
+    for (const p of Players.getAlive()) {
+      if (!p || !p.isMajor) continue;
+      const pid = String(p.id), units = out[STOCK_IDS.units][pid] || (out[STOCK_IDS.units][pid] = {}), bld = out[STOCK_IDS.buildings][pid] || (out[STOCK_IDS.buildings][pid] = {}), imp = out[STOCK_IDS.improvements][pid] || (out[STOCK_IDS.improvements][pid] = {}), dist = out[STOCK_IDS.districts][pid] || (out[STOCK_IDS.districts][pid] = {}), won = out[STOCK_IDS.wonders][pid] || (out[STOCK_IDS.wonders][pid] = {});
+      try {
+        const pu = p.Units, ids = pu && ("function" == typeof pu.getUnitIds ? pu.getUnitIds() : "function" == typeof pu.getUnits ? pu.getUnits() : null);
+        if (ids) for (const uid of ids) try {
+          const u = "undefined" != typeof Units && Units.get ? Units.get(uid) : null;
+          if (!u) continue;
+          const un = unitTypeName(u.type);
+          if (un) {
+            inc(units, un);
+            try {
+              let cid = null;
+              if (null != uid && "object" == typeof uid && null != uid.id) cid = uid; else {
+                const owner = null != u.owner ? u.owner : p.id, id = null != u.id && "object" != typeof u.id ? u.id : uid;
+                null != owner && null != id && (cid = {
+                  owner: owner,
+                  id: id
+                });
+              }
+              cid && rememberUnitType(cid, u.type);
+            } catch (e2) {}
+          }
+        } catch (e) {}
+      } catch (e) {}
+      try {
+        if (!p.Cities || "function" != typeof p.Cities.getCities) continue;
+        for (const c of p.Cities.getCities() || []) {
+          try {
+            if (c.Constructibles && "function" == typeof c.Constructibles.getIds) for (const cid of c.Constructibles.getIds() || []) try {
+              const inst = "undefined" != typeof Constructibles && Constructibles.getByComponentID ? Constructibles.getByComponentID(cid) : null;
+              if (!inst) continue;
+              if (!1 === inst.complete) continue;
+              if (null != inst.percentComplete && inst.percentComplete < 100) continue;
+              const meta = constructibleTypeName(inst.type);
+              if (!meta || !meta.type) continue;
+              "BUILDING" === meta.cls ? inc(bld, meta.type) : "IMPROVEMENT" === meta.cls ? inc(imp, meta.type) : "WONDER" === meta.cls && inc(won, meta.type);
+            } catch (e) {}
+          } catch (e) {}
+          try {
+            if (c.Districts && "function" == typeof c.Districts.getIds) for (const did of c.Districts.getIds() || []) try {
+              const d = "undefined" != typeof Districts && Districts.get ? Districts.get(did) : null;
+              if (!d) continue;
+              const dn = districtTypeName(null != d.type ? d.type : d.districtType);
+              dn && inc(dist, dn);
+            } catch (e) {}
+          } catch (e) {}
+        }
+      } catch (e) {}
+      Object.keys(units).length || delete out[STOCK_IDS.units][pid], Object.keys(bld).length || delete out[STOCK_IDS.buildings][pid], 
+      Object.keys(imp).length || delete out[STOCK_IDS.improvements][pid], Object.keys(dist).length || delete out[STOCK_IDS.districts][pid], 
+      Object.keys(won).length || delete out[STOCK_IDS.wonders][pid];
+    }
+  } catch (e) {}
+  for (const id of Object.keys(out)) Object.keys(out[id]).length || delete out[id];
+  return out;
+}
+
 function sumTypeCounts(byType) {
   if (!byType) return null;
   let n = 0, any = !1;
@@ -723,105 +788,6 @@ function cloneByTypeMap(src) {
   if (!src) return out;
   for (const pid in src) out[pid] = Object.assign({}, src[pid]);
   return out;
-}
-
-function migrateContainer(c) {
-  return c && "object" == typeof c && c.games ? (c.v = 2, c) : {
-    v: 2,
-    updated: 0,
-    games: {}
-  };
-}
-
-function mergeContainers(base, add) {
-  for (const gid in add.games) {
-    const a = add.games[gid], b = base.games[gid];
-    (!b || (a.updated || 0) >= (b.updated || 0)) && (base.games[gid] = a);
-  }
-  return base;
-}
-
-function foldSchema1(row0) {
-  const gid = row0.fp && row0.fp.setup && null != row0.fp.seed ? `${row0.fp.setup}_${row0.fp.seed}` : row0.guid || "legacy", c = {
-    v: 2,
-    updated: 0,
-    games: {}
-  };
-  return c.games[gid] = {
-    fp: row0.fp || null,
-    created: row0.created || Date.now(),
-    updated: row0.updated || 0,
-    ages: row0.ages
-  }, c;
-}
-
-function loadShared() {
-  let folded = null;
-  const notes = [], fin = shared => ({
-    shared: shared,
-    container: folded || {
-      v: 2,
-      updated: 0,
-      games: {}
-    },
-    notes: notes
-  });
-  for (let hop = 0; hop < 4; hop++) {
-    let raw = null;
-    try {
-      raw = localStorage.getItem("modSettings");
-    } catch (e) {}
-    if (!raw) return notes.push("row0 empty"), fin({});
-    let row0 = null;
-    try {
-      row0 = JSON.parse(raw);
-    } catch (e) {}
-    if (!row0 || "object" != typeof row0) return notes.push("row0 not JSON (foreign)"), 
-    fin({});
-    const sub = row0["ozq-chronicle"];
-    if (sub && sub.games) {
-      const c = migrateContainer(sub);
-      return 0 !== hop || folded ? notes.push("reached modSettings after fold") : notes.push("steady"), 
-      delete row0["ozq-chronicle"], folded = folded ? mergeContainers(c, folded) : c, 
-      fin(row0);
-    }
-    if (row0.games) {
-      folded = folded ? mergeContainers(migrateContainer(row0), folded) : migrateContainer(row0), 
-      notes.push("folded pre-0.31 container");
-      let removed = !1;
-      for (const k of LEGACY_KEYS) try {
-        localStorage.removeItem(k), removed = !0;
-      } catch (e) {}
-      if (!removed) return fin({});
-      continue;
-    }
-    return row0.ages && !row0.games ? (folded = folded ? mergeContainers(foldSchema1(row0), folded) : foldSchema1(row0), 
-    notes.push("folded <=0.24 store (write-verify will clean)"), fin({})) : (notes.push(0 === hop ? "adopted row0 object" : "adopted object after fold"), 
-    fin(row0));
-  }
-  return notes.push("hop limit"), fin({});
-}
-
-function saveShared(shared, c) {
-  shared["ozq-chronicle"] = c;
-  const str = JSON.stringify(shared);
-  localStorage.setItem("modSettings", str);
-  let back = null;
-  try {
-    back = localStorage.getItem("modSettings");
-  } catch (e) {}
-  if (back === str) return !0;
-  try {
-    null != back && (shared._ozqRescued = {
-      t: Date.now(),
-      data: String(back).slice(0, 131072)
-    }), localStorage.clear();
-    const str2 = JSON.stringify(shared);
-    return localStorage.setItem("modSettings", str2), err("origin reads were blocked by an unknown first-sorting key; cleared as last resort (row-0 bytes kept in modSettings._ozqRescued)"), 
-    localStorage.getItem("modSettings") === str2;
-  } catch (e) {
-    return !1;
-  }
 }
 
 let bootNotes = [];
@@ -851,7 +817,9 @@ function saveContainer(c, currentGameId) {
   let guard = 0;
   for (;containerBytes(c) > CONTAINER_CAP && guard++ < 64 && evictOldestGame(c, currentGameId); ) ;
   for (let attempt = 0; attempt < 10; attempt++) try {
-    return saveShared(loadShared().shared, c);
+    const r = loadShared();
+    return r.container && r.container.settings && "object" == typeof r.container.settings && (c.settings = Object.assign({}, r.container.settings)), 
+    saveShared(r.shared, c);
   } catch (e) {
     if (!evictOldestGame(c, currentGameId)) return !1;
   }
@@ -866,23 +834,7 @@ function eventCounterPids() {
   return out;
 }
 
-function isMajorPid(pid) {
-  const n = Number(pid);
-  try {
-    if ("undefined" != typeof Players && "function" == typeof Players.get) {
-      const p = Players.get(n);
-      if (p && null != p.isMajor) return !!p.isMajor;
-    }
-  } catch (e) {}
-  try {
-    if (store && store.meta && store.meta.players) {
-      const m = store.meta.players[n] || store.meta.players[String(n)];
-      if (m && null != m.isMajor) return !!m.isMajor;
-      if (m) return !0;
-    }
-  } catch (e) {}
-  return !1;
-}
+const isMajorPid = makeIsMajorPid(() => store);
 
 function stampEventCounters() {
   if (store && container) try {
@@ -1128,72 +1080,7 @@ function captureTurn(reason, force) {
   try {
     seedUnitTypeCacheFromMap();
   } catch (e) {}
-  const bt = function() {
-    const out = {
-      [STOCK_IDS.units]: {},
-      [STOCK_IDS.buildings]: {},
-      [STOCK_IDS.improvements]: {},
-      [STOCK_IDS.districts]: {},
-      [STOCK_IDS.wonders]: {}
-    };
-    try {
-      for (const p of Players.getAlive()) {
-        if (!p || !p.isMajor) continue;
-        const pid = String(p.id), units = out[STOCK_IDS.units][pid] || (out[STOCK_IDS.units][pid] = {}), bld = out[STOCK_IDS.buildings][pid] || (out[STOCK_IDS.buildings][pid] = {}), imp = out[STOCK_IDS.improvements][pid] || (out[STOCK_IDS.improvements][pid] = {}), dist = out[STOCK_IDS.districts][pid] || (out[STOCK_IDS.districts][pid] = {}), won = out[STOCK_IDS.wonders][pid] || (out[STOCK_IDS.wonders][pid] = {});
-        try {
-          const pu = p.Units, ids = pu && ("function" == typeof pu.getUnitIds ? pu.getUnitIds() : "function" == typeof pu.getUnits ? pu.getUnits() : null);
-          if (ids) for (const uid of ids) try {
-            const u = "undefined" != typeof Units && Units.get ? Units.get(uid) : null;
-            if (!u) continue;
-            const un = unitTypeName(u.type);
-            if (un) {
-              inc(units, un);
-              try {
-                let cid = null;
-                if (null != uid && "object" == typeof uid && null != uid.id) cid = uid; else {
-                  const owner = null != u.owner ? u.owner : p.id, id = null != u.id && "object" != typeof u.id ? u.id : uid;
-                  null != owner && null != id && (cid = {
-                    owner: owner,
-                    id: id
-                  });
-                }
-                cid && rememberUnitType(cid, u.type);
-              } catch (e2) {}
-            }
-          } catch (e) {}
-        } catch (e) {}
-        try {
-          if (!p.Cities || "function" != typeof p.Cities.getCities) continue;
-          for (const c of p.Cities.getCities() || []) {
-            try {
-              if (c.Constructibles && "function" == typeof c.Constructibles.getIds) for (const cid of c.Constructibles.getIds() || []) try {
-                const inst = "undefined" != typeof Constructibles && Constructibles.getByComponentID ? Constructibles.getByComponentID(cid) : null;
-                if (!inst) continue;
-                if (!1 === inst.complete) continue;
-                if (null != inst.percentComplete && inst.percentComplete < 100) continue;
-                const meta = constructibleTypeName(inst.type);
-                if (!meta || !meta.type) continue;
-                "BUILDING" === meta.cls ? inc(bld, meta.type) : "IMPROVEMENT" === meta.cls ? inc(imp, meta.type) : "WONDER" === meta.cls && inc(won, meta.type);
-              } catch (e) {}
-            } catch (e) {}
-            try {
-              if (c.Districts && "function" == typeof c.Districts.getIds) for (const did of c.Districts.getIds() || []) try {
-                const d = "undefined" != typeof Districts && Districts.get ? Districts.get(did) : null;
-                if (!d) continue;
-                const dn = districtTypeName(null != d.type ? d.type : d.districtType);
-                dn && inc(dist, dn);
-              } catch (e) {}
-            } catch (e) {}
-          }
-        } catch (e) {}
-        Object.keys(units).length || delete out[STOCK_IDS.units][pid], Object.keys(bld).length || delete out[STOCK_IDS.buildings][pid], 
-        Object.keys(imp).length || delete out[STOCK_IDS.improvements][pid], Object.keys(dist).length || delete out[STOCK_IDS.districts][pid], 
-        Object.keys(won).length || delete out[STOCK_IDS.wonders][pid];
-      }
-    } catch (e) {}
-    for (const id of Object.keys(out)) Object.keys(out[id]).length || delete out[id];
-    return out;
-  }();
+  const bt = snapshotLiveStockByType();
   Object.keys(bt).length && (bucket.bt = bt), function(players, bt) {
     if (!players || !bt) return;
     const bRoot = bt[STOCK_IDS.buildings] || {}, iRoot = bt[STOCK_IDS.improvements] || {};
@@ -1349,7 +1236,14 @@ function init() {
     !function() {
       const api = {
         flushNow: reason => flushNow(reason || "api"),
-        isDirty: () => !!storeDirty
+        isDirty: () => !!storeDirty,
+        snapshotStock: () => {
+          try {
+            return snapshotLiveStockByType();
+          } catch (e) {
+            return {};
+          }
+        }
       };
       try {
         globalThis.ozqChronicleLog = api;

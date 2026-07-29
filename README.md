@@ -72,6 +72,26 @@ religion charts have full Trends ⇄ Standings like everything else.
 - Colors too dark to read are brightened, and near-identical civ colors are nudged
   apart so every line stays distinct.
 
+### Strategic fog and settings
+
+On a **live mid-game** open, Chronicle does not reveal civs you have not met — no
+line, bar, legend entry, tooltip, by-type column, or settlement-board row. Captions
+say how many civs are withheld (for example "3 civs not yet met"). Settlement boards
+filter by **plot discovery**, not by whether you have met the owner. Religions
+founded by unmet civs are hidden too. You are always fully visible.
+
+Fog is **off** for the end-game results screen, Hall of Fame, and Game Details (the
+story is over). Take *just one more turn* and fog comes back. The per-turn log is
+never fogged: capture stays complete so post-game review still has the full record.
+
+**Settings** (one stored value, two places):
+
+- Main Menu or pause → **Options → Add-ons** → **Chronicle**
+- An **Options** button in every Chronicle / Hall of Fame / Game Details header
+
+The first setting is **Show data for civs you haven't met** (off by default, so fog
+stays on).
+
 This is a **UI-only** mod. It changes no gameplay rules and is flagged so it does
 **not** affect your saved games.
 
@@ -138,8 +158,9 @@ To uninstall, disable it in the Mods menu or delete the `ozq-chronicle` folder.
 ### Using it
 
 In-game, open the pause menu (Escape) any turn and click **Chronicle** — or click
-**Chronicle** on the end-of-game results screen. Press **Escape** to close Chronicle
-again (it leaves the pause menu open behind it).
+**Chronicle** on the end-of-game results screen. Press **Escape** to close the
+topmost overlay (Chronicle, Hall of Fame, or Game Details). Chronicle leaves the
+pause menu open behind it.
 
 ## Compatibility
 
