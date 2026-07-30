@@ -810,7 +810,7 @@ function evictOldestGame(c, currentGameId) {
   return null != oldest && (delete c.games[oldest], !0);
 }
 
-const CONTAINER_CAP = 4194304;
+const CONTAINER_CAP = 20971520;
 
 function saveContainer(c, currentGameId) {
   c.updated = Date.now();

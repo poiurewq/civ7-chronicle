@@ -5,7 +5,7 @@
             <Text>Chronicle - Stats, Graphs &amp; Hall of Fame</Text>
         </Row>
         <Row Tag="LOC_MOD_OZQ_CHRONICLE_DESC">
-            <Text>Per-turn stats graphs and Hall of Fame. UI only — no gameplay changes.</Text>
+            <Text>Per-turn historical graphs and cross-campaign Hall of Fame. UI only. No gameplay changes.</Text>
         </Row>
     </EnglishText>
 </Database>
