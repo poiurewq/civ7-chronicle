@@ -128,11 +128,11 @@ because the game counts what you *founded*, not what you currently *hold*.
 
 ## Installation
 
-The easiest way is to **subscribe on the Steam Workshop** — Steam downloads and
-updates the mod for you. Installing manually also works if you'd rather not use the
-Workshop (or you're playing a non-Steam copy).
+The easiest way on Steam is to **subscribe on the Steam Workshop** — Steam downloads and
+updates the mod for you. Non-Steam players can install the zip by hand, or use **CivMods**
+if they already use that manager.
 
-### Option A — Steam Workshop (recommended)
+### Option A — Steam Workshop (recommended on Steam)
 
 1. Open the [Chronicle Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3761407790)
    and click **Subscribe**.
@@ -143,17 +143,26 @@ Steam keeps it up to date automatically. To uninstall, just **Unsubscribe**.
 
 ### Option B — manual install
 
-1. Locate your Civ 7 mods folder:
+1. Get the latest zip from
+   [CivFanatics Downloads](https://forums.civfanatics.com/resources/chronicle-stats-graphs-hall-of-fame.32899/)
+   (or this repo's release package).
+2. Locate your Civ 7 mods folder:
    - **macOS:** `~/Library/Application Support/Civilization VII/Mods/`
    - **Windows:** `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VII\Mods\`
-2. Copy the entire `ozq-chronicle` folder into that `Mods` folder.
-3. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle - Stats,
+3. Copy the entire `ozq-chronicle` folder into that `Mods` folder.
+4. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle - Stats,
    Graphs & Hall of Fame**.
 
 To uninstall, disable it in the Mods menu or delete the `ozq-chronicle` folder.
 
-> **Don't do both.** If you subscribe on the Workshop *and* place a copy in `Mods/`,
-> the two share the same mod id and conflict — pick one.
+### Option C — CivMods (mod manager)
+
+If you use [CivMods](https://civmods.com), open the
+[Chronicle install link](https://civmods.com/install?modCfId=32899) (download the app first
+if you do not have it yet).
+
+> **Don't mix install paths.** Workshop subscription, a hand-copied `Mods/` folder, and a
+> CivMods install share the same mod id and conflict — pick one.
 
 ### Using it
 
@@ -161,6 +170,14 @@ In-game, open the pause menu (Escape) any turn and click **Chronicle** — or cl
 **Chronicle** on the end-of-game results screen. Press **Escape** to close the
 topmost overlay (Chronicle, Hall of Fame, or Game Details). Chronicle leaves the
 pause menu open behind it.
+
+While Chronicle (or Game Details) is open: **1–7** jump categories, **-** / **=** step categories
+(default), **[ ]** step charts (default), **`,` / `.`** select Trends / Standings (or page
+multi-page bar charts), **H** opens Hall of Fame (live Chronicle), and **O** opens Options
+(Chronicle or Hall of Fame). On Hall of Fame, **1–5** jump tabs (Overview → Reports → Leaders →
+Civilizations → History) and the same **-** / **=** step tabs. Rebind everything except **1–7**
+under **Options** (in the overlay header) for non‑QWERTY layouts — not in Main Menu → Options →
+Add-ons. A short hint sits at the bottom of the overlay.
 
 ## Compatibility
 

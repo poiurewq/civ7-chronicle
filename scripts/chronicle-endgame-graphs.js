@@ -2,7 +2,7 @@ const LOG = "[ozq-chronicle]";
 
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, readSettings: readSettings, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
+const {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, probeKeydownLog: probeKeydownLog, probeEngineLog: probeEngineLog, hotkeyNow: hotkeyNow, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
 
 function metricYTitle(id, opts) {
   const api = chronicleI18n();
@@ -1697,6 +1697,11 @@ function buildBarChart(metric, page) {
   };
 }
 
+function barPageCount(metric) {
+  const {typeTotal: typeTotal} = readByTypeData(metric);
+  return Math.max(1, Math.ceil(typeTotal.size / 12));
+}
+
 function playerCities(p) {
   try {
     if (p && p.Cities && "function" == typeof p.Cities.getCities) return p.Cities.getCities() || [];
@@ -2448,25 +2453,104 @@ function makeScrollRow(opts) {
   };
 }
 
+let activeNav = null;
+
 const chronicleInputHandler = {
   handleInput(e) {
-    const d = e && e.detail || {};
-    return !activeRoot || !isTopOverlay(activeRoot.id) || (!d.name || CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeOverlay(), 
+    const t0 = hotkeyNow(), d = e && e.detail || {};
+    if (!activeRoot || !isTopOverlay(activeRoot.id)) return !0;
+    if (!d.name) return !0;
+    if (isWatchedEngineAction(d.name)) {
+      const tCodes = hotkeyNow(), codes = engineCodesForAction(d.name), msCodes = hotkeyNow() - tCodes;
+      if (isPressFinished(e) && activeNav) {
+        const tHk = hotkeyNow(), hk = readHotkeys(), msHk = hotkeyNow() - tHk;
+        let slot = null;
+        const tSlot = hotkeyNow();
+        for (let i = 0; i < codes.length && (slot = hotkeySlotForCode(hk, codes[i]), !slot); i++) ;
+        const msSlot = hotkeyNow() - tSlot;
+        "openHof" === slot ? activeNav.openHof() : "openOptions" === slot ? activeNav.openOptions() : "catPrev" === slot ? activeNav.stepCategory(-1) : "catNext" === slot ? activeNav.stepCategory(1) : "chartPrev" === slot ? activeNav.stepChart(-1) : "chartNext" === slot ? activeNav.stepChart(1) : "pagePrev" === slot ? activeNav.secondaryPrev() : "pageNext" === slot && activeNav.secondaryNext(), 
+        probeEngineLog("graphs", d.name, d.status, codes, [ {
+          n: "codes",
+          ms: msCodes
+        }, {
+          n: "readHk",
+          ms: msHk
+        }, {
+          n: "slot",
+          ms: msSlot
+        }, {
+          n: "total",
+          ms: hotkeyNow() - t0
+        } ], "slot=" + (slot || "-"));
+      } else probeEngineLog("graphs", d.name, d.status, codes, [ {
+        n: "codes",
+        ms: msCodes
+      }, {
+        n: "total",
+        ms: hotkeyNow() - t0
+      } ], "phase=eat");
+      return !1;
+    }
+    return isPressFinished(e) && probeEngineLog("graphs", d.name, d.status, [], [ {
+      n: "total",
+      ms: hotkeyNow() - t0
+    } ], "watched=0"), !(EAT_WORLD_ENGINE_ACTIONS.indexOf(d.name) >= 0) && (CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeOverlay(), 
     !1));
   },
   handleNavigation: () => !0
-}, suspendedOverlays = [];
+};
+
+function onOverlayKeydown(e) {
+  const t0 = hotkeyNow();
+  if (!activeRoot || !isTopOverlay(activeRoot.id) || !activeNav) return;
+  if (e.repeat) return;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const tRes = hotkeyNow(), code = resolveHotkeyCode(e), msRes = hotkeyNow() - tRes;
+  if (!code) return;
+  if (isEngineBoundHotkeyCode(code)) return void probeKeydownLog("graphs", code, [ {
+    n: "resolve",
+    ms: msRes
+  }, {
+    n: "total",
+    ms: hotkeyNow() - t0
+  } ], "skip=engine-bound");
+  const tHk = hotkeyNow(), hk = readHotkeys(), msHk = hotkeyNow() - tHk;
+  let handled = !1, slot = "-";
+  if (code === hk.catPrev) handled = !!activeNav.stepCategory(-1), slot = "catPrev"; else if (code === hk.catNext) handled = !!activeNav.stepCategory(1), 
+  slot = "catNext"; else if (code === hk.chartPrev) handled = !!activeNav.stepChart(-1), 
+  slot = "chartPrev"; else if (code === hk.chartNext) handled = !!activeNav.stepChart(1), 
+  slot = "chartNext"; else if (code === hk.pagePrev) handled = !!activeNav.secondaryPrev(), 
+  slot = "pagePrev"; else if (code === hk.pageNext) handled = !!activeNav.secondaryNext(), 
+  slot = "pageNext"; else if (code === hk.openHof) handled = !!activeNav.openHof(), 
+  slot = "openHof"; else if (code === hk.openOptions) handled = !!activeNav.openOptions(), 
+  slot = "openOptions"; else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
+    const n = Number(code.replace("Digit", "").replace("NumPad", "").replace("Numpad", ""));
+    n >= 1 && n <= 7 && (handled = !!activeNav.jumpCategory(n - 1), slot = "digit" + n);
+  }
+  probeKeydownLog("graphs", code, [ {
+    n: "resolve",
+    ms: msRes
+  }, {
+    n: "readHk",
+    ms: msHk
+  }, {
+    n: "total",
+    ms: hotkeyNow() - t0
+  } ], "handled=" + (handled ? 1 : 0) + " slot=" + slot), handled && stopKeydownPeers(e);
+}
+
+const suspendedOverlays = [];
 
 function closeOverlay() {
   activeChart && (activeChart.destroy(), activeChart = null), activeRoot && (forgetOverlay(activeRoot.id), 
-  activeRoot.remove(), activeRoot = null);
+  activeRoot.remove(), activeRoot = null), activeNav = null;
   const onClose = viewMode && viewMode.onClose;
   if (viewMode = null, fogOn = !1, openedFromEndGame = !1, colorMapCache = null, invalidateOpenCaches(), 
   function() {
     const s = suspendedOverlays.pop();
-    s && (activeRoot = s.root, viewMode = s.viewMode, activeChart = s.activeChart, colorMapCache = s.colorMapCache, 
-    legendHintShown = s.legendHintShown, fogOn = !!s.fogOn, openedFromEndGame = !!s.openedFromEndGame, 
-    activeRoot.style.visibility = "", invalidateOpenCaches());
+    s && (activeRoot = s.root, activeNav = s.nav || null, viewMode = s.viewMode, activeChart = s.activeChart, 
+    colorMapCache = s.colorMapCache, legendHintShown = s.legendHintShown, fogOn = !!s.fogOn, 
+    openedFromEndGame = !!s.openedFromEndGame, activeRoot.style.visibility = "", invalidateOpenCaches());
   }(), "function" == typeof onClose) try {
     onClose();
   } catch (e) {}
@@ -2495,9 +2579,10 @@ function openOverlayForStore(store, opts) {
     colorMapCache: colorMapCache,
     legendHintShown: legendHintShown,
     fogOn: fogOn,
-    openedFromEndGame: openedFromEndGame
-  }), activeRoot = null, viewMode = null, fogOn = !1, openedFromEndGame = !1, activeChart = null, 
-  colorMapCache = null, invalidateOpenCaches()), viewMode = {
+    openedFromEndGame: openedFromEndGame,
+    nav: activeNav
+  }), activeRoot = null, activeNav = null, viewMode = null, fogOn = !1, openedFromEndGame = !1, 
+  activeChart = null, colorMapCache = null, invalidateOpenCaches()), viewMode = {
     store: store,
     title: opts.title || T("LOC_HOF_VIEWDETAILS"),
     caption: opts.caption || "",
@@ -2510,7 +2595,7 @@ try {
     open: openOverlay,
     openForStore: openOverlayForStore,
     close: closeOverlay,
-    version: "0.33.1"
+    version: "0.33.31"
   };
 } catch (e) {
   try {
@@ -2518,7 +2603,7 @@ try {
       open: openOverlay,
       openForStore: openOverlayForStore,
       close: closeOverlay,
-      version: "0.33.1"
+      version: "0.33.31"
     };
   } catch (e2) {}
 }
@@ -2536,7 +2621,7 @@ function openLog(msg) {
   } catch (e) {}
 }
 
-let openSeq = 0;
+let openSeq = 0, liveSessionSelection = null;
 
 function openOverlay(opts) {
   const fromEndGame = !(!opts || !0 !== opts.fromEndGame);
@@ -2594,6 +2679,9 @@ function openOverlay(opts) {
     return "bar" === m.kind || "board" === m.kind ? byTypeIds.has(m.id) : standAvailable(m) || trendAvailable(m);
   }), catList = CATEGORIES.filter(c => metrics.some(m => m.category === c)), probeMs = Math.round(openNowMs() - tProbe0), root = document.createElement("div");
   root.id = "ozq-chronicle-graphs-overlay-" + ++rootCounter, activeRoot = root, noteOverlayOpened(root.id);
+  try {
+    refreshEngineKeyMap("graphs-open");
+  } catch (e) {}
   const backdrop = document.createElement("div");
   backdrop.setAttribute("style", "position:fixed;left:0;top:0;width:100%;height:100%;z-index:999998;background:rgba(6,7,10,0.78);pointer-events:auto"), 
   backdrop.addEventListener("click", closeOverlay), root.appendChild(backdrop);
@@ -2623,24 +2711,40 @@ function openOverlay(opts) {
     const lab = b.querySelector(".ozq-btn-label");
     lab && (lab.style.color = "#E8E2D0");
   }
-  if (headerActions.setAttribute("style", HEADER_ACTIONS), !historical) {
+  headerActions.setAttribute("style", HEADER_ACTIONS);
+  const optionsOnClose = res => {
+    if (res && res.changed && !isHistoricalView()) {
+      const wasFromEndGame = openedFromEndGame;
+      closeOverlay(), openOverlay({
+        fromEndGame: wasFromEndGame
+      });
+    }
+  };
+  function openHofFromHeader() {
+    if (historical) return !1;
+    try {
+      const api = "undefined" != typeof globalThis && globalThis.ozqChronicleHof || "undefined" != typeof window && window.ozqChronicleHof;
+      if (api && "function" == typeof api.open) return api.open(), !0;
+    } catch (e) {}
+    return !1;
+  }
+  function openOptionsFromHeader() {
+    try {
+      const api = "undefined" != typeof globalThis && globalThis.ozqChronicleOptions || "undefined" != typeof window && window.ozqChronicleOptions;
+      if (api && "function" == typeof api.open) return api.open({
+        onClose: optionsOnClose
+      }), !0;
+    } catch (e) {}
+    return !1;
+  }
+  if (!historical) {
     const hofBtn = makeNativeButton(T("LOC_HOF_TITLE"), () => {
-      try {
-        const api = "undefined" != typeof globalThis && globalThis.ozqChronicleHof || "undefined" != typeof window && window.ozqChronicleHof;
-        api && "function" == typeof api.open && api.open();
-      } catch (e) {}
+      openHofFromHeader();
     }, {});
     muteHeaderBtn(hofBtn), hofBtn.style.marginRight = "9px", headerActions.appendChild(hofBtn);
   }
   const optionsBtn = makeSettingsButton({
-    onClose: res => {
-      if (res && res.changed && !isHistoricalView()) {
-        const wasFromEndGame = openedFromEndGame;
-        closeOverlay(), openOverlay({
-          fromEndGame: wasFromEndGame
-        });
-      }
-    }
+    onClose: optionsOnClose
   });
   optionsBtn.style.marginRight = "9px", headerActions.appendChild(optionsBtn);
   const closeBtn = makeNativeButton(T("LOC_GENERIC_CLOSE"), closeOverlay, {});
@@ -2648,7 +2752,17 @@ function openOverlay(opts) {
   panel.appendChild(header), !catList.length) {
     const empty = document.createElement("div");
     return empty.textContent = T("LOC_CHRONICLE_EMPTY_STATS"), empty.setAttribute("style", "flex:1 1 auto;display:flex;align-items:center;justify-content:center;color:#C9BFA6;font-size:1.15rem;text-align:center;padding:2rem"), 
-    panel.appendChild(empty), document.body.appendChild(root), void openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " empty=1 historical=" + (historical ? 1 : 0));
+    panel.appendChild(empty), activeNav = {
+      jumpCategory: () => !1,
+      stepCategory: () => !1,
+      stepChart: () => !1,
+      stepPage: () => !1,
+      setViewKey: () => !1,
+      secondaryPrev: () => !1,
+      secondaryNext: () => !1,
+      openHof: () => openHofFromHeader(),
+      openOptions: () => openOptionsFromHeader()
+    }, document.body.appendChild(root), void openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " empty=1 historical=" + (historical ? 1 : 0));
   }
   const categoryRow = makeScrollRow({
     marginBottom: 10
@@ -2674,6 +2788,12 @@ function openOverlay(opts) {
   const pageBar = document.createElement("div");
   pageBar.setAttribute("style", "display:flex;gap:12px;align-items:center;justify-content:center;margin-top:10px;flex-shrink:0"), 
   panel.appendChild(pageBar);
+  const hotkeyHint = document.createElement("div");
+  hotkeyHint.textContent = function() {
+    const h = readHotkeys(), cats = formatHotkeyCode(h.catPrev) + " " + formatHotkeyCode(h.catNext), charts = formatHotkeyCode(h.chartPrev) + " " + formatHotkeyCode(h.chartNext), page = formatHotkeyCode(h.pagePrev) + " " + formatHotkeyCode(h.pageNext);
+    return T("LOC_CHRONICLE_HOTKEY_HINT", cats, charts, page);
+  }(), hotkeyHint.setAttribute("style", "color:#8A7F63;font-size:0.78rem;text-align:center;margin-top:10px;flex-shrink:0;opacity:0.9"), 
+  panel.appendChild(hotkeyHint);
   const ui = {
     canvas: canvas,
     chartInner: chartInner,
@@ -2683,13 +2803,10 @@ function openOverlay(opts) {
     trend: null,
     stand: null
   };
-  let curMetric = null, curView = "trend", curPage = 0;
+  let curMetric = null, curView = "trend", curPage = 0, curCatIndex = 0, curChartIndex = 0, curInCat = [];
   const renderPage = () => {
     renderChart(ui, curMetric, curView, curPage), pageBar.textContent = "";
-    const pages = "bar" === curMetric.kind ? function(metric) {
-      const {typeTotal: typeTotal} = readByTypeData(metric);
-      return Math.max(1, Math.ceil(typeTotal.size / 12));
-    }(curMetric) : 1;
+    const pages = curMetric && "bar" === curMetric.kind ? barPageCount(curMetric) : 1;
     if (pages <= 1) return;
     const prev = makeNativeButton(T("LOC_CHRONICLE_PREV"), () => {
       curPage > 0 && (curPage--, renderPage());
@@ -2715,11 +2832,16 @@ function openOverlay(opts) {
         label && (label.style.color = active ? "#FFD98A" : "#E8E2D0"), b.style.opacity = active ? "1" : b._avail ? "0.72" : "0.4", 
         b.style.cursor = b._avail ? "pointer" : "default";
       }
-      curPage = 0, renderPage();
+      curPage = 0, renderPage(), !historical && curMetric && curMetric.id && (liveSessionSelection = {
+        metricId: curMetric.id,
+        view: curView
+      });
     }
-  }, selectChart = (inCat, index) => {
-    chartButtons.forEach((b, i) => highlightButton(b, i === index)), curMetric = inCat[index], 
-    setView((metric => {
+  }, selectChart = (inCat, index, preferView) => {
+    if (!inCat || !inCat.length || index < 0 || index >= inCat.length) return;
+    curInCat = inCat, curChartIndex = index, chartButtons.forEach((b, i) => highlightButton(b, i === index)), 
+    curMetric = inCat[index];
+    let v = (metric => {
       if (viewBar.textContent = "", viewButtons.trend = viewButtons.stand = null, "live" === metric.kind || "bar" === metric.kind || "board" === metric.kind) return viewBar.style.display = "none", 
       "stand";
       viewBar.style.display = "flex";
@@ -2730,10 +2852,16 @@ function openOverlay(opts) {
         secondary: !0
       }), viewButtons.trend._avail = tAvail, viewButtons.stand._avail = sAvail, viewBar.appendChild(viewButtons.trend), 
       viewBar.appendChild(viewButtons.stand), tAvail ? "trend" : "stand";
-    })(curMetric)), chartButtons[index] && chartRow.scrollToShow(chartButtons[index]);
-  }, selectCategory = (catIndex, preferId) => {
-    catButtons.forEach((b, i) => highlightButton(b, i === catIndex)), catButtons[catIndex] && categoryRow.scrollToShow(catButtons[catIndex]), 
-    chartButtons.length = 0;
+    })(curMetric);
+    if ("trend" === preferView || "stand" === preferView) {
+      const b = viewButtons[preferView];
+      b && !1 !== b._avail && (v = preferView);
+    }
+    setView(v), chartButtons[index] && chartRow.scrollToShow(chartButtons[index]);
+  }, selectCategory = (catIndex, preferId, preferView) => {
+    if (catIndex < 0 || catIndex >= catList.length) return;
+    curCatIndex = catIndex, catButtons.forEach((b, i) => highlightButton(b, i === catIndex)), 
+    catButtons[catIndex] && categoryRow.scrollToShow(catButtons[catIndex]), chartButtons.length = 0;
     const inCat = metrics.filter(m => m.category === catList[catIndex]);
     if (inCat.forEach((metric, i) => {
       const b = makeNativeButton(metricLabel(metric), () => selectChart(inCat, i), {
@@ -2742,17 +2870,51 @@ function openOverlay(opts) {
       chartButtons.push(b);
     }), chartRow.setButtons(chartButtons), inCat.length) {
       const idx = preferId ? Math.max(0, inCat.findIndex(m => m.id === preferId)) : 0;
-      selectChart(inCat, idx < 0 ? 0 : idx);
-    }
+      selectChart(inCat, idx < 0 ? 0 : idx, preferView);
+    } else curInCat = [], curChartIndex = 0, curMetric = null;
   }, catButtons = catList.map((cat, i) => makeNativeButton(function(cat) {
     return T("LOC_CHRONICLE_CAT_" + cat);
   }(cat), () => selectCategory(i), {}));
-  document.body.appendChild(root), categoryRow.setButtons(catButtons), openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " metrics=" + metrics.length + " cats=" + catList.length + " historical=" + (historical ? 1 : 0) + " fog=" + (fogOn ? 1 : 0) + " hiddenMajors=" + hiddenMajorCount());
-  const def = metrics.find(m => m.default) || metrics[0], defCat = def ? Math.max(0, catList.indexOf(def.category)) : 0;
+  activeNav = {
+    jumpCategory: i => !(i < 0 || i >= catList.length) && (selectCategory(i), !0),
+    stepCategory: d => !!catList.length && (selectCategory((curCatIndex + d + catList.length) % catList.length), 
+    !0),
+    stepChart(d) {
+      if (!curInCat.length) return !1;
+      const next = (curChartIndex + d + curInCat.length) % curInCat.length;
+      return selectChart(curInCat, next, curView), !0;
+    },
+    stepPage(d) {
+      if (!curMetric || "bar" !== curMetric.kind) return !1;
+      const pages = barPageCount(curMetric);
+      if (pages <= 1) return !1;
+      const next = Math.max(0, Math.min(pages - 1, curPage + d));
+      return next !== curPage && (curPage = next, renderPage(), !0);
+    },
+    setViewKey(v) {
+      if ("trend" !== v && "stand" !== v) return !1;
+      const b = viewButtons[v];
+      return !(!b || !1 === b._avail) && (setView(v), !0);
+    },
+    secondaryPrev() {
+      return !!this.stepPage(-1) || this.setViewKey("trend");
+    },
+    secondaryNext() {
+      return !!this.stepPage(1) || this.setViewKey("stand");
+    },
+    openHof: () => openHofFromHeader(),
+    openOptions: () => openOptionsFromHeader()
+  }, document.body.appendChild(root), categoryRow.setButtons(catButtons), openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " metrics=" + metrics.length + " cats=" + catList.length + " historical=" + (historical ? 1 : 0) + " fog=" + (fogOn ? 1 : 0) + " hiddenMajors=" + hiddenMajorCount());
+  let openMetric = metrics.find(m => m.default) || metrics[0], openView = null;
+  if (!historical && liveSessionSelection && liveSessionSelection.metricId) {
+    const remembered = metrics.find(m => m.id === liveSessionSelection.metricId);
+    remembered && (openMetric = remembered, openView = liveSessionSelection.view || null);
+  }
+  const openCat = openMetric ? Math.max(0, catList.indexOf(openMetric.category)) : 0;
   requestAnimationFrame(() => {
     if (seq !== openSeq || !activeRoot) return;
     const tChart0 = openNowMs();
-    selectCategory(defCat, def && def.id), openLog("open-first-chart " + Math.round(openNowMs() - tChart0) + "ms"), 
+    selectCategory(openCat, openMetric && openMetric.id, openView), openLog("open-first-chart " + Math.round(openNowMs() - tChart0) + "ms"), 
     requestAnimationFrame(() => {
       seq === openSeq && activeRoot && (categoryRow.remeasure(), chartRow.remeasure());
     });
@@ -2819,7 +2981,14 @@ scheduleInstall(function() {
   }).observe(document.body, {
     childList: !0,
     subtree: !0
-  }), installFrontInputHandler(chronicleInputHandler), console.error(`${LOG} loaded.`);
+  }), installFrontInputHandler(chronicleInputHandler);
+  try {
+    document.addEventListener("keydown", onOverlayKeydown, !0);
+  } catch (e) {}
+  try {
+    refreshEngineKeyMap("graphs-install");
+  } catch (e) {}
+  console.error(`${LOG} loaded.`);
 });
 
 export { };

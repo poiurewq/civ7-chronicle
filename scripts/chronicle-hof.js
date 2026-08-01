@@ -1,6 +1,6 @@
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
+const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, probeKeydownLog: probeKeydownLog, probeEngineLog: probeEngineLog, hotkeyNow: hotkeyNow} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
 
 function err(msg) {
   try {
@@ -370,21 +370,70 @@ function sectionTitle(text) {
 }
 
 function destroyHofDom() {
-  document.getElementById(OVERLAY_ID)?.remove(), forgetOverlay(OVERLAY_ID);
+  document.getElementById(OVERLAY_ID)?.remove(), forgetOverlay(OVERLAY_ID), activeHofNav = null;
 }
 
 function closeHof() {
   destroyHofDom();
 }
 
+let activeHofNav = null;
+
 const hofInputHandler = {
   handleInput(e) {
-    const d = e && e.detail || {};
-    return !isTopOverlay(OVERLAY_ID) || (!d.name || CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeHof(), 
+    const t0 = hotkeyNow(), d = e && e.detail || {};
+    if (!isTopOverlay(OVERLAY_ID)) return !0;
+    if (!d.name) return !0;
+    if (isWatchedEngineAction(d.name)) {
+      const codes = engineCodesForAction(d.name);
+      if (isPressFinished(e)) {
+        const hk = readHotkeys();
+        let slot = null;
+        for (let i = 0; i < codes.length && (slot = hotkeySlotForCode(hk, codes[i]), !slot); i++) ;
+        "openHof" === slot ? closeHof() : "openOptions" === slot && activeHofNav ? activeHofNav.openOptions() : "catPrev" === slot && activeHofNav ? activeHofNav.stepTab(-1) : "catNext" === slot && activeHofNav && activeHofNav.stepTab(1), 
+        probeEngineLog("hof", d.name, d.status, codes, [ {
+          n: "total",
+          ms: hotkeyNow() - t0
+        } ], "slot=" + (slot || "-"));
+      } else probeEngineLog("hof", d.name, d.status, codes, [ {
+        n: "total",
+        ms: hotkeyNow() - t0
+      } ], "phase=eat");
+      return !1;
+    }
+    return isPressFinished(e) && probeEngineLog("hof", d.name, d.status, [], [ {
+      n: "total",
+      ms: hotkeyNow() - t0
+    } ], "watched=0"), !(EAT_WORLD_ENGINE_ACTIONS.indexOf(d.name) >= 0) && (CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeHof(), 
     !1));
   },
   handleNavigation: () => !0
 };
+
+function onHofKeydown(e) {
+  const t0 = hotkeyNow();
+  if (!isTopOverlay(OVERLAY_ID) || !activeHofNav) return;
+  if (e.repeat) return;
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const code = resolveHotkeyCode(e);
+  if (!code) return;
+  if (isEngineBoundHotkeyCode(code)) return void probeKeydownLog("hof", code, [ {
+    n: "total",
+    ms: hotkeyNow() - t0
+  } ], "skip=engine-bound");
+  const hk = readHotkeys();
+  let handled = !1, slot = "-";
+  if (code === hk.catPrev) handled = !!activeHofNav.stepTab(-1), slot = "catPrev"; else if (code === hk.catNext) handled = !!activeHofNav.stepTab(1), 
+  slot = "catNext"; else if (code === hk.openHof) closeHof(), handled = !0, slot = "openHof"; else if (code === hk.openOptions) handled = !!activeHofNav.openOptions(), 
+  slot = "openOptions"; else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
+    const n = Number(code.replace("Digit", "").replace("NumPad", "").replace("Numpad", ""));
+    n >= 1 && n <= 5 && (handled = !!activeHofNav.jumpTab(n - 1), slot = "digit" + n);
+  }
+  probeKeydownLog("hof", code, [ {
+    n: "total",
+    ms: hotkeyNow() - t0
+  } ], "handled=" + (handled ? 1 : 0) + " slot=" + slot), handled && stopKeydownPeers(e);
+}
 
 function renderEntityGrid(body, rows, opts) {
   if (!rows.length) return void body.appendChild(el("div", "color:#C9BFA6;text-align:center;padding:3rem;font-size:1.78rem", opts.emptyMsg));
@@ -460,6 +509,9 @@ function openHof(opts) {
   opts = opts || {}, destroyHofDom(), installFrontInputHandler(hofInputHandler);
   const games = allGames(), root = document.createElement("div");
   root.id = OVERLAY_ID, noteOverlayOpened(OVERLAY_ID);
+  try {
+    refreshEngineKeyMap("hof-open");
+  } catch (e) {}
   const backdrop = el("div", "position:fixed;left:0;top:0;width:100%;height:100%;z-index:999998;background:rgba(6,7,10,0.78);pointer-events:auto");
   backdrop.addEventListener("click", closeHof), root.appendChild(backdrop);
   const panel = el("div", PANEL_BOX);
@@ -467,7 +519,8 @@ function openHof(opts) {
   const header = el("div", HEADER_BOX), titleCol = el("div", TITLE_COL_ROW), titleEl = el("div", TITLE_TEXT, L("LOC_HOF_TITLE"), "font-title uppercase tracking-150");
   titleCol.appendChild(titleEl), titleCol.appendChild(el("div", "color:#B7A987;font-size:0.85rem;padding-bottom:0.3rem;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", games.length ? 1 === games.length ? L("LOC_CHRONICLE_HOF_ONE_CAMPAIGN") : L("LOC_CHRONICLE_HOF_N_CAMPAIGNS", games.length) : L("LOC_CHRONICLE_HOF_CAMPAIGNS_CAPTION"))), 
   header.appendChild(titleCol);
-  const headerActions = el("div", HEADER_ACTIONS), optionsBtn = makeSettingsButton({});
+  const headerActions = el("div", HEADER_ACTIONS);
+  const optionsBtn = makeSettingsButton({});
   optionsBtn.style.marginRight = "9px", headerActions.appendChild(optionsBtn);
   const closeBtn = makeNativeButton(L("LOC_GENERIC_CLOSE"), closeHof, {});
   closeBtn.style.opacity = "0.72";
@@ -689,21 +742,40 @@ function openHof(opts) {
     const b = makeNativeButton(t.label, () => showTab(t.id), {});
     i < tabs.length - 1 && (b.style.marginRight = "8px"), b.style.marginBottom = "6px", 
     tabButtons.push(b), tabBar.appendChild(b);
-  }), document.body.appendChild(root), showTab(curTab);
+  }), activeHofNav = {
+    jumpTab: i => !(i < 0 || i >= tabs.length) && (showTab(tabs[i].id), !0),
+    stepTab(d) {
+      if (!tabs.length) return !1;
+      let idx = 0;
+      for (let i = 0; i < tabs.length; i++) if (tabs[i].id === curTab) {
+        idx = i;
+        break;
+      }
+      const next = (idx + d + tabs.length) % tabs.length;
+      return showTab(tabs[next].id), !0;
+    },
+    openOptions: () => function() {
+      try {
+        const api = "undefined" != typeof globalThis && globalThis.ozqChronicleOptions || "undefined" != typeof window && window.ozqChronicleOptions;
+        if (api && "function" == typeof api.open) return api.open({}), !0;
+      } catch (e) {}
+      return !1;
+    }()
+  }, document.body.appendChild(root), showTab(curTab);
 }
 
 try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.33.1"
+    version: "0.33.31"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.33.1"
+      version: "0.33.31"
     };
   } catch (e2) {}
 }
@@ -741,6 +813,9 @@ function inspectNode(node) {
 
 scheduleInstall(function() {
   installFrontInputHandler(hofInputHandler);
+  try {
+    document.addEventListener("keydown", onHofKeydown, !0);
+  } catch (e) {}
   const existing = document.querySelector(".main-menu-button-container");
   existing && injectMainMenuButton(existing);
   const observer = new MutationObserver(mutations => {
