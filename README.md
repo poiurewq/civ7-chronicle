@@ -1,232 +1,150 @@
-# Chronicle — Stats, Graphs & Hall of Fame
+# Chronicle - Stats, Graphs & Hall of Fame
 
-A quality-of-life UI mod for **Sid Meier's Civilization VII** that adds a proper
-statistics screen — per-turn graphs and breakdowns for every player.
+A UI-only quality-of-life mod for **Sid Meier's Civilization VII**. Per-turn graphs and breakdowns for every player, plus a Hall of Fame across campaigns.
 
-Civ 7 tracks a lot of historical data during a game but never really shows it to
-you. Chronicle surfaces it.
+Civ 7 tracks a lot of historical data and barely shows it. Chronicle surfaces it.
 
 ## What it does
 
-Adds a **Chronicle** button in two places — the **pause menu** (openable on any
-turn) and the **end-of-game results screen** — that opens a full-screen overlay
-of charts.
+Open a full-screen stats overlay from:
 
-A **Hall of Fame** screen is also available from the **Main Menu** and from the
-Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record,
-per-leader and per-civilization stats, game history, and high-score / fastest-finish
-boards, with per-game trend graphs from the Chronicle log.
+- **F2** any turn while the map is focused. Rebind under Options → Accessibility → Keyboard + Mouse.
+- The **pause menu** on any turn. Chronicle leaves the pause menu open behind it.
+- The **end-of-game results screen**. Accessibility hotkeys including F2 do not fire there, same as the base game.
+
+Open **Hall of Fame** from the Main Menu or from the Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record, per-leader and per-civilization stats, game history, and high-score / fastest-finish boards. Open any past game for Chronicle graphs from the log.
+
+This mod changes no gameplay rules and does **not** affect your saved games.
 
 ### Languages
 
-The full Chronicle and Hall of Fame UI is available in **English**, **Simplified
-Chinese (简体中文)**, and **Traditional Chinese (繁體中文)**. The Add-Ons menu name
-and description follow the same languages. Dynamic game names (Ages, leaders, unit
-types, victory paths, and so on) use the game's own translations.
+Full UI in **English**, **Simplified Chinese (简体中文)**, and **Traditional Chinese (繁體中文)**. The Add-Ons menu name and description match. Dynamic game names such as Ages, leaders, unit types, and victory paths use the game's own translations.
 
 ### Two views of most stats
 
-Most stats have a **Trends** line (how it moved turn by turn) and a **Standings** bar
-(where every civ ranks right now). Toggle between them under the chart — it's the same
-data shown two ways, so the two can never disagree.
+Most charts have a **Trends** line for how the stat moved turn by turn and a **Standings** bar for where every civ ranks right now. Toggle under the chart. Same data, two views.
 
-The by-type breakdowns (Military units, plus Buildings / Districts / Wonders under
-World) and a few World settlement leaderboards are snapshots of the current
-standings, so they have a single view and no toggle. Population Share and the two
-religion charts have full Trends ⇄ Standings like everything else.
+By-type breakdowns and World settlement leaderboards are current snapshots, so they have a single view. Population Share and the religion charts keep full Trends ⇄ Standings.
 
 ### Categories
 
-- **Research** — Science, Culture, Technologies, Civics, and Great Works, plus
-  per-citizen ratios.
-- **Economy** — net Gold per turn, treasury, Gold per Citizen, Trade Routes,
-  Production, Buildings and Improvements owned, Overbuilds, Wonders, and Great People.
-- **Society** — Population, Food, Happiness, Influence, Urban Districts,
-  urbanization, and Tourism.
-- **Expansion** — Settlements Total, Cities vs Towns, Settlements Lost, and Settlement Cap.
-- **Military** — Units Killed and Lost, Units Owned, kills and losses by unit type,
-  Settlements Conquered / Conquest %, Settlements Razed, and IPs Dispersed.
-- **Overall** — Score and the four victory-path point totals (Cultural, Economic,
-  Military, Scientific).
-- **World** — Buildings, Improvements, and Districts by type (paged when there are many),
-  a per-player board of every Wonder each civ owns, then whole-map settlement
-  leaderboards/histograms (live snapshots), plus Population Share, Religion Spread,
-  and Religion by Population as Trends ⇄ Standings over time.
+- **Research:** Science, Culture, Technologies, Civics, and Great Works, plus per-citizen ratios.
+- **Economy:** net Gold per turn, treasury, Gold per Citizen, Trade Routes, Production, Buildings and Improvements owned, Overbuilds, Wonders, and Great People.
+- **Society:** Population, Food, Happiness, Influence, Urban Districts, urbanization, and Tourism.
+- **Expansion:** Settlements Total, Cities vs Towns, Settlements Lost, and Settlement Cap.
+- **Military:** Units Killed and Lost, Units Owned, kills and losses by unit type, Settlements Conquered / Conquest %, Settlements Razed, and IPs Dispersed.
+- **Overall:** Score and the four victory-path point totals: Cultural, Economic, Military, Scientific.
+- **World:** Buildings, Improvements, and Districts by type, a board of every Wonder each civ owns, Settlement leaderboards, Population Share, Religion Spread, and Religion by Population.
 
 ### Details
 
-- Every chart includes **all players** — including you (the base game's own chart
-  code hides the local player).
-- **Hover** any point on a line to read its exact value at that turn. **Click** a civ
-  in the legend to hide or show its line.
-- Stats the base game never populates — **Civics**, **net Gold per turn**, **Units
-  Killed** and **Units Lost** — are filled in. Technologies and Civics **count
-  Masteries**, not just base nodes.
-- **Eliminated civs still count** where it matters. A defeated civ drops out of the
-  current standings (it has no treasury or population any more), but the units it
-  killed, lost and trained are a permanent part of the game, so it keeps its place in
-  the Military charts.
+- Every chart includes **all players**, including you. The base game's own charts hide the local player.
+- **Hover** a line point for its exact value at that turn. **Click** a civ in the legend to hide or show its line.
+- **Hold and drag** in a Trends plot to scrub turns: a vertical crosshair snaps to the nearest logged turn, with dots on each visible series and a multi-civ value panel. Release clears. Hover tooltips stay when you are not scrubbing.
+- Stats the base game leaves empty are filled in: **Civics**, **net Gold per turn**, **Units Killed**, and **Units Lost**. Technologies and Civics **count Masteries**, not just base nodes.
+- **Eliminated civs** drop out of current standings. Their Units Killed, Lost, and trained stay on the Military charts.
 - Trend lines start where the data begins and stop at the last real point.
-- Charts with no data are **hidden automatically**, so an Antiquity game won't show
-  you empty Tourism or Great People charts.
-- Colors too dark to read are brightened, and near-identical civ colors are nudged
-  apart so every line stays distinct.
+- Charts with no data are **hidden automatically**. An Antiquity game will not show empty Tourism or Great People charts.
+- Colors too dark to read are brightened. Near-identical civ colors are nudged apart.
 
-### Strategic fog and settings
+### Fog of war and settings
 
-On a **live mid-game** open, Chronicle does not reveal civs you have not met — no
-line, bar, legend entry, tooltip, by-type column, or settlement-board row. Captions
-say how many civs are withheld (for example "3 civs not yet met"). Settlement boards
-filter by **plot discovery**, not by whether you have met the owner. Religions
-founded by unmet civs are hidden too. You are always fully visible.
+On a **live mid-game** open, Chronicle hides civs you have not met. No line, bar, legend entry, tooltip, by-type column, or settlement-board row. Captions say how many civs are withheld, for example `3 civs not yet met`. Settlement boards filter by **plot discovery**, not owner-met. Religions founded by unmet civs are hidden. You are always fully visible.
 
-Fog is **off** for the end-game results screen, Hall of Fame, and Game Details (the
-story is over). Take *just one more turn* and fog comes back. The per-turn log is
-never fogged: capture stays complete so post-game review still has the full record.
+Fog is **off** for end-game results, Hall of Fame, and Game Details. Take *just one more turn* and fog returns. The per-turn log is never fogged, so post-game review still has the full record.
 
-**Settings** (one stored value, two places):
+**Settings** use one stored value in two places:
 
-- Main Menu or pause → **Options → Add-ons** → **Chronicle**
+- Main Menu or pause → **Options → Add-ons → Chronicle**
 - An **Options** button in every Chronicle / Hall of Fame / Game Details header
 
-The first setting is **Show data for civs you haven't met** (off by default, so fog
-stays on).
+The first setting is **Show data for civs you haven't met**. Default off, so fog stays on. Hotkey rebinding is on Chronicle's own Options panel only, not Add-ons.
 
-This is a **UI-only** mod. It changes no gameplay rules and is flagged so it does
-**not** affect your saved games.
+### Keyboard navigation
+
+While Chronicle or Game Details is open:
+
+- **1–7:** jump category. On Hall of Fame, **1–5** jump tabs.
+- **- =:** previous / next category. Same keys step Hall of Fame tabs.
+- **[ ]:** previous / next chart.
+- **, .:** Trends / Standings, or prev / next page on multi-page bars.
+- **H:** open or close Hall of Fame from live Chronicle.
+- **O:** open or close Options.
+- **Escape:** close the topmost overlay.
+
+Rebind under **Options** in the overlay header. Number keys **1–7** stay fixed. A short footer hint shows the current binds.
 
 ## Where the data comes from
 
-Chronicle draws on two sources, and each chart uses whichever one holds more of your game:
+Each chart uses whichever source holds more of your game:
 
-- **Chronicle's own per-turn log.** The only source that **spans Ages** — it carries charts
-  across Antiquity, Exploration, and Modern, where the game's own history does not. But it
-  only knows the turns Chronicle was actually running for.
-- **The game's own per-turn record.** Covers the **current Age in full**, including turns
-  from before you enabled Chronicle — but only that Age (the game rebuilds it each Age).
+- **Chronicle's own per-turn log.** The only source that **spans Ages**. It only knows turns Chronicle was actually running for.
+- **The game's own per-turn record.** Covers the **current Age in full**, including turns from before you enabled Chronicle. Only that Age. The game rebuilds it each Age.
 
-So if you enable Chronicle partway through a game, you still get a full chart for the
-current Age rather than a stub. The caption under each chart tells you which source it used.
+Enable Chronicle mid-game and you still get a full chart for the current Age rather than a stub. The caption under each chart names the source.
 
-Where the game's version of a stat isn't quite the same thing, the chart says so rather than
-quietly swapping it: **Settlements Total** becomes **Settlements Founded** when it falls back,
-because the game counts what you *founded*, not what you currently *hold*.
+When the game's version of a stat is not quite the same thing, the chart says so rather than quietly swapping it. **Settlements Total** becomes **Settlements Founded** when it falls back, because the game counts what you *founded*, not what you currently *hold*.
 
 ## Limitations
 
-- **Cross-Age history exists only for the Ages you played with Chronicle enabled.** Enable it
-  before starting a game to get the whole story; the game itself can only fill in the Age
-  you're currently in.
-- The **by-type breakdowns** (Military units, plus World buildings, districts,
-  wonders) span every Age that Chronicle was running for — the game itself keeps only the
-  current one, so Chronicle banks each Age's tally as it ends. The caption under each
-  breakdown names the Ages it covers, so you always know what you are looking at.
-- A trend line drawn from Chronicle's own log needs **3+ recorded turns** (a couple of points
-  across a long game would be misleading rather than informative), though a game logged from
-  turn 1 shows from turn 2. A standings bar needs only the current turn, so on a freshly-enabled
-  game the Standings can appear before the Trends do.
+- **Cross-Age history exists only for Ages you played with Chronicle enabled.** Enable it before starting a game for the whole story. The game itself can only fill in the Age you are currently in.
+- **By-type breakdowns** span every Age Chronicle was running for. The game keeps only the current Age, so Chronicle banks each Age's tally as it ends. Captions name the Ages covered.
+- A trend line from Chronicle's log needs **3+ recorded turns**. A game logged from turn 1 shows from turn 2. A standings bar needs only the current turn, so Standings can appear before Trends on a freshly enabled game.
 
 ## Installation
 
-The easiest way on Steam is to **subscribe on the Steam Workshop** — Steam downloads and
-updates the mod for you. Non-Steam players can install the zip by hand, or use **CivMods**
-if they already use that manager.
+On Steam, **subscribe on the Steam Workshop**. Steam downloads and updates the mod for you. Non-Steam players can install the zip by hand, or use **CivMods**.
 
-### Option A — Steam Workshop (recommended on Steam)
+### Option A: Steam Workshop
 
-1. Open the [Chronicle Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3761407790)
-   and click **Subscribe**.
-2. Launch Civ 7 → **Additional Content / Mods** → make sure **Chronicle - Stats,
-   Graphs & Hall of Fame** is enabled.
+1. Open the [Chronicle Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3761407790) and click **Subscribe**.
+2. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle - Stats, Graphs & Hall of Fame**.
 
-Steam keeps it up to date automatically. To uninstall, just **Unsubscribe**.
+Steam keeps it up to date. To uninstall, **Unsubscribe**.
 
-### Option B — manual install
+### Option B: manual install
 
-1. Get the latest zip from
-   [CivFanatics Downloads](https://forums.civfanatics.com/resources/chronicle-stats-graphs-hall-of-fame.32899/)
-   (or this repo's release package).
+1. Get the latest zip from [CivFanatics Downloads](https://forums.civfanatics.com/resources/chronicle-stats-graphs-hall-of-fame.32899/) or this repo's release package.
 2. Locate your Civ 7 mods folder:
    - **macOS:** `~/Library/Application Support/Civilization VII/Mods/`
    - **Windows:** `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VII\Mods\`
 3. Copy the entire `ozq-chronicle` folder into that `Mods` folder.
-4. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle - Stats,
-   Graphs & Hall of Fame**.
+4. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle - Stats, Graphs & Hall of Fame**.
 
 To uninstall, disable it in the Mods menu or delete the `ozq-chronicle` folder.
 
-### Option C — CivMods (mod manager)
+### Option C: CivMods
 
-If you use [CivMods](https://civmods.com), open the
-[Chronicle install link](https://civmods.com/install?modCfId=32899) (download the app first
-if you do not have it yet).
+If you use [CivMods](https://civmods.com), open the [Chronicle install link](https://civmods.com/install?modCfId=32899). Download the app first if you do not have it yet.
 
-> **Don't mix install paths.** Workshop subscription, a hand-copied `Mods/` folder, and a
-> CivMods install share the same mod id and conflict — pick one.
-
-### Using it
-
-In-game, open the pause menu (Escape) any turn and click **Chronicle** — or click
-**Chronicle** on the end-of-game results screen. Press **Escape** to close the
-topmost overlay (Chronicle, Hall of Fame, or Game Details). Chronicle leaves the
-pause menu open behind it.
-
-While Chronicle (or Game Details) is open: **1–7** jump categories, **-** / **=** step categories
-(default), **[ ]** step charts (default), **`,` / `.`** select Trends / Standings (or page
-multi-page bar charts), **H** opens Hall of Fame (live Chronicle), and **O** opens Options
-(Chronicle or Hall of Fame). On Hall of Fame, **1–5** jump tabs (Overview → Reports → Leaders →
-Civilizations → History) and the same **-** / **=** step tabs. Rebind everything except **1–7**
-under **Options** (in the overlay header) for non‑QWERTY layouts — not in Main Menu → Options →
-Add-ons. A short hint sits at the bottom of the overlay.
+> **Don't mix install paths.** Workshop subscription, a hand-copied `Mods/` folder, and a CivMods install share the same mod id and conflict. Pick one.
 
 ## Compatibility
 
-- Additive UI patch — it overwrites no base-game files, so it's resilient to
-  game updates and unlikely to conflict with other mods.
+- Additive UI patch. It overwrites no base-game files, so it is resilient to game updates and unlikely to conflict with other mods.
 - Requires the base game only. No dependencies.
-- Chronicle stores its per-turn log in the UI's `localStorage`, using the same shared
-  `modSettings` key that the popular settings mods agreed on (because of an engine bug —
-  see the note below). It coexists cleanly with mods like Policy Yields Previews,
-  City Hall, and Better Options Menu, and preserves their settings
-  when reading and writing its own data.
-- Updating from an older Chronicle: your existing history is migrated into the shared
-  key automatically on the first launch.
+- Chronicle stores its per-turn log under the community shared `modSettings` key. Same convention as Policy Yields Previews, City Hall, and Better Options Menu. Their settings are preserved when Chronicle reads and writes its own data.
+- Updating from an older Chronicle migrates existing history into the shared key automatically on first launch.
 
-## For mod developers — a Civ 7 `localStorage` bug
+## For mod developers: a Civ 7 `localStorage` bug
 
-The Civ 7 UI engine (Coherent Gameface) has a **key-blind `localStorage.getItem`**: it
-returns the origin's **first key in sort order**, not the key you asked for.
-`localStorage.key(i)` is blind too. Only `setItem` and `removeItem` are correctly keyed.
+The Civ 7 UI engine, Coherent Gameface, has a **key-blind `localStorage.getItem`**: it returns the origin's **first key in sort order**, not the key you asked for. `localStorage.key(i)` is blind too. Only `setItem` and `removeItem` are correctly keyed.
 
-Consequences, if your UI mod runs in the game scope and reads `localStorage` by key:
+If your UI mod runs in the game scope and reads `localStorage` by key:
 
-- Whichever installed mod holds the **first-sorting key** answers *every* `getItem` in
-  that shared origin — so your `getItem` may hand you another mod's value, including
-  Chronicle's.
-- There is no keyed-read fallback: only the origin's first row is readable, ever. The
-  modding community's answer is to **share one key**, `modSettings`, with one sub-object
-  per mod — several popular settings mods already enforce this, some by clearing the
-  whole origin when they find a second key. Since 0.31.0 Chronicle follows the
-  convention too: it keeps its data under `modSettings["ozq-chronicle"]`, preserves
-  every other mod's sub-object when it writes, and never clears the origin unless its
-  reads are actually blocked (and even then it keeps a copy of the row it displaced).
-  If your mod persists anything, put it under a `modSettings` sub-key rather than your
-  own key — a private key both breaks other mods' reads and will likely be erased at
-  the next boot.
+- Whichever installed mod holds the **first-sorting key** answers *every* `getItem` in that shared origin. Your `getItem` may hand you another mod's value, including Chronicle's.
+- There is no keyed-read fallback. Only the origin's first row is readable.
+- The modding community's answer is to **share one key**, `modSettings`, with one sub-object per mod. Several popular settings mods already enforce this. Some clear the whole origin when they find a second key.
+- Since 0.31.0 Chronicle follows the convention too. Data lives under `modSettings["ozq-chronicle"]`. Writes preserve every other mod's sub-object. The origin is never cleared unless reads are actually blocked, and even then Chronicle keeps a copy of the row it displaced.
+- If your mod persists anything, put it under a `modSettings` sub-key rather than your own key. A private key both breaks other mods' reads and will likely be erased at the next boot.
 
-This is an **engine bug**, not anything specific to Chronicle. It's worth knowing about
-before you spend days debugging what looks like data corruption, a size quota, or an
-engine "freeze" — it convincingly imitates all three.
+This is an **engine bug**, not anything specific to Chronicle. It convincingly imitates data corruption, a size quota, or an engine freeze.
 
-It has been reported to 2K Support (ticket #16348750, July 2026). A full public writeup with a
-minimal repro mod and the UI.log evidence is on
-[this CivFanatics thread](https://forums.civfanatics.com/threads/ui-modding-localstorage-getitem-ignores-the-key-argument-and-always-returns-the-first-stored-keys-value-repro-inside-reported-to-2k-as-16348750.703995/)
-— if you can reproduce it too, adding your findings there helps make the case for a fix.
+Reported to 2K Support as ticket #16348750, July 2026. Full public writeup with a minimal repro mod and UI.log evidence: [CivFanatics thread](https://forums.civfanatics.com/threads/ui-modding-localstorage-getitem-ignores-the-key-argument-and-always-returns-the-first-stored-keys-value-repro-inside-reported-to-2k-as-16348750.703995/). If you can reproduce it too, adding your findings there helps make the case for a fix.
 
 ## Feedback
 
-Bug reports and suggestions are welcome — please open an issue on the
-[GitHub repository](https://github.com/poiurewq/civ7-chronicle/issues).
+Bug reports and suggestions are welcome. Please open an issue on the [GitHub repository](https://github.com/poiurewq/civ7-chronicle/issues).
 
 ## License
 

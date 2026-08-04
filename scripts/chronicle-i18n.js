@@ -92,6 +92,8 @@
     LOC_CHRONICLE_OPT_ALSO_IN_MENU: "Non-hotkey settings are also under Main Menu → Options → Add-ons.",
     LOC_CHRONICLE_OPT_HK_SECTION: "Hotkeys",
     LOC_CHRONICLE_OPT_HK_SECTION_DESC: "Rebind hotkeys. Click a key, then press a new one. Escape cancels. Keys 1-7 stay fixed.",
+    LOC_CHRONICLE_OPT_HK_OPEN_WORLD: "Open Chronicle while playing",
+    LOC_CHRONICLE_OPT_HK_OPEN_WORLD_NOTE: "Rebind under Options → Accessibility → Keyboard + Mouse.",
     LOC_CHRONICLE_OPT_HK_CAT_PREV: "Previous category / tab",
     LOC_CHRONICLE_OPT_HK_CAT_NEXT: "Next category / tab",
     LOC_CHRONICLE_OPT_HK_CHART_PREV: "Previous chart",
@@ -106,7 +108,7 @@
     LOC_CHRONICLE_FOG_UNMET_ONE: "1 civ not yet met",
     LOC_CHRONICLE_FOG_UNMET_N: "{1} civs not yet met",
     LOC_CHRONICLE_FOG_KNOWN_WORLD: "Known world only",
-    LOC_CHRONICLE_HOTKEY_HINT: "1–7 · {1} categories · {2} charts · {3} view/pages"
+    LOC_CHRONICLE_HOTKEY_HINT: "{1} · 1–7 · {2} categories · {3} charts · {4} view/pages"
   }, ZH_HANS = {
     LOC_CHRONICLE_CAT_Research: "研究",
     LOC_CHRONICLE_CAT_Economy: "经济",
@@ -200,6 +202,8 @@
     LOC_CHRONICLE_OPT_ALSO_IN_MENU: "非快捷键设置也可在「主菜单 → 选项 → 附加内容」中找到。",
     LOC_CHRONICLE_OPT_HK_SECTION: "快捷键",
     LOC_CHRONICLE_OPT_HK_SECTION_DESC: "重绑快捷键。点击后按新键；Escape 取消。1-7 键固定。",
+    LOC_CHRONICLE_OPT_HK_OPEN_WORLD: "游戏进行中打开编年史",
+    LOC_CHRONICLE_OPT_HK_OPEN_WORLD_NOTE: "可在「选项 → 辅助功能 → 键盘+鼠标」中改键。",
     LOC_CHRONICLE_OPT_HK_CAT_PREV: "上一类别 / 标签页",
     LOC_CHRONICLE_OPT_HK_CAT_NEXT: "下一类别 / 标签页",
     LOC_CHRONICLE_OPT_HK_CHART_PREV: "上一图表",
@@ -214,7 +218,7 @@
     LOC_CHRONICLE_FOG_UNMET_ONE: "1 个文明尚未遇见",
     LOC_CHRONICLE_FOG_UNMET_N: "{1} 个文明尚未遇见",
     LOC_CHRONICLE_FOG_KNOWN_WORLD: "仅限已知世界",
-    LOC_CHRONICLE_HOTKEY_HINT: "1–7 · {1} 类别 · {2} 图表 · {3} 视图/翻页"
+    LOC_CHRONICLE_HOTKEY_HINT: "{1} · 1–7 · {2} 类别 · {3} 图表 · {4} 视图/翻页"
   }, ZH_HANT = {
     LOC_CHRONICLE_CAT_Research: "研究",
     LOC_CHRONICLE_CAT_Economy: "經濟",
@@ -308,6 +312,8 @@
     LOC_CHRONICLE_OPT_ALSO_IN_MENU: "非快捷鍵設定亦可在「主選單 → 選項 → 附加內容」中找到。",
     LOC_CHRONICLE_OPT_HK_SECTION: "快捷鍵",
     LOC_CHRONICLE_OPT_HK_SECTION_DESC: "重綁快捷鍵。點擊後按新鍵；Escape 取消。1-7 鍵固定。",
+    LOC_CHRONICLE_OPT_HK_OPEN_WORLD: "遊戲進行中開啟編年史",
+    LOC_CHRONICLE_OPT_HK_OPEN_WORLD_NOTE: "可在「選項 → 輔助工具 → 鍵盤+滑鼠」中改鍵。",
     LOC_CHRONICLE_OPT_HK_CAT_PREV: "上一類別 / 標籤頁",
     LOC_CHRONICLE_OPT_HK_CAT_NEXT: "下一類別 / 標籤頁",
     LOC_CHRONICLE_OPT_HK_CHART_PREV: "上一圖表",
@@ -322,7 +328,7 @@
     LOC_CHRONICLE_FOG_UNMET_ONE: "1 個文明尚未遇見",
     LOC_CHRONICLE_FOG_UNMET_N: "{1} 個文明尚未遇見",
     LOC_CHRONICLE_FOG_KNOWN_WORLD: "僅限已知世界",
-    LOC_CHRONICLE_HOTKEY_HINT: "1–7 · {1} 類別 · {2} 圖表 · {3} 視圖/翻頁"
+    LOC_CHRONICLE_HOTKEY_HINT: "{1} · 1–7 · {2} 類別 · {3} 圖表 · {4} 視圖/翻頁"
   }, METRICS = {
     score: {
       en: "Score",

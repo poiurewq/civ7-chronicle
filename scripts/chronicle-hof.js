@@ -1,6 +1,6 @@
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, probeKeydownLog: probeKeydownLog, probeEngineLog: probeEngineLog, hotkeyNow: hotkeyNow} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
+const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
 
 function err(msg) {
   try {
@@ -381,7 +381,7 @@ let activeHofNav = null;
 
 const hofInputHandler = {
   handleInput(e) {
-    const t0 = hotkeyNow(), d = e && e.detail || {};
+    const d = e && e.detail || {};
     if (!isTopOverlay(OVERLAY_ID)) return !0;
     if (!d.name) return !0;
     if (isWatchedEngineAction(d.name)) {
@@ -390,49 +390,31 @@ const hofInputHandler = {
         const hk = readHotkeys();
         let slot = null;
         for (let i = 0; i < codes.length && (slot = hotkeySlotForCode(hk, codes[i]), !slot); i++) ;
-        "openHof" === slot ? closeHof() : "openOptions" === slot && activeHofNav ? activeHofNav.openOptions() : "catPrev" === slot && activeHofNav ? activeHofNav.stepTab(-1) : "catNext" === slot && activeHofNav && activeHofNav.stepTab(1), 
-        probeEngineLog("hof", d.name, d.status, codes, [ {
-          n: "total",
-          ms: hotkeyNow() - t0
-        } ], "slot=" + (slot || "-"));
-      } else probeEngineLog("hof", d.name, d.status, codes, [ {
-        n: "total",
-        ms: hotkeyNow() - t0
-      } ], "phase=eat");
+        "openHof" === slot ? closeHof() : "openOptions" === slot && activeHofNav ? activeHofNav.openOptions() : "catPrev" === slot && activeHofNav ? activeHofNav.stepTab(-1) : "catNext" === slot && activeHofNav && activeHofNav.stepTab(1);
+      }
       return !1;
     }
-    return isPressFinished(e) && probeEngineLog("hof", d.name, d.status, [], [ {
-      n: "total",
-      ms: hotkeyNow() - t0
-    } ], "watched=0"), !(EAT_WORLD_ENGINE_ACTIONS.indexOf(d.name) >= 0) && (CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeHof(), 
+    return !(EAT_WORLD_ENGINE_ACTIONS.indexOf(d.name) >= 0) && (CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeHof(), 
     !1));
   },
   handleNavigation: () => !0
 };
 
 function onHofKeydown(e) {
-  const t0 = hotkeyNow();
   if (!isTopOverlay(OVERLAY_ID) || !activeHofNav) return;
   if (e.repeat) return;
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
   const code = resolveHotkeyCode(e);
   if (!code) return;
-  if (isEngineBoundHotkeyCode(code)) return void probeKeydownLog("hof", code, [ {
-    n: "total",
-    ms: hotkeyNow() - t0
-  } ], "skip=engine-bound");
+  if (isEngineBoundHotkeyCode(code)) return;
   const hk = readHotkeys();
-  let handled = !1, slot = "-";
-  if (code === hk.catPrev) handled = !!activeHofNav.stepTab(-1), slot = "catPrev"; else if (code === hk.catNext) handled = !!activeHofNav.stepTab(1), 
-  slot = "catNext"; else if (code === hk.openHof) closeHof(), handled = !0, slot = "openHof"; else if (code === hk.openOptions) handled = !!activeHofNav.openOptions(), 
-  slot = "openOptions"; else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
+  let handled = !1;
+  if (code === hk.catPrev) handled = !!activeHofNav.stepTab(-1); else if (code === hk.catNext) handled = !!activeHofNav.stepTab(1); else if (code === hk.openHof) closeHof(), 
+  handled = !0; else if (code === hk.openOptions) handled = !!activeHofNav.openOptions(); else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
     const n = Number(code.replace("Digit", "").replace("NumPad", "").replace("Numpad", ""));
-    n >= 1 && n <= 5 && (handled = !!activeHofNav.jumpTab(n - 1), slot = "digit" + n);
+    n >= 1 && n <= 5 && (handled = !!activeHofNav.jumpTab(n - 1));
   }
-  probeKeydownLog("hof", code, [ {
-    n: "total",
-    ms: hotkeyNow() - t0
-  } ], "handled=" + (handled ? 1 : 0) + " slot=" + slot), handled && stopKeydownPeers(e);
+  handled && stopKeydownPeers(e);
 }
 
 function renderEntityGrid(body, rows, opts) {
@@ -768,14 +750,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.33.31"
+    version: "0.33.50"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.33.31"
+      version: "0.33.50"
     };
   } catch (e2) {}
 }

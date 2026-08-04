@@ -197,7 +197,7 @@ const DEFAULT_HOTKEYS = {
   pageNext: "Period",
   openHof: "KeyH",
   openOptions: "KeyO"
-}, HOTKEY_SLOT_KEYS = [ "catPrev", "catNext", "chartPrev", "chartNext", "pagePrev", "pageNext", "openHof", "openOptions" ], ENGINE_WATCHED_ACTIONS = [ "unit-heal", "unit-fortify", "unit-sleep", "unit-alert", "unit-auto-explore", "unit-move", "unit-ranged-attack", "unit-skip-turn", "open-greatworks", "open-techs", "open-civics", "open-traditions", "open-rankings", "open-attributes", "open-civilopedia", "open-advisors", "open-legacies", "open-religion", "open-trade", "quick-save", "quick-load", "toggle-grid-layer", "toggle-yields-layer", "toggle-resources-layer", "toggle-frame-stats", "next-action", "keyboard-enter", "text-to-speech-keyboard" ], ENGINE_NO_SKIP_KEYDOWN = {
+}, HOTKEY_SLOT_KEYS = [ "catPrev", "catNext", "chartPrev", "chartNext", "pagePrev", "pageNext", "openHof", "openOptions" ], ENGINE_WATCHED_ACTIONS = [ "unit-heal", "unit-fortify", "unit-sleep", "unit-alert", "unit-auto-explore", "unit-move", "unit-ranged-attack", "unit-skip-turn", "open-greatworks", "open-techs", "open-civics", "open-traditions", "open-rankings", "open-attributes", "open-civilopedia", "open-advisors", "open-legacies", "open-religion", "open-trade", "open-ozq-chronicle", "quick-save", "quick-load", "toggle-grid-layer", "toggle-yields-layer", "toggle-resources-layer", "toggle-frame-stats", "next-action", "keyboard-enter", "text-to-speech-keyboard" ], ENGINE_NO_SKIP_KEYDOWN = {
   "toggle-grid-layer": !0,
   "toggle-yields-layer": !0,
   "toggle-resources-layer": !0,
@@ -205,7 +205,8 @@ const DEFAULT_HOTKEYS = {
   "next-action": !0
 }, ENGINE_GESTURE_FALLBACK = {
   "unit-heal": [ "KeyH" ],
-  "open-greatworks": [ "KeyO" ]
+  "open-greatworks": [ "KeyO" ],
+  "open-ozq-chronicle": [ "F2" ]
 }, KEY_ID_TO_CODE = {
   KEY_A: "KeyA",
   KEY_B: "KeyB",
@@ -317,18 +318,12 @@ function toGamefaceCode(code) {
 
 let engineMap = {
   actionToCodes: Object.create(null),
+  actionToLabels: Object.create(null),
   codeToActions: Object.create(null),
   boundCodes: Object.create(null),
   updated: 0,
   source: "init"
-}, cachedHotkeys = null, probeBindListenerInstalled = !1;
-
-function hotkeyNow() {
-  try {
-    if ("undefined" != typeof performance && performance.now) return performance.now();
-  } catch (e) {}
-  return Date.now();
-}
+}, cachedHotkeys = null, inputBindedListenerInstalled = !1, inputActionBindedTimer = null;
 
 function invalidateHotkeysCache() {
   cachedHotkeys = null;
@@ -343,20 +338,26 @@ function keyIdToCode(keyId) {
   if ("string" == typeof keyId) {
     if (KEY_ID_TO_CODE[keyId]) return KEY_ID_TO_CODE[keyId];
     if (0 === keyId.indexOf("KEY_") && KEY_ID_TO_CODE[keyId]) return KEY_ID_TO_CODE[keyId];
-    if (0 === keyId.indexOf("Key") || 0 === keyId.indexOf("Digit") || 0 === keyId.indexOf("Arrow") || 0 === keyId.indexOf("Numpad") || 0 === keyId.indexOf("NumPad")) return toGamefaceCode(keyId);
+    if (0 === keyId.indexOf("Key") || 0 === keyId.indexOf("Digit") || 0 === keyId.indexOf("Arrow") || 0 === keyId.indexOf("Numpad") || 0 === keyId.indexOf("NumPad") || keyId.length >= 2 && "F" === keyId.charAt(0) && keyId.charAt(1) >= "1" && keyId.charAt(1) <= "9") return toGamefaceCode(keyId);
     if (1 === keyId.length) {
       const u = keyId.toUpperCase();
       if (u >= "A" && u <= "Z") return "Key" + u;
       if (u >= "0" && u <= "9") return "Digit" + u;
+      if ("`" === u || "~" === u) return "Backquote";
     }
     return KEY_ID_TO_CODE["KEY_" + keyId] || "";
   }
   if ("number" == typeof keyId) try {
     if ("undefined" != typeof InputKeys && InputKeys) {
+      const rev = InputKeys[keyId];
+      if ("string" == typeof rev && rev) {
+        if (KEY_ID_TO_CODE[rev]) return KEY_ID_TO_CODE[rev];
+        if (0 === rev.indexOf("KEY_")) return KEY_ID_TO_CODE[rev] || "";
+      }
       const names = Object.keys(InputKeys);
       for (let i = 0; i < names.length; i++) {
         const n = names[i];
-        if (InputKeys[n] === keyId) {
+        if (!(n.charAt(0) >= "0" && n.charAt(0) <= "9") && InputKeys[n] === keyId) {
           if (KEY_ID_TO_CODE[n]) return KEY_ID_TO_CODE[n];
           if (0 === n.indexOf("KEY_")) return KEY_ID_TO_CODE[n] || "";
         }
@@ -366,15 +367,47 @@ function keyIdToCode(keyId) {
   return "";
 }
 
-function isWatchedEngineAction(name) {
-  return !!(name && ENGINE_WATCHED_ACTIONS.indexOf(name) >= 0);
+function gestureDisplayToCode(disp) {
+  if (null == disp || "string" != typeof disp) return "";
+  let s = disp.trim();
+  if (!s) return "";
+  if (s.indexOf("+") >= 0) {
+    const parts = s.split("+");
+    if (s = (parts[parts.length - 1] || "").trim(), !s) return "";
+  }
+  const fm = /^F([1-9]|1[0-2])$/i.exec(s);
+  if (fm) return "F" + fm[1];
+  if ("~" === s || "`" === s) return "Backquote";
+  if (1 === s.length) return keyIdToCode(s);
+  const named = {
+    Space: "Space",
+    Tab: "Tab",
+    Esc: "Escape",
+    Escape: "Escape",
+    Enter: "Enter",
+    Return: "Enter",
+    Backspace: "Backspace",
+    Delete: "Delete",
+    Insert: "Insert",
+    Home: "Home",
+    End: "End",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
+    Left: "ArrowLeft",
+    Right: "ArrowRight",
+    Up: "ArrowUp",
+    Down: "ArrowDown"
+  };
+  return named[s] ? named[s] : KEY_ID_TO_CODE[s] ? KEY_ID_TO_CODE[s] : KEY_ID_TO_CODE["KEY_" + s] ? KEY_ID_TO_CODE["KEY_" + s] : keyIdToCode(s);
 }
 
-function isEngineBoundHotkeyCode(code) {
-  return !(!code || !engineMap.boundCodes[code]);
+function engineCodesForAction(name) {
+  if (!name) return [];
+  const live = engineMap.actionToCodes[name];
+  if (live && live.length) return live.slice();
+  const fb = ENGINE_GESTURE_FALLBACK[name];
+  return fb ? fb.slice() : [];
 }
-
-const EAT_WORLD_ENGINE_ACTIONS = [ "keyboard-nav-left", "keyboard-nav-right", "keyboard-nav-up", "keyboard-nav-down", "cycle-prev", "cycle-next" ];
 
 const DEFAULT_SETTINGS = {
   fog: !0,
@@ -389,6 +422,52 @@ function normalizeHotkeys(raw) {
     "string" == typeof v && v && (out[k] = toGamefaceCode(v));
   }
   return out;
+}
+
+function formatHotkeyCode(code) {
+  if (!code) return "?";
+  const pretty = {
+    BracketLeft: "[",
+    BracketRight: "]",
+    Comma: ",",
+    Period: ".",
+    ArrowLeft: "←",
+    ArrowRight: "→",
+    ArrowUp: "↑",
+    ArrowDown: "↓",
+    Space: "Space",
+    Tab: "Tab",
+    Escape: "Esc",
+    Minus: "-",
+    Equals: "=",
+    Equal: "=",
+    SemiColon: ";",
+    Semicolon: ";",
+    Quote: "'",
+    Backslash: "\\",
+    Slash: "/",
+    Backquote: "`",
+    IntlBackslash: "\\",
+    InternationalBackslash: "\\"
+  };
+  if (code in pretty) return pretty[code];
+  if (0 === code.indexOf("Key") && 4 === code.length) return code.charAt(3);
+  if (0 === code.indexOf("Digit")) return code.slice(5);
+  const np = /^Num[Pp]ad(.+)$/.exec(code);
+  if (np) {
+    const rest = np[1];
+    if (1 === rest.length && rest >= "0" && rest <= "9") return "Num" + rest;
+    return {
+      Add: "Num+",
+      Subtract: "Num-",
+      Multiply: "Num*",
+      Divide: "Num/",
+      Decimal: "Num.",
+      Enter: "NumEnter",
+      Backspace: "NumBksp"
+    }[rest] || "Num" + rest;
+  }
+  return code;
 }
 
 function readSettings() {
@@ -562,28 +641,45 @@ globalThis.ozqChronicleCommon = {
   DEFAULT_SETTINGS: DEFAULT_SETTINGS,
   DEFAULT_HOTKEYS: DEFAULT_HOTKEYS,
   HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS,
-  HOTKEY_PROBE: false,
   ENGINE_WATCHED_ACTIONS: ENGINE_WATCHED_ACTIONS,
   ENGINE_NO_SKIP_KEYDOWN: ENGINE_NO_SKIP_KEYDOWN,
   ENGINE_GESTURE_FALLBACK: ENGINE_GESTURE_FALLBACK,
-  isWatchedEngineAction: isWatchedEngineAction,
-  engineCodesForAction: function(name) {
+  isWatchedEngineAction: function(name) {
+    return !!(name && ENGINE_WATCHED_ACTIONS.indexOf(name) >= 0);
+  },
+  engineCodesForAction: engineCodesForAction,
+  engineLabelsForAction: function(name) {
     if (!name) return [];
-    const live = engineMap.actionToCodes[name];
-    if (live && live.length) return live.slice();
-    const fb = ENGINE_GESTURE_FALLBACK[name];
-    return fb ? fb.slice() : [];
+    const labs = engineMap.actionToLabels[name];
+    if (labs && labs.length) return labs.slice();
+    const codes = engineCodesForAction(name), out = [];
+    for (let i = 0; i < codes.length; i++) {
+      const lab = formatHotkeyCode(codes[i]);
+      lab && "?" !== lab && out.indexOf(lab) < 0 && out.push(lab);
+    }
+    return out;
   },
   nativeActionsForCode: function(code) {
     if (!code) return [];
     const list = engineMap.codeToActions[code];
     return list ? list.slice() : [];
   },
-  isEngineBoundHotkeyCode: isEngineBoundHotkeyCode,
-  refreshEngineKeyMap: function refreshEngineKeyMap(reason) {
-    hotkeyNow();
-    const actionToCodes = Object.create(null), codeToActions = Object.create(null), boundCodes = Object.create(null);
-    let source = "fallback", gestureSamples = 0;
+  isEngineBoundHotkeyCode: function(code) {
+    return !(!code || !engineMap.boundCodes[code]);
+  },
+  refreshEngineKeyMap: function refreshEngineKeyMap() {
+    const actionToCodes = Object.create(null), actionToLabels = Object.create(null), codeToActions = Object.create(null), boundCodes = Object.create(null), actionHadLive = Object.create(null);
+    let source = "fallback";
+    const pushCode = (actionName, codes, code) => {
+      if (!code || codes.indexOf(code) >= 0) return;
+      codes.push(code);
+      actionMarksKeydownSkip(actionName) && (boundCodes[code] = !0), codeToActions[code] || (codeToActions[code] = []), 
+      codeToActions[code].indexOf(actionName) < 0 && codeToActions[code].push(actionName);
+    }, pushLabel = (labels, lab) => {
+      if (!lab || "string" != typeof lab) return;
+      const s = lab.trim();
+      !s || labels.indexOf(s) >= 0 || labels.push(s);
+    };
     try {
       if ("undefined" != typeof Input && Input && "function" == typeof Input.getActionIdByName) {
         source = "live";
@@ -597,7 +693,8 @@ globalThis.ozqChronicleCommon = {
             actionId = null;
           }
           if (null == actionId || 0 === actionId || !1 === actionId) continue;
-          const codes = [];
+          const codes = [], labels = [];
+          let sawLive = !1;
           for (let g = 0; g < 2; g++) {
             let raw = null;
             try {
@@ -605,37 +702,27 @@ globalThis.ozqChronicleCommon = {
             } catch (e) {
               raw = null;
             }
-            const code = keyIdToCode(raw);
-            code && codes.indexOf(code) < 0 && codes.push(code);
-          }
-          if (!codes.length && "function" == typeof Input.getGestureDisplayString) for (let g = 0; g < 2; g++) {
             let disp = null;
             try {
-              disp = Input.getGestureDisplayString(actionId, g, dev, ctxAll);
+              "function" == typeof Input.getGestureDisplayString && (disp = Input.getGestureDisplayString(actionId, g, dev, ctxAll));
             } catch (e) {
               disp = null;
             }
-            if (disp && "string" == typeof disp && 1 === disp.length) {
-              const code = keyIdToCode(disp);
-              code && codes.indexOf(code) < 0 && codes.push(code);
-            }
+            !(null == raw || "" === raw || 0 === raw || -1 === raw || !1 === raw) && (sawLive = !0), 
+            disp && "string" == typeof disp && disp.trim() && (sawLive = !0, pushLabel(labels, disp));
+            let code = keyIdToCode(raw);
+            !code && disp && (code = gestureDisplayToCode(disp)), code && pushCode(actionName, codes, code);
           }
-          if (!codes.length) {
+          if (sawLive && (actionHadLive[actionName] = !0), codes.length || sawLive) {
+            if (!labels.length && codes.length) for (let c = 0; c < codes.length; c++) pushLabel(labels, formatHotkeyCode(codes[c]));
+          } else {
             const fb = ENGINE_GESTURE_FALLBACK[actionName];
             if (fb) {
-              for (let f = 0; f < fb.length; f++) codes.indexOf(fb[f]) < 0 && codes.push(fb[f]);
+              for (let f = 0; f < fb.length; f++) pushCode(actionName, codes, fb[f]), pushLabel(labels, formatHotkeyCode(fb[f]));
               "live" === source && (source = "live+fallback");
             }
           }
-          if (codes.length) {
-            actionToCodes[actionName] = codes, gestureSamples += codes.length;
-            const markSkip = actionMarksKeydownSkip(actionName);
-            for (let c = 0; c < codes.length; c++) {
-              const code = codes[c];
-              markSkip && (boundCodes[code] = !0), codeToActions[code] || (codeToActions[code] = []), 
-              codeToActions[code].indexOf(actionName) < 0 && codeToActions[code].push(actionName);
-            }
-          }
+          codes.length && (actionToCodes[actionName] = codes), labels.length && (actionToLabels[actionName] = labels);
         }
       } else source = "no-Input";
     } catch (e) {
@@ -644,27 +731,42 @@ globalThis.ozqChronicleCommon = {
     const fbNames = Object.keys(ENGINE_GESTURE_FALLBACK);
     for (let i = 0; i < fbNames.length; i++) {
       const n = fbNames[i];
-      if (!actionToCodes[n] || !actionToCodes[n].length) {
+      if (!actionHadLive[n] && (!actionToCodes[n] || !actionToCodes[n].length)) {
         actionToCodes[n] = ENGINE_GESTURE_FALLBACK[n].slice();
         const codes = actionToCodes[n], markSkip = actionMarksKeydownSkip(n);
         for (let c = 0; c < codes.length; c++) markSkip && (boundCodes[codes[c]] = !0), 
         codeToActions[codes[c]] || (codeToActions[codes[c]] = []), codeToActions[codes[c]].indexOf(n) < 0 && codeToActions[codes[c]].push(n);
+        if (!actionToLabels[n] || !actionToLabels[n].length) {
+          const labs = [];
+          for (let c = 0; c < codes.length; c++) pushLabel(labs, formatHotkeyCode(codes[c]));
+          labs.length && (actionToLabels[n] = labs);
+        }
         "live" === source && (source = "live+fallback");
       }
     }
     if (engineMap = {
       actionToCodes: actionToCodes,
+      actionToLabels: actionToLabels,
       codeToActions: codeToActions,
       boundCodes: boundCodes,
       updated: Date.now(),
       source: source
-    }, hotkeyNow(), !probeBindListenerInstalled) {
-      probeBindListenerInstalled = !0;
+    }, !inputBindedListenerInstalled) {
+      inputBindedListenerInstalled = !0;
       try {
         "undefined" != typeof engine && engine && "function" == typeof engine.on && engine.on("InputActionBinded", () => {
           try {
-            refreshEngineKeyMap("InputActionBinded");
-          } catch (e) {}
+            null != inputActionBindedTimer && clearTimeout(inputActionBindedTimer), inputActionBindedTimer = setTimeout(() => {
+              inputActionBindedTimer = null;
+              try {
+                refreshEngineKeyMap();
+              } catch (e2) {}
+            }, 150);
+          } catch (e) {
+            try {
+              refreshEngineKeyMap();
+            } catch (e2) {}
+          }
         });
       } catch (e) {}
     }
@@ -678,10 +780,7 @@ globalThis.ozqChronicleCommon = {
     }
     return null;
   },
-  EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS,
-  isEatWorldEngineAction: function(name) {
-    return !!(name && EAT_WORLD_ENGINE_ACTIONS.indexOf(name) >= 0);
-  },
+  EAT_WORLD_ENGINE_ACTIONS: [ "keyboard-nav-left", "keyboard-nav-right", "keyboard-nav-up", "keyboard-nav-down", "cycle-prev", "cycle-next" ],
   stopKeydownPeers: function(e) {
     if (e) {
       try {
@@ -706,55 +805,8 @@ globalThis.ozqChronicleCommon = {
     return cachedHotkeys;
   },
   invalidateHotkeysCache: invalidateHotkeysCache,
-  probeKeydownLog: function(surface, code, steps, extra) {},
-  probeEngineLog: function(surface, name, status, codes, steps, extra) {},
-  hotkeyNow: hotkeyNow,
   normalizeHotkeys: normalizeHotkeys,
-  formatHotkeyCode: function(code) {
-    if (!code) return "?";
-    const pretty = {
-      BracketLeft: "[",
-      BracketRight: "]",
-      Comma: ",",
-      Period: ".",
-      ArrowLeft: "←",
-      ArrowRight: "→",
-      ArrowUp: "↑",
-      ArrowDown: "↓",
-      Space: "Space",
-      Tab: "Tab",
-      Escape: "Esc",
-      Minus: "-",
-      Equals: "=",
-      Equal: "=",
-      SemiColon: ";",
-      Semicolon: ";",
-      Quote: "'",
-      Backslash: "\\",
-      Slash: "/",
-      Backquote: "`",
-      IntlBackslash: "\\",
-      InternationalBackslash: "\\"
-    };
-    if (code in pretty) return pretty[code];
-    if (0 === code.indexOf("Key") && 4 === code.length) return code.charAt(3);
-    if (0 === code.indexOf("Digit")) return code.slice(5);
-    const np = /^Num[Pp]ad(.+)$/.exec(code);
-    if (np) {
-      const rest = np[1];
-      if (1 === rest.length && rest >= "0" && rest <= "9") return "Num" + rest;
-      return {
-        Add: "Num+",
-        Subtract: "Num-",
-        Multiply: "Num*",
-        Divide: "Num/",
-        Decimal: "Num.",
-        Enter: "NumEnter",
-        Backspace: "NumBksp"
-      }[rest] || "Num" + rest;
-    }
-    return code;
-  },
+  formatHotkeyCode: formatHotkeyCode,
   resolveHotkeyCode: function(e) {
     if (!e) return "";
     if (e.code) return toGamefaceCode(e.code);

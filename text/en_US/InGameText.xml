@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Engine LOC for Accessibility → Keyboard + Mouse (data-l10n-id / Locale.compose).
+     Chrome/metrics stay in scripts/chronicle-i18n.js; only native Input action labels live here. -->
+<Database>
+    <EnglishText>
+        <Replace Tag="LOC_UI_KBM_MAPPING_OPEN_OZQ_CHRONICLE">
+            <Text>Open Chronicle</Text>
+        </Replace>
+        <Replace Tag="LOC_UI_KBM_MAPPING_OPEN_OZQ_CHRONICLE_TT">
+            <Text>Open the Chronicle overlay while playing.</Text>
+        </Replace>
+    </EnglishText>
+</Database>

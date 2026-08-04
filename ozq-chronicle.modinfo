@@ -6,7 +6,7 @@
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.33.31</Version>
+        <Version>0.33.50</Version>
     </Properties>
 
     <Dependencies>
@@ -28,10 +28,16 @@
                 <LoadOrder>2</LoadOrder>
             </Properties>
             <Actions>
+                <UpdateText>
+                    <Item>text/en_US/InGameText.xml</Item>
+                    <Item locale="zh_Hans_CN">text/zh_Hans_CN/InGameText.xml</Item>
+                    <Item locale="zh_Hant_HK">text/zh_Hant_HK/InGameText.xml</Item>
+                </UpdateText>
                 <UIScripts>
                     <Item>scripts/chronicle-i18n.js</Item>
                     <Item>scripts/chronicle-common.js</Item>
                     <Item>scripts/chronicle-options.js</Item>
+                    <Item>scripts/chronicle-kbm-editor.js</Item>
                     <Item>scripts/chronicle-endgame-graphs.js</Item>
                     <Item>scripts/chronicle-logger.js</Item>
                     <Item>scripts/chronicle-hof.js</Item>
@@ -43,10 +49,19 @@
                 <LoadOrder>2</LoadOrder>
             </Properties>
             <Actions>
+                <UpdateDatabase>
+                    <Item>config/chronicle-input.xml</Item>
+                </UpdateDatabase>
+                <UpdateText>
+                    <Item>text/en_US/InGameText.xml</Item>
+                    <Item locale="zh_Hans_CN">text/zh_Hans_CN/InGameText.xml</Item>
+                    <Item locale="zh_Hant_HK">text/zh_Hant_HK/InGameText.xml</Item>
+                </UpdateText>
                 <UIScripts>
                     <Item>scripts/chronicle-i18n.js</Item>
                     <Item>scripts/chronicle-common.js</Item>
                     <Item>scripts/chronicle-options.js</Item>
+                    <Item>scripts/chronicle-kbm-editor.js</Item>
                     <Item>scripts/chronicle-endgame-graphs.js</Item>
                     <Item>scripts/chronicle-hof.js</Item>
                 </UIScripts>

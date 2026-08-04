@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Non-English UpdateText: LocalizedText + Language (EnglishText has no Language column). -->
+<Database>
+    <LocalizedText>
+        <Replace Tag="LOC_UI_KBM_MAPPING_OPEN_OZQ_CHRONICLE" Language="zh_Hant_HK">
+            <Text>開啟編年史</Text>
+        </Replace>
+        <Replace Tag="LOC_UI_KBM_MAPPING_OPEN_OZQ_CHRONICLE_TT" Language="zh_Hant_HK">
+            <Text>遊戲進行中開啟編年史界面。</Text>
+        </Replace>
+    </LocalizedText>
+</Database>

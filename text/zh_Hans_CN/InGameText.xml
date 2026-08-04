@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Non-English UpdateText: LocalizedText + Language (EnglishText has no Language column —
+     wrong shape → "Content configuration validation failed" on load in zh locales). -->
+<Database>
+    <LocalizedText>
+        <Replace Tag="LOC_UI_KBM_MAPPING_OPEN_OZQ_CHRONICLE" Language="zh_Hans_CN">
+            <Text>打开编年史</Text>
+        </Replace>
+        <Replace Tag="LOC_UI_KBM_MAPPING_OPEN_OZQ_CHRONICLE_TT" Language="zh_Hans_CN">
+            <Text>游戏进行中打开编年史界面。</Text>
+        </Replace>
+    </LocalizedText>
+</Database>

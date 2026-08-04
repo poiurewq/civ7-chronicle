@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chronicle world-level open action for the engine Input system.
+  MUST be applied via shell-scope UpdateDatabase only (frontend DB). Gameplay DB has no
+  InputActions table — game-scope UpdateDatabase fails with "Content configuration
+  validation failed" (Database.log: no such table: InputActions). Same placement as
+  core config/Input.xml and Map Trix config/bz-input.xml.
+
+  Default KEY_F2: vanilla binds every A–Z letter; F1 is Rankings (nearest stats panel).
+-->
+<Database>
+    <InputActions>
+        <Replace ActionId="open-ozq-chronicle" DeviceType="Keyboard"
+                 Name="LOC_UI_KBM_MAPPING_OPEN_OZQ_CHRONICLE"
+                 Description="LOC_UI_KBM_MAPPING_OPEN_OZQ_CHRONICLE_TT" />
+    </InputActions>
+    <InputContextConstraints>
+        <Replace ActionId="open-ozq-chronicle" ContextId="Unit"/>
+        <Replace ActionId="open-ozq-chronicle" ContextId="World"/>
+    </InputContextConstraints>
+    <InputActionDefaultGestures>
+        <Replace ActionId="open-ozq-chronicle" Index="0" GestureType="KBMouse" GestureData="KEY_F2"/>
+    </InputActionDefaultGestures>
+</Database>

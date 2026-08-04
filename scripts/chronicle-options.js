@@ -2,7 +2,7 @@ const LOG = "[chronicle-options]";
 
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, readSettings: readSettings, writeSettings: writeSettings, DEFAULT_HOTKEYS: DEFAULT_HOTKEYS, HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, nativeActionsForCode: nativeActionsForCode, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, hotkeyNow: hotkeyNow, probeKeydownLog: probeKeydownLog, probeEngineLog: probeEngineLog} = globalThis.ozqChronicleCommon, T = (key, ...args) => L(key, ...args), SETTINGS = [ {
+const {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, readSettings: readSettings, writeSettings: writeSettings, DEFAULT_HOTKEYS: DEFAULT_HOTKEYS, HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, nativeActionsForCode: nativeActionsForCode, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, engineLabelsForAction: engineLabelsForAction, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode} = globalThis.ozqChronicleCommon, T = (key, ...args) => L(key, ...args), SETTINGS = [ {
   key: "fog",
   invert: !0,
   label: "LOC_CHRONICLE_OPT_SHOW_UNMET",
@@ -122,32 +122,81 @@ function applyHotkeyCapture(code, fromEngine) {
 }
 
 function onOptionsKeydown(e) {
-  const t0 = hotkeyNow();
   if (!activeRoot || !isTopOverlay(activeRoot.id)) return;
   if (e.repeat) return;
   if (e.altKey || e.ctrlKey || e.metaKey) return;
   const code = resolveHotkeyCode(e);
-  if (code) {
-    if (captureSlot) {
-      if (stopKeydownPeers(e), "ShiftLeft" === code || "ShiftRight" === code || "ControlLeft" === code || "ControlRight" === code || "AltLeft" === code || "AltRight" === code || "MetaLeft" === code || "MetaRight" === code) return;
-      if ("Escape" === code) return captureCancelLatch = !0, void cancelHotkeyCapture();
-      if (HOTKEY_CAPTURE_BLOCKED[code] || e.shiftKey) return;
-      return applyHotkeyCapture(code), void probeKeydownLog("options", code, [ {
-        n: "total",
-        ms: hotkeyNow() - t0
-      } ], "capture=1");
+  if (code) if (captureSlot) {
+    if (stopKeydownPeers(e), "ShiftLeft" === code || "ShiftRight" === code || "ControlLeft" === code || "ControlRight" === code || "AltLeft" === code || "AltRight" === code || "MetaLeft" === code || "MetaRight" === code) return;
+    if ("Escape" === code) return captureCancelLatch = !0, void cancelHotkeyCapture();
+    if (HOTKEY_CAPTURE_BLOCKED[code] || e.shiftKey) return;
+    applyHotkeyCapture(code);
+  } else if (!e.shiftKey) try {
+    code !== readHotkeys().openOptions || isEngineBoundHotkeyCode(code) || (stopKeydownPeers(e), 
+    closeOptions());
+  } catch (err) {}
+}
+
+function buildHotkeySection() {
+  const section = el("div", "margin-top:18px;width:100%;box-sizing:border-box"), buttons = [];
+  let openWorldBtn = null;
+  const setLabelText = (label, text) => {
+    const s = null == text || "" === text ? "?" : String(text);
+    label.textContent !== s && (label.textContent = " ", label.textContent = s);
+  }, paintAll = () => {
+    (() => {
+      if (!openWorldBtn) return;
+      const label = openWorldBtn.querySelector(".ozq-btn-label");
+      if (!label) return;
+      const labs = engineLabelsForAction("open-ozq-chronicle");
+      setLabelText(label, labs.length ? labs.join(" / ") : "—"), label.style.color = "#E8E2D0";
+    })();
+    const hk = readHotkeys();
+    for (let i = 0; i < buttons.length; i++) {
+      const b = buttons[i], label = b.querySelector(".ozq-btn-label");
+      label && (captureSlot === b._slot ? (setLabelText(label, T("LOC_CHRONICLE_OPT_HK_PRESS")), 
+      label.style.color = "#FFD98A", b.style.opacity = "1") : (setLabelText(label, formatHotkeyCode(hk[b._slot])), 
+      label.style.color = "#E8E2D0", b.style.opacity = "0.85"));
     }
-    if (!e.shiftKey) try {
-      code !== readHotkeys().openOptions || isEngineBoundHotkeyCode(code) ? probeKeydownLog("options", code, [ {
-        n: "total",
-        ms: hotkeyNow() - t0
-      } ], "engineBound=" + (isEngineBoundHotkeyCode(code) ? 1 : 0)) : (stopKeydownPeers(e), 
-      probeKeydownLog("options", code, [ {
-        n: "total",
-        ms: hotkeyNow() - t0
-      } ], "close=1"), closeOptions());
-    } catch (err) {}
+  };
+  capturePaintAll = paintAll;
+  const titleRow = el("div", "display:flex;flex-direction:row;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;padding:10px 0;border-bottom:1px solid #3A3227"), titleText = el("div", "display:flex;flex-direction:column;flex:1 1 auto;min-width:0;margin-right:16px");
+  titleText.appendChild(el("div", "color:#F0E6D2;font-size:1.05rem", T("LOC_CHRONICLE_OPT_HK_SECTION"))), 
+  titleText.appendChild(el("div", "color:#B7A987;font-size:0.78rem;margin-top:3px", T("LOC_CHRONICLE_OPT_HK_SECTION_DESC"))), 
+  titleRow.appendChild(titleText);
+  const resetBtn = makeNativeButton(T("LOC_CHRONICLE_OPT_HK_RESET"), () => {
+    cancelHotkeyCapture(), writeSettings({
+      hotkeys: Object.assign({}, DEFAULT_HOTKEYS)
+    }), changedWhileOpen = !0, paintAll();
+  }, {
+    secondary: !0
+  });
+  resetBtn.style.opacity = "0.72", resetBtn.style.flexShrink = "0", titleRow.appendChild(resetBtn), 
+  section.appendChild(titleRow);
+  const openWorldRow = el("div", "display:flex;flex-direction:row;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #3A3227;width:100%;box-sizing:border-box"), openWorldText = el("div", "display:flex;flex-direction:column;flex:1 1 auto;min-width:0;margin-right:16px");
+  openWorldText.appendChild(el("div", "color:#F0E6D2;font-size:0.95rem", T("LOC_CHRONICLE_OPT_HK_OPEN_WORLD"))), 
+  openWorldText.appendChild(el("div", "color:#8A7F63;font-size:0.78rem;margin-top:3px", T("LOC_CHRONICLE_OPT_HK_OPEN_WORLD_NOTE"))), 
+  openWorldRow.appendChild(openWorldText), openWorldBtn = makeNativeButton("", () => {}, {
+    secondary: !0
+  }), openWorldBtn.style.flexShrink = "0", openWorldBtn.style.width = "13.33rem", 
+  openWorldBtn.style.boxSizing = "border-box", openWorldBtn.style.opacity = "0.45", 
+  openWorldBtn.style.pointerEvents = "none", openWorldBtn.style.cursor = "default", 
+  openWorldRow.appendChild(openWorldBtn), section.appendChild(openWorldRow);
+  for (let i = 0; i < HOTKEY_ROWS.length; i++) {
+    const rowDef = HOTKEY_ROWS[i], row = el("div", "display:flex;flex-direction:row;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #3A3227;width:100%;box-sizing:border-box"), textCol = el("div", "display:flex;flex-direction:column;flex:1 1 auto;min-width:0;margin-right:16px");
+    textCol.appendChild(el("div", "color:#F0E6D2;font-size:0.95rem", T(rowDef.label))), 
+    row.appendChild(textCol);
+    const button = makeNativeButton("", () => {
+      captureSlot !== rowDef.slot ? (captureSlot = rowDef.slot, captureButton = button, 
+      paintAll()) : cancelHotkeyCapture();
+    }, {
+      secondary: !0
+    });
+    button._slot = rowDef.slot, button.style.flexShrink = "0", button.style.width = "13.33rem", 
+    button.style.boxSizing = "border-box", buttons.push(button), row.appendChild(button), 
+    section.appendChild(row);
   }
+  return paintAll(), section;
 }
 
 function buildRow(setting) {
@@ -181,7 +230,7 @@ function closeOptions() {
 
 const optionsInputHandler = {
   handleInput(e) {
-    const t0 = hotkeyNow(), d = e && e.detail || {};
+    const d = e && e.detail || {};
     if (!activeRoot || !isTopOverlay(activeRoot.id)) return !0;
     if (!d.name) return !0;
     if (isWatchedEngineAction(d.name)) {
@@ -189,11 +238,7 @@ const optionsInputHandler = {
       if (captureSlot) {
         if (isPressFinished(e)) {
           const engCode = codes[0] || "";
-          engCode && !HOTKEY_CAPTURE_BLOCKED[engCode] && applyHotkeyCapture(engCode, !0), 
-          probeEngineLog("options", d.name, d.status, codes, [ {
-            n: "total",
-            ms: hotkeyNow() - t0
-          } ], "capture=1");
+          engCode && !HOTKEY_CAPTURE_BLOCKED[engCode] && applyHotkeyCapture(engCode, !0);
         }
         return !1;
       }
@@ -202,10 +247,7 @@ const optionsInputHandler = {
       if (isPressFinished(e)) try {
         const hk = readHotkeys();
         for (let i = 0; i < codes.length; i++) if (hk.openOptions === codes[i]) {
-          probeEngineLog("options", d.name, d.status, codes, [ {
-            n: "total",
-            ms: hotkeyNow() - t0
-          } ], "close=1"), closeOptions();
+          closeOptions();
           break;
         }
       } catch (err) {}
@@ -241,52 +283,12 @@ try {
       closeLabel && (closeLabel.style.color = "#E8E2D0"), actions.appendChild(closeBtn), 
       header.appendChild(actions), panel.appendChild(header);
       for (const setting of SETTINGS) panel.appendChild(buildRow(setting));
-      panel.appendChild(function() {
-        const section = el("div", "margin-top:18px;width:100%;box-sizing:border-box"), buttons = [], setLabelText = (label, text) => {
-          const s = null == text || "" === text ? "?" : String(text);
-          label.textContent !== s && (label.textContent = " ", label.textContent = s);
-        }, paintAll = () => {
-          const hk = readHotkeys();
-          for (let i = 0; i < buttons.length; i++) {
-            const b = buttons[i], label = b.querySelector(".ozq-btn-label");
-            label && (captureSlot === b._slot ? (setLabelText(label, T("LOC_CHRONICLE_OPT_HK_PRESS")), 
-            label.style.color = "#FFD98A", b.style.opacity = "1") : (setLabelText(label, formatHotkeyCode(hk[b._slot])), 
-            label.style.color = "#E8E2D0", b.style.opacity = "0.85"));
-          }
-        };
-        capturePaintAll = paintAll;
-        const titleRow = el("div", "display:flex;flex-direction:row;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;margin-bottom:4px");
-        titleRow.appendChild(el("div", "color:#F0E6D2;font-size:1.05rem;flex:1 1 auto;min-width:0;margin-right:16px", T("LOC_CHRONICLE_OPT_HK_SECTION")));
-        const resetBtn = makeNativeButton(T("LOC_CHRONICLE_OPT_HK_RESET"), () => {
-          cancelHotkeyCapture(), writeSettings({
-            hotkeys: Object.assign({}, DEFAULT_HOTKEYS)
-          }), changedWhileOpen = !0, paintAll();
-        }, {
-          secondary: !0
-        });
-        resetBtn.style.opacity = "0.72", resetBtn.style.flexShrink = "0", titleRow.appendChild(resetBtn), 
-        section.appendChild(titleRow), section.appendChild(el("div", "color:#B7A987;font-size:0.85rem;margin-bottom:10px", T("LOC_CHRONICLE_OPT_HK_SECTION_DESC")));
-        for (let i = 0; i < HOTKEY_ROWS.length; i++) {
-          const rowDef = HOTKEY_ROWS[i], row = el("div", "display:flex;flex-direction:row;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #3A3227;width:100%;box-sizing:border-box"), textCol = el("div", "display:flex;flex-direction:column;flex:1 1 auto;min-width:0;margin-right:16px");
-          textCol.appendChild(el("div", "color:#F0E6D2;font-size:0.95rem", T(rowDef.label))), 
-          row.appendChild(textCol);
-          const button = makeNativeButton("", () => {
-            captureSlot !== rowDef.slot ? (captureSlot = rowDef.slot, captureButton = button, 
-            paintAll()) : cancelHotkeyCapture();
-          }, {
-            secondary: !0
-          });
-          button._slot = rowDef.slot, button.style.flexShrink = "0", button.style.width = "13.33rem", 
-          button.style.boxSizing = "border-box", buttons.push(button), row.appendChild(button), 
-          section.appendChild(row);
-        }
-        return paintAll(), section;
-      }()), panel.appendChild(el("div", "color:#8A7F63;font-size:0.8rem;margin-top:16px", T("LOC_CHRONICLE_OPT_ALSO_IN_MENU"))), 
+      panel.appendChild(buildHotkeySection()), panel.appendChild(el("div", "color:#8A7F63;font-size:0.8rem;margin-top:16px", T("LOC_CHRONICLE_OPT_ALSO_IN_MENU"))), 
       document.body.appendChild(root);
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.33.31"
+    version: "0.33.50"
   };
 } catch (e) {}
 

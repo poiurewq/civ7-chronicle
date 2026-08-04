@@ -2,7 +2,7 @@ const LOG = "[ozq-chronicle]";
 
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, probeKeydownLog: probeKeydownLog, probeEngineLog: probeEngineLog, hotkeyNow: hotkeyNow, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
+const {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
 
 function metricYTitle(id, opts) {
   const api = chronicleI18n();
@@ -1934,6 +1934,203 @@ function bankedPrimaryColor(pid) {
 
 let activeChart = null, legendHintShown = !1;
 
+function scrubRelativePos(e, chart) {
+  if ("undefined" != typeof Chart && Chart.helpers && "function" == typeof Chart.helpers.getRelativePosition) return Chart.helpers.getRelativePosition(e, chart);
+  const rect = chart.canvas.getBoundingClientRect(), w = rect.right - rect.left, h = rect.bottom - rect.top;
+  return w > 0 && h > 0 ? {
+    x: (e.clientX - rect.left) * (chart.width / w),
+    y: (e.clientY - rect.top) * (chart.height / h)
+  } : {
+    x: 0,
+    y: 0
+  };
+}
+
+function scrubValueAtOrBeforeX(data, x) {
+  if (!data || !data.length) return null;
+  let y = null;
+  for (let i = 0; i < data.length && data[i].x <= x + 1e-9; i++) y = data[i].y;
+  return y;
+}
+
+function setTrendsHoverTooltipEnabled(chart, on) {
+  if (!chart) return;
+  chart.options && chart.options.plugins && chart.options.plugins.tooltip && (chart.options.plugins.tooltip.enabled = !!on);
+  const tip = chart.tooltip;
+  if (tip && (tip.options && (tip.options.enabled = !!on), !on)) {
+    try {
+      tip.setActiveElements([], {
+        x: 0,
+        y: 0
+      });
+    } catch (e) {}
+    tip.opacity = 0;
+  }
+  if (!on) try {
+    chart.setActiveElements([]);
+  } catch (e2) {}
+}
+
+function endTrendsScrub(chart) {
+  const state = chart && chart.$ozqScrub;
+  if (!state) return;
+  const wasActive = state.active;
+  if (state.active = !1, state.x = null, state.items = [], state.tip && (state.tip.style.display = "none"), 
+  state.onMove && window.removeEventListener("mousemove", state.onMove), state.onUp && window.removeEventListener("mouseup", state.onUp), 
+  setTrendsHoverTooltipEnabled(chart, !0), wasActive) try {
+    chart.draw();
+  } catch (e) {}
+}
+
+function detachTrendsScrubber(chart) {
+  if (!chart || !chart.$ozqScrub) return;
+  const state = chart.$ozqScrub;
+  endTrendsScrub(chart), chart.canvas && state.onDown && chart.canvas.removeEventListener("mousedown", state.onDown), 
+  state.tip && state.tip.parentNode && state.tip.parentNode.removeChild(state.tip), 
+  chart.$ozqScrub = null;
+}
+
+function bindTrendsScrubber(chart, opts) {
+  if (detachTrendsScrubber(chart), !chart || !chart.canvas || !chart.canvas.parentNode) return;
+  const tip = function(wrap) {
+    let el = wrap.querySelector(".ozq-scrub-tip");
+    return el || (el = document.createElement("div"), el.className = "ozq-scrub-tip", 
+    el.setAttribute("style", "position:absolute;display:none;pointer-events:none;z-index:4;background:rgba(6,7,10,0.92);border:1px solid rgba(232,226,208,0.25);padding:10px 12px;color:#E8E2D0;font-size:0.95rem;box-sizing:border-box;width:280px;overflow:hidden"), 
+    wrap.appendChild(el)), el;
+  }(chart.canvas.parentNode), state = {
+    active: !1,
+    x: null,
+    items: [],
+    turnLabel: opts.turnLabel,
+    fmtVal: opts.fmtVal,
+    start: opts.start,
+    end: opts.end,
+    tip: tip,
+    onDown: null,
+    onMove: null,
+    onUp: null
+  };
+  function applyAtEvent(e) {
+    if (!chart.scales || !chart.scales.x || !chart.chartArea) return;
+    const pos = scrubRelativePos(e, chart), xScale = chart.scales.x;
+    let rawX = xScale.getValueForPixel(pos.x);
+    if (null == rawX || !isFinite(rawX)) return;
+    null != state.start && isFinite(state.start) && rawX < state.start && (rawX = state.start), 
+    null != state.end && isFinite(state.end) && state.end >= state.start && rawX > state.end && (rawX = state.end);
+    const x = function(chart, rawX, start, end) {
+      let best = null, bestD = 1 / 0;
+      const datasets = chart.data.datasets || [];
+      for (let di = 0; di < datasets.length; di++) {
+        const meta = chart.getDatasetMeta(di);
+        if (meta && meta.hidden) continue;
+        const data = datasets[di].data;
+        if (data) for (let i = 0; i < data.length; i++) {
+          const d = Math.abs(data[i].x - rawX);
+          d < bestD && (bestD = d, best = data[i].x);
+        }
+      }
+      if (null != best) return best;
+      let x = Math.round(rawX);
+      return null != start && isFinite(start) && x < start && (x = Math.round(start)), 
+      null != end && isFinite(end) && end >= start && x > end && (x = Math.round(end)), 
+      x;
+    }(chart, rawX, state.start, state.end);
+    state.x = x, state.items = function(chart, x, fmtVal) {
+      const items = [], datasets = chart.data.datasets || [];
+      for (let di = 0; di < datasets.length; di++) {
+        const meta = chart.getDatasetMeta(di);
+        if (meta && meta.hidden) continue;
+        const ds = datasets[di], y = scrubValueAtOrBeforeX(ds.data, x);
+        null != y && isFinite(Number(y)) && items.push({
+          label: ds.label || "",
+          color: ds.borderColor || "#E8E2D0",
+          y: Number(y),
+          text: fmtVal(y)
+        });
+      }
+      return items.sort((a, b) => b.y - a.y), items;
+    }(chart, x, state.fmtVal), function(tip, turnTitle, items) {
+      for (;tip.firstChild; ) tip.removeChild(tip.firstChild);
+      if (!items.length) return void (tip.style.display = "none");
+      const title = document.createElement("div");
+      title.textContent = turnTitle, title.setAttribute("style", "color:#F5EFDD;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"), 
+      tip.appendChild(title);
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i], row = document.createElement("div");
+        row.setAttribute("style", "display:flex;flex-direction:row;align-items:center;margin-top:3px;min-width:0;width:100%");
+        const sw = document.createElement("div");
+        sw.setAttribute("style", "width:10px;height:10px;margin-right:8px;flex-shrink:0;background-color:" + it.color);
+        const name = document.createElement("div");
+        name.textContent = it.label || "", name.setAttribute("style", "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap");
+        const val = document.createElement("div");
+        val.textContent = it.text, val.setAttribute("style", "flex-shrink:0;margin-left:10px;white-space:nowrap"), 
+        row.appendChild(sw), row.appendChild(name), row.appendChild(val), tip.appendChild(row);
+      }
+      tip.style.display = "block";
+    }(state.tip, state.turnLabel(x), state.items);
+    const px = xScale.getPixelForValue(x);
+    !function(tip, chart, px) {
+      const ca = chart.chartArea;
+      if (!ca) return;
+      const rect = chart.canvas.getBoundingClientRect(), cssW = rect.right - rect.left, cssH = rect.bottom - rect.top;
+      if (!(cssW > 0 && chart.width > 0)) return;
+      const scaleX = cssW / chart.width, scaleY = cssH / chart.height, leftCss = px * scaleX, topCss = ca.top * scaleY, tipW = tip.offsetWidth || 280;
+      let left = leftCss + 12;
+      left + tipW > cssW - 4 && (left = leftCss - tipW - 12), left < 4 && (left = 4), 
+      left + tipW > cssW - 4 && (left = Math.max(4, cssW - tipW - 4)), tip.style.left = left + "px", 
+      tip.style.top = Math.max(4, topCss) + "px", tip.style.right = "auto";
+    }(state.tip, chart, px), setTrendsHoverTooltipEnabled(chart, !1);
+    try {
+      chart.draw();
+    } catch (err) {}
+  }
+  function onDown(e) {
+    if (null != e.button && 0 !== e.button) return;
+    if (!chart.chartArea || !chart.scales || !chart.scales.x) return;
+    const pos = scrubRelativePos(e, chart), ca = chart.chartArea;
+    pos.x < ca.left || pos.x > ca.right || pos.y < ca.top || pos.y > ca.bottom || (state.active = !0, 
+    setTrendsHoverTooltipEnabled(chart, !1), applyAtEvent(e), window.addEventListener("mousemove", onMove), 
+    window.addEventListener("mouseup", onUp), e.preventDefault && e.preventDefault());
+  }
+  function onMove(e) {
+    state.active && applyAtEvent(e);
+  }
+  function onUp() {
+    state.active && endTrendsScrub(chart);
+  }
+  chart.$ozqScrub = state, state.onDown = onDown, state.onMove = onMove, state.onUp = onUp, 
+  chart.canvas.addEventListener("mousedown", onDown);
+}
+
+const ozqScrubberPlugin = {
+  id: "ozqScrubber",
+  afterDraw(chart) {
+    const s = chart.$ozqScrub;
+    if (!s || !s.active || null == s.x) return;
+    const xScale = chart.scales.x, yScale = chart.scales.y, ca = chart.chartArea;
+    if (!xScale || !yScale || !ca) return;
+    const px = xScale.getPixelForValue(s.x);
+    if (px < ca.left - 1 || px > ca.right + 1) return;
+    const ctx = chart.ctx;
+    ctx.save(), ctx.beginPath(), ctx.moveTo(px, ca.top), ctx.lineTo(px, ca.bottom), 
+    ctx.lineWidth = 1.5, ctx.strokeStyle = "rgba(232,226,208,0.88)", ctx.setLineDash([ 5, 4 ]), 
+    ctx.stroke(), ctx.setLineDash([]);
+    const items = s.items || [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (null == it.y || !isFinite(it.y)) continue;
+      const py = yScale.getPixelForValue(it.y);
+      py < ca.top - 2 || py > ca.bottom + 2 || (ctx.beginPath(), ctx.arc(px, py, 5, 0, 2 * Math.PI), 
+      ctx.fillStyle = it.color, ctx.fill(), ctx.lineWidth = 1.5, ctx.strokeStyle = "rgba(6,7,10,0.9)", 
+      ctx.stroke());
+    }
+    ctx.restore();
+  },
+  beforeDestroy(chart) {
+    detachTrendsScrubber(chart);
+  }
+};
+
 function renderChart(ui, metric, view, page) {
   if ("board" === metric.kind) return activeChart && (activeChart.destroy(), activeChart = null), 
   setNote(ui, byTypeNote(metric), metric), ui.chartInner.style.display = "none", ui.board.style.display = "block", 
@@ -2135,6 +2332,7 @@ function renderChart(ui, metric, view, page) {
         data: {
           datasets: datasets
         },
+        plugins: [ ozqScrubberPlugin ],
         options: {
           maintainAspectRatio: !1,
           animation: !1,
@@ -2198,10 +2396,16 @@ function renderChart(ui, metric, view, page) {
             }
           }
         }
+      }, config._ozqScrubOpts = {
+        turnLabel: turnLabel,
+        fmtVal: fmtVal,
+        start: start,
+        end: end
       };
     }
   }
-  activeChart = new Chart(ui.canvas.getContext("2d"), config), requestAnimationFrame(() => {
+  activeChart = new Chart(ui.canvas.getContext("2d"), config), config._ozqScrubOpts && bindTrendsScrubber(activeChart, config._ozqScrubOpts), 
+  requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       activeChart && activeChart.resize();
     });
@@ -2455,88 +2659,51 @@ function makeScrollRow(opts) {
 
 let activeNav = null;
 
+function onWorldOpenChronicleHotkey() {
+  if (activeRoot) isTopOverlay(activeRoot.id) && closeOverlay(); else if (isLiveGameContext()) try {
+    openOverlay();
+  } catch (e) {
+    console.error(LOG + " world open hotkey failed: " + e);
+  }
+}
+
 const chronicleInputHandler = {
   handleInput(e) {
-    const t0 = hotkeyNow(), d = e && e.detail || {};
+    const d = e && e.detail || {};
     if (!activeRoot || !isTopOverlay(activeRoot.id)) return !0;
     if (!d.name) return !0;
+    if ("open-ozq-chronicle" === d.name) return isPressFinished(e) && closeOverlay(), 
+    !1;
     if (isWatchedEngineAction(d.name)) {
-      const tCodes = hotkeyNow(), codes = engineCodesForAction(d.name), msCodes = hotkeyNow() - tCodes;
+      const codes = engineCodesForAction(d.name);
       if (isPressFinished(e) && activeNav) {
-        const tHk = hotkeyNow(), hk = readHotkeys(), msHk = hotkeyNow() - tHk;
+        const hk = readHotkeys();
         let slot = null;
-        const tSlot = hotkeyNow();
         for (let i = 0; i < codes.length && (slot = hotkeySlotForCode(hk, codes[i]), !slot); i++) ;
-        const msSlot = hotkeyNow() - tSlot;
-        "openHof" === slot ? activeNav.openHof() : "openOptions" === slot ? activeNav.openOptions() : "catPrev" === slot ? activeNav.stepCategory(-1) : "catNext" === slot ? activeNav.stepCategory(1) : "chartPrev" === slot ? activeNav.stepChart(-1) : "chartNext" === slot ? activeNav.stepChart(1) : "pagePrev" === slot ? activeNav.secondaryPrev() : "pageNext" === slot && activeNav.secondaryNext(), 
-        probeEngineLog("graphs", d.name, d.status, codes, [ {
-          n: "codes",
-          ms: msCodes
-        }, {
-          n: "readHk",
-          ms: msHk
-        }, {
-          n: "slot",
-          ms: msSlot
-        }, {
-          n: "total",
-          ms: hotkeyNow() - t0
-        } ], "slot=" + (slot || "-"));
-      } else probeEngineLog("graphs", d.name, d.status, codes, [ {
-        n: "codes",
-        ms: msCodes
-      }, {
-        n: "total",
-        ms: hotkeyNow() - t0
-      } ], "phase=eat");
+        "openHof" === slot ? activeNav.openHof() : "openOptions" === slot ? activeNav.openOptions() : "catPrev" === slot ? activeNav.stepCategory(-1) : "catNext" === slot ? activeNav.stepCategory(1) : "chartPrev" === slot ? activeNav.stepChart(-1) : "chartNext" === slot ? activeNav.stepChart(1) : "pagePrev" === slot ? activeNav.secondaryPrev() : "pageNext" === slot && activeNav.secondaryNext();
+      }
       return !1;
     }
-    return isPressFinished(e) && probeEngineLog("graphs", d.name, d.status, [], [ {
-      n: "total",
-      ms: hotkeyNow() - t0
-    } ], "watched=0"), !(EAT_WORLD_ENGINE_ACTIONS.indexOf(d.name) >= 0) && (CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeOverlay(), 
+    return !(EAT_WORLD_ENGINE_ACTIONS.indexOf(d.name) >= 0) && (CANCEL_ACTIONS.indexOf(d.name) < 0 || (isPressFinished(e) && closeOverlay(), 
     !1));
   },
   handleNavigation: () => !0
 };
 
 function onOverlayKeydown(e) {
-  const t0 = hotkeyNow();
   if (!activeRoot || !isTopOverlay(activeRoot.id) || !activeNav) return;
   if (e.repeat) return;
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-  const tRes = hotkeyNow(), code = resolveHotkeyCode(e), msRes = hotkeyNow() - tRes;
+  const code = resolveHotkeyCode(e);
   if (!code) return;
-  if (isEngineBoundHotkeyCode(code)) return void probeKeydownLog("graphs", code, [ {
-    n: "resolve",
-    ms: msRes
-  }, {
-    n: "total",
-    ms: hotkeyNow() - t0
-  } ], "skip=engine-bound");
-  const tHk = hotkeyNow(), hk = readHotkeys(), msHk = hotkeyNow() - tHk;
-  let handled = !1, slot = "-";
-  if (code === hk.catPrev) handled = !!activeNav.stepCategory(-1), slot = "catPrev"; else if (code === hk.catNext) handled = !!activeNav.stepCategory(1), 
-  slot = "catNext"; else if (code === hk.chartPrev) handled = !!activeNav.stepChart(-1), 
-  slot = "chartPrev"; else if (code === hk.chartNext) handled = !!activeNav.stepChart(1), 
-  slot = "chartNext"; else if (code === hk.pagePrev) handled = !!activeNav.secondaryPrev(), 
-  slot = "pagePrev"; else if (code === hk.pageNext) handled = !!activeNav.secondaryNext(), 
-  slot = "pageNext"; else if (code === hk.openHof) handled = !!activeNav.openHof(), 
-  slot = "openHof"; else if (code === hk.openOptions) handled = !!activeNav.openOptions(), 
-  slot = "openOptions"; else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
+  if (isEngineBoundHotkeyCode(code)) return;
+  const hk = readHotkeys();
+  let handled = !1;
+  if (code === hk.catPrev) handled = !!activeNav.stepCategory(-1); else if (code === hk.catNext) handled = !!activeNav.stepCategory(1); else if (code === hk.chartPrev) handled = !!activeNav.stepChart(-1); else if (code === hk.chartNext) handled = !!activeNav.stepChart(1); else if (code === hk.pagePrev) handled = !!activeNav.secondaryPrev(); else if (code === hk.pageNext) handled = !!activeNav.secondaryNext(); else if (code === hk.openHof) handled = !!activeNav.openHof(); else if (code === hk.openOptions) handled = !!activeNav.openOptions(); else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
     const n = Number(code.replace("Digit", "").replace("NumPad", "").replace("Numpad", ""));
-    n >= 1 && n <= 7 && (handled = !!activeNav.jumpCategory(n - 1), slot = "digit" + n);
+    n >= 1 && n <= 7 && (handled = !!activeNav.jumpCategory(n - 1));
   }
-  probeKeydownLog("graphs", code, [ {
-    n: "resolve",
-    ms: msRes
-  }, {
-    n: "readHk",
-    ms: msHk
-  }, {
-    n: "total",
-    ms: hotkeyNow() - t0
-  } ], "handled=" + (handled ? 1 : 0) + " slot=" + slot), handled && stopKeydownPeers(e);
+  handled && stopKeydownPeers(e);
 }
 
 const suspendedOverlays = [];
@@ -2572,7 +2739,7 @@ function applyChartDefaults() {
 
 function openOverlayForStore(store, opts) {
   opts = opts || {}, store && store.ages && (activeRoot && (activeRoot.style.visibility = "hidden", 
-  suspendedOverlays.push({
+  activeChart && endTrendsScrub(activeChart), suspendedOverlays.push({
     root: activeRoot,
     viewMode: viewMode,
     activeChart: activeChart,
@@ -2595,7 +2762,7 @@ try {
     open: openOverlay,
     openForStore: openOverlayForStore,
     close: closeOverlay,
-    version: "0.33.31"
+    version: "0.33.50"
   };
 } catch (e) {
   try {
@@ -2603,7 +2770,7 @@ try {
       open: openOverlay,
       openForStore: openOverlayForStore,
       close: closeOverlay,
-      version: "0.33.31"
+      version: "0.33.50"
     };
   } catch (e2) {}
 }
@@ -2790,8 +2957,8 @@ function openOverlay(opts) {
   panel.appendChild(pageBar);
   const hotkeyHint = document.createElement("div");
   hotkeyHint.textContent = function() {
-    const h = readHotkeys(), cats = formatHotkeyCode(h.catPrev) + " " + formatHotkeyCode(h.catNext), charts = formatHotkeyCode(h.chartPrev) + " " + formatHotkeyCode(h.chartNext), page = formatHotkeyCode(h.pagePrev) + " " + formatHotkeyCode(h.pageNext);
-    return T("LOC_CHRONICLE_HOTKEY_HINT", cats, charts, page);
+    const h = readHotkeys(), openLabs = engineLabelsForAction("open-ozq-chronicle"), openPhrase = (openLabs.length ? openLabs.join(" / ") : "F2") + " " + T("LOC_CHRONICLE_TITLE"), cats = formatHotkeyCode(h.catPrev) + " " + formatHotkeyCode(h.catNext), charts = formatHotkeyCode(h.chartPrev) + " " + formatHotkeyCode(h.chartNext), page = formatHotkeyCode(h.pagePrev) + " " + formatHotkeyCode(h.pageNext);
+    return T("LOC_CHRONICLE_HOTKEY_HINT", openPhrase, cats, charts, page);
   }(), hotkeyHint.setAttribute("style", "color:#8A7F63;font-size:0.78rem;text-align:center;margin-top:10px;flex-shrink:0;opacity:0.9"), 
   panel.appendChild(hotkeyHint);
   const ui = {
@@ -2988,7 +3155,34 @@ scheduleInstall(function() {
   try {
     refreshEngineKeyMap("graphs-install");
   } catch (e) {}
-  console.error(`${LOG} loaded.`);
+  !function() {
+    try {
+      window.addEventListener("hotkey-open-ozq-chronicle", onWorldOpenChronicleHotkey);
+    } catch (e) {}
+    try {
+      import("/core/ui/input/hotkey-manager.js").then(m => {
+        const HM = m && m.default;
+        if (!HM || "function" != typeof HM.handleInput) return void console.error(LOG + " HotkeyManager missing; world open hotkey not installed");
+        if (HM._ozqChronicleOpenPatched) return;
+        HM._ozqChronicleOpenPatched = !0;
+        const prev = HM.handleInput;
+        HM.handleInput = function(inputEvent) {
+          try {
+            const d = inputEvent && inputEvent.detail || {};
+            if ("open-ozq-chronicle" === d.name && "undefined" != typeof InputActionStatuses && d.status === InputActionStatuses.FINISH) return "function" == typeof this.sendHotkeyEvent ? this.sendHotkeyEvent("open-ozq-chronicle") : onWorldOpenChronicleHotkey(), 
+            !1;
+          } catch (e) {
+            console.error(LOG + " world open handler: " + e);
+          }
+          return prev.apply(this, arguments);
+        };
+      }).catch(e => {
+        console.error(LOG + " HotkeyManager import failed: " + e);
+      });
+    } catch (e) {
+      console.error(LOG + " installWorldOpenHotkey: " + e);
+    }
+  }(), console.error(`${LOG} loaded.`);
 });
 
 export { };
