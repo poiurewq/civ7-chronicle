@@ -7,6 +7,11 @@ const {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TI
   invert: !0,
   label: "LOC_CHRONICLE_OPT_SHOW_UNMET",
   description: "LOC_CHRONICLE_OPT_SHOW_UNMET_DESC"
+}, {
+  key: "unitFog",
+  invert: !0,
+  label: "LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS",
+  description: "LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS_DESC"
 } ], HOTKEY_ROWS = [ {
   slot: "catPrev",
   label: "LOC_CHRONICLE_OPT_HK_CAT_PREV"
@@ -288,7 +293,7 @@ try {
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.33.50"
+    version: "0.33.56"
   };
 } catch (e) {}
 

@@ -64,7 +64,7 @@ function loadLoggerStore() {
 
 const isMajorPid = makeIsMajorPid(loadLoggerStore);
 
-let openedFromEndGame = !1, fogOn = !1, _visiblePidCache = null, _relVisibleCache = null, _hiddenMajorCount = null, hasMetThrewLogged = !1, revealThrewLogged = !1;
+let openedFromEndGame = !1, fogOn = !1, unitFogOn = !1, _visiblePidCache = null, _relVisibleCache = null, _hiddenMajorCount = null, hasMetThrewLogged = !1, revealThrewLogged = !1;
 
 function localPlayerId() {
   try {
@@ -73,20 +73,14 @@ function localPlayerId() {
   return -1;
 }
 
-function computeFogActive() {
-  if (isHistoricalView()) return !1;
-  if (!isLiveGameContext()) return !1;
-  let want = !0;
-  try {
-    want = !!readSettings().fog;
-  } catch (e) {}
-  return !!want && !(openedFromEndGame && !function() {
+function fogContextAllows() {
+  return !isHistoricalView() && (!!isLiveGameContext() && !(openedFromEndGame && !function() {
     try {
       return !(!Game.AgeProgressManager || !Game.AgeProgressManager.isExtendedGame);
     } catch (e) {
       return !1;
     }
-  }());
+  }()));
 }
 
 function isVisiblePid(pid) {
@@ -1579,7 +1573,13 @@ function readByTypeData(metric) {
           let snap = null;
           try {
             const log = "undefined" != typeof globalThis && globalThis.ozqChronicleLog || "undefined" != typeof window && window.ozqChronicleLog;
-            log && "function" == typeof log.snapshotStock && (snap = log.snapshotStock());
+            if (log && "function" == typeof log.snapshotStock) if (unitFogOn) {
+              const lp = localPlayerId();
+              lp >= 0 ? snap = log.snapshotStock({
+                unitVisionLocalPid: lp
+              }) : (snap = log.snapshotStock(), snap && "object" == typeof snap && (snap = Object.assign({}, snap), 
+              snap.UnitsOwnedByType = {}));
+            } else snap = log.snapshotStock();
           } catch (e) {}
           _stockSnapshotCache = snap || {};
         }
@@ -1608,6 +1608,10 @@ function readByTypeData(metric) {
     }(metric.id)) {
       if (livePids.has(r.pid)) continue;
       if (!isVisiblePid(r.pid)) continue;
+      if (unitFogOn && "UnitsOwnedByType" === metric.id) {
+        const lp = localPlayerId();
+        if (lp < 0 || Number(r.pid) !== lp) continue;
+      }
       const k = `${r.pid}|${r.type}`;
       cur.set(k, r.val);
     }
@@ -2424,6 +2428,7 @@ function setNote(ui, text, metric) {
     }();
     fog && parts.push(fog);
   }
+  unitFogOn && metric && "UnitsOwnedByType" === metric.id && parts.push(T("LOC_CHRONICLE_FOG_UNIT_VISION")), 
   ui.note.textContent = parts.join("  ·  ");
 }
 
@@ -2712,12 +2717,13 @@ function closeOverlay() {
   activeChart && (activeChart.destroy(), activeChart = null), activeRoot && (forgetOverlay(activeRoot.id), 
   activeRoot.remove(), activeRoot = null), activeNav = null;
   const onClose = viewMode && viewMode.onClose;
-  if (viewMode = null, fogOn = !1, openedFromEndGame = !1, colorMapCache = null, invalidateOpenCaches(), 
-  function() {
+  if (viewMode = null, fogOn = !1, unitFogOn = !1, openedFromEndGame = !1, colorMapCache = null, 
+  invalidateOpenCaches(), function() {
     const s = suspendedOverlays.pop();
     s && (activeRoot = s.root, activeNav = s.nav || null, viewMode = s.viewMode, activeChart = s.activeChart, 
     colorMapCache = s.colorMapCache, legendHintShown = s.legendHintShown, fogOn = !!s.fogOn, 
-    openedFromEndGame = !!s.openedFromEndGame, activeRoot.style.visibility = "", invalidateOpenCaches());
+    unitFogOn = !!s.unitFogOn, openedFromEndGame = !!s.openedFromEndGame, activeRoot.style.visibility = "", 
+    invalidateOpenCaches());
   }(), "function" == typeof onClose) try {
     onClose();
   } catch (e) {}
@@ -2746,10 +2752,12 @@ function openOverlayForStore(store, opts) {
     colorMapCache: colorMapCache,
     legendHintShown: legendHintShown,
     fogOn: fogOn,
+    unitFogOn: unitFogOn,
     openedFromEndGame: openedFromEndGame,
     nav: activeNav
-  }), activeRoot = null, activeNav = null, viewMode = null, fogOn = !1, openedFromEndGame = !1, 
-  activeChart = null, colorMapCache = null, invalidateOpenCaches()), viewMode = {
+  }), activeRoot = null, activeNav = null, viewMode = null, fogOn = !1, unitFogOn = !1, 
+  openedFromEndGame = !1, activeChart = null, colorMapCache = null, invalidateOpenCaches()), 
+  viewMode = {
     store: store,
     title: opts.title || T("LOC_HOF_VIEWDETAILS"),
     caption: opts.caption || "",
@@ -2762,7 +2770,7 @@ try {
     open: openOverlay,
     openForStore: openOverlayForStore,
     close: closeOverlay,
-    version: "0.33.50"
+    version: "0.33.56"
   };
 } catch (e) {
   try {
@@ -2770,7 +2778,7 @@ try {
       open: openOverlay,
       openForStore: openOverlayForStore,
       close: closeOverlay,
-      version: "0.33.50"
+      version: "0.33.56"
     };
   } catch (e2) {}
 }
@@ -2818,7 +2826,21 @@ function openOverlay(opts) {
   const seq = ++openSeq, tOpen0 = openNowMs();
   applyChartDefaults(), legendHintShown = !1;
   const historical = isHistoricalView();
-  openedFromEndGame = fromEndGame, fogOn = computeFogActive();
+  openedFromEndGame = fromEndGame, fogOn = function() {
+    if (!fogContextAllows()) return !1;
+    try {
+      return !!readSettings().fog;
+    } catch (e) {
+      return !0;
+    }
+  }(), unitFogOn = function() {
+    if (!fogContextAllows()) return !1;
+    try {
+      return !!readSettings().unitFog;
+    } catch (e) {
+      return !0;
+    }
+  }();
   let flushMs = 0;
   if (invalidateOpenCaches(), !historical) try {
     const log = "undefined" != typeof globalThis && globalThis.ozqChronicleLog || "undefined" != typeof window && window.ozqChronicleLog;
@@ -2991,7 +3013,7 @@ function openOverlay(opts) {
   }, setView = v => {
     const btn = viewButtons[v];
     if (!btn || !1 !== btn._avail) {
-      curView = v;
+      (viewButtons.trend || viewButtons.stand) && (curView = v);
       for (const key of [ "trend", "stand" ]) {
         const b = viewButtons[key];
         if (!b) continue;
@@ -3071,7 +3093,7 @@ function openOverlay(opts) {
     },
     openHof: () => openHofFromHeader(),
     openOptions: () => openOptionsFromHeader()
-  }, document.body.appendChild(root), categoryRow.setButtons(catButtons), openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " metrics=" + metrics.length + " cats=" + catList.length + " historical=" + (historical ? 1 : 0) + " fog=" + (fogOn ? 1 : 0) + " hiddenMajors=" + hiddenMajorCount());
+  }, document.body.appendChild(root), categoryRow.setButtons(catButtons), openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " metrics=" + metrics.length + " cats=" + catList.length + " historical=" + (historical ? 1 : 0) + " fog=" + (fogOn ? 1 : 0) + " unitFog=" + (unitFogOn ? 1 : 0) + " hiddenMajors=" + hiddenMajorCount());
   let openMetric = metrics.find(m => m.default) || metrics[0], openView = null;
   if (!historical && liveSessionSelection && liveSessionSelection.metricId) {
     const remembered = metrics.find(m => m.id === liveSessionSelection.metricId);

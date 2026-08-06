@@ -24,6 +24,8 @@ Full UI in **English**, **Simplified Chinese (简体中文)**, and **Traditional
 
 Most charts have a **Trends** line for how the stat moved turn by turn and a **Standings** bar for where every civ ranks right now. Toggle under the chart. Same data, two views.
 
+A Trends line from Chronicle's log needs **3+ recorded turns**. A game logged from turn 1 shows from turn 2. A Standings bar needs only the current turn, so Standings can appear before Trends on a freshly enabled game.
+
 By-type breakdowns and World settlement leaderboards are current snapshots, so they have a single view. Population Share and the religion charts keep full Trends ⇄ Standings.
 
 ### Categories
@@ -49,16 +51,28 @@ By-type breakdowns and World settlement leaderboards are current snapshots, so t
 
 ### Fog of war and settings
 
-On a **live mid-game** open, Chronicle hides civs you have not met. No line, bar, legend entry, tooltip, by-type column, or settlement-board row. Captions say how many civs are withheld, for example `3 civs not yet met`. Settlement boards filter by **plot discovery**, not owner-met. Religions founded by unmet civs are hidden. You are always fully visible.
+**Unmet-civs fog** (`settings.fog`): on a **live mid-game** open, Chronicle can hide civs you
+have not met. No line, bar, legend entry, tooltip, by-type column, or settlement-board row.
+Captions say how many civs are withheld, for example `3 civs not yet met`. Settlement boards
+filter by **plot discovery**, not owner-met. Religions founded by unmet civs are hidden. You
+are always fully visible.
 
-Fog is **off** for end-game results, Hall of Fame, and Game Details. Take *just one more turn* and fog returns. The per-turn log is never fogged, so post-game review still has the full record.
+That fog is **off** for end-game results, Hall of Fame, and Game Details. Take *just one more
+turn* and it returns. The per-turn log is never fogged, so post-game review still has the full
+record.
+
+**Unit vision fog** (`settings.unitFog`): on Units Owned by Type, other civs only count units
+you can currently see on the map (your own army is always full, including packs). Separate from
+unmet-civs fog.
 
 **Settings** use one stored value in two places:
 
 - Main Menu or pause → **Options → Add-ons → Chronicle**
 - An **Options** button in every Chronicle / Hall of Fame / Game Details header
 
-The first setting is **Show data for civs you haven't met**. Default off, so fog stays on. Hotkey rebinding is on Chronicle's own Options panel only, not Add-ons.
+**Show data for civs you haven't met** — default off, so unmet-civs fog stays on.
+**Show opponent units outside your vision** — default off, so unit vision fog stays on.
+Hotkey rebinding is on Chronicle's own Options panel only, not Add-ons.
 
 ### Keyboard navigation
 
@@ -85,11 +99,11 @@ Enable Chronicle mid-game and you still get a full chart for the current Age rat
 
 When the game's version of a stat is not quite the same thing, the chart says so rather than quietly swapping it. **Settlements Total** becomes **Settlements Founded** when it falls back, because the game counts what you *founded*, not what you currently *hold*.
 
+**By-type breakdowns** span every Age Chronicle was running for. The game keeps only the current Age, so Chronicle banks each Age's tally as it ends. Captions name the Ages covered.
+
 ## Limitations
 
 - **Cross-Age history exists only for Ages you played with Chronicle enabled.** Enable it before starting a game for the whole story. The game itself can only fill in the Age you are currently in.
-- **By-type breakdowns** span every Age Chronicle was running for. The game keeps only the current Age, so Chronicle banks each Age's tally as it ends. Captions name the Ages covered.
-- A trend line from Chronicle's log needs **3+ recorded turns**. A game logged from turn 1 shows from turn 2. A standings bar needs only the current turn, so Standings can appear before Trends on a freshly enabled game.
 
 ## Installation
 

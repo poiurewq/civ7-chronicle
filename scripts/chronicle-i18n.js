@@ -89,6 +89,8 @@
     LOC_CHRONICLE_OPT_OFF: "Off",
     LOC_CHRONICLE_OPT_SHOW_UNMET: "Show data for civs you haven't met",
     LOC_CHRONICLE_OPT_SHOW_UNMET_DESC: "Off: while a game is in progress, Chronicle hides civs you have not met yet. End-game Chronicle and Hall of Fame still show everyone.",
+    LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS: "Show opponent units outside your vision",
+    LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS_DESC: "Off: while a game is in progress, Units Owned by Type counts only opponent units you can currently see.",
     LOC_CHRONICLE_OPT_ALSO_IN_MENU: "Non-hotkey settings are also under Main Menu → Options → Add-ons.",
     LOC_CHRONICLE_OPT_HK_SECTION: "Hotkeys",
     LOC_CHRONICLE_OPT_HK_SECTION_DESC: "Rebind hotkeys. Click a key, then press a new one. Escape cancels. Keys 1-7 stay fixed.",
@@ -108,6 +110,7 @@
     LOC_CHRONICLE_FOG_UNMET_ONE: "1 civ not yet met",
     LOC_CHRONICLE_FOG_UNMET_N: "{1} civs not yet met",
     LOC_CHRONICLE_FOG_KNOWN_WORLD: "Known world only",
+    LOC_CHRONICLE_FOG_UNIT_VISION: "Units in vision only",
     LOC_CHRONICLE_HOTKEY_HINT: "{1} · 1–7 · {2} categories · {3} charts · {4} view/pages"
   }, ZH_HANS = {
     LOC_CHRONICLE_CAT_Research: "研究",
@@ -199,6 +202,8 @@
     LOC_CHRONICLE_OPT_OFF: "关",
     LOC_CHRONICLE_OPT_SHOW_UNMET: "显示尚未遇见的文明",
     LOC_CHRONICLE_OPT_SHOW_UNMET_DESC: "关闭时：游戏进行中，编年史会隐藏你尚未遇见的文明。结局编年史与名人堂仍会显示所有文明。",
+    LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS: "显示视野外的对手单位",
+    LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS_DESC: "关闭时：游戏进行中，「现有兵种」只统计你当前能看见的对手单位。",
     LOC_CHRONICLE_OPT_ALSO_IN_MENU: "非快捷键设置也可在「主菜单 → 选项 → 附加内容」中找到。",
     LOC_CHRONICLE_OPT_HK_SECTION: "快捷键",
     LOC_CHRONICLE_OPT_HK_SECTION_DESC: "重绑快捷键。点击后按新键；Escape 取消。1-7 键固定。",
@@ -218,6 +223,7 @@
     LOC_CHRONICLE_FOG_UNMET_ONE: "1 个文明尚未遇见",
     LOC_CHRONICLE_FOG_UNMET_N: "{1} 个文明尚未遇见",
     LOC_CHRONICLE_FOG_KNOWN_WORLD: "仅限已知世界",
+    LOC_CHRONICLE_FOG_UNIT_VISION: "仅限视野内单位",
     LOC_CHRONICLE_HOTKEY_HINT: "{1} · 1–7 · {2} 类别 · {3} 图表 · {4} 视图/翻页"
   }, ZH_HANT = {
     LOC_CHRONICLE_CAT_Research: "研究",
@@ -309,6 +315,8 @@
     LOC_CHRONICLE_OPT_OFF: "關",
     LOC_CHRONICLE_OPT_SHOW_UNMET: "顯示尚未遇見的文明",
     LOC_CHRONICLE_OPT_SHOW_UNMET_DESC: "關閉時：遊戲進行中，編年史會隱藏你尚未遇見的文明。結局編年史與名人堂仍會顯示所有文明。",
+    LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS: "顯示視野外的對手單位",
+    LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS_DESC: "關閉時：遊戲進行中，「現有兵種」只統計你目前能看見的對手單位。",
     LOC_CHRONICLE_OPT_ALSO_IN_MENU: "非快捷鍵設定亦可在「主選單 → 選項 → 附加內容」中找到。",
     LOC_CHRONICLE_OPT_HK_SECTION: "快捷鍵",
     LOC_CHRONICLE_OPT_HK_SECTION_DESC: "重綁快捷鍵。點擊後按新鍵；Escape 取消。1-7 鍵固定。",
@@ -328,6 +336,7 @@
     LOC_CHRONICLE_FOG_UNMET_ONE: "1 個文明尚未遇見",
     LOC_CHRONICLE_FOG_UNMET_N: "{1} 個文明尚未遇見",
     LOC_CHRONICLE_FOG_KNOWN_WORLD: "僅限已知世界",
+    LOC_CHRONICLE_FOG_UNIT_VISION: "僅限視野內單位",
     LOC_CHRONICLE_HOTKEY_HINT: "{1} · 1–7 · {2} 類別 · {3} 圖表 · {4} 視圖/翻頁"
   }, METRICS = {
     score: {

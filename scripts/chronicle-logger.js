@@ -709,7 +709,14 @@ function inc(map, key) {
   key && (map[key] = (map[key] || 0) + 1);
 }
 
-function snapshotLiveStockByType() {
+function snapshotLiveStockByType(opts) {
+  const visionPid = opts && null != opts.unitVisionLocalPid ? Number(opts.unitVisionLocalPid) : -1, applyUnitVision = visionPid >= 0;
+  let visEnum = null;
+  if (applyUnitVision) try {
+    visEnum = "undefined" != typeof RevealedStates ? RevealedStates.VISIBLE : null;
+  } catch (e) {
+    visEnum = null;
+  }
   const out = {
     [STOCK_IDS.units]: {},
     [STOCK_IDS.buildings]: {},
@@ -726,6 +733,23 @@ function snapshotLiveStockByType() {
         if (ids) for (const uid of ids) try {
           const u = "undefined" != typeof Units && Units.get ? Units.get(uid) : null;
           if (!u) continue;
+          if (applyUnitVision && p.id !== visionPid) {
+            try {
+              if (!1 === u.isOnMap) continue;
+            } catch (eOn) {
+              continue;
+            }
+            const loc = u.location;
+            if (!loc || null == loc.x || null == loc.y) continue;
+            if (null == visEnum || "undefined" == typeof GameplayMap || "function" != typeof GameplayMap.getRevealedState) continue;
+            let st = null;
+            try {
+              st = GameplayMap.getRevealedState(visionPid, loc.x, loc.y);
+            } catch (eRev) {
+              continue;
+            }
+            if (st !== visEnum) continue;
+          }
           const un = unitTypeName(u.type);
           if (un) {
             inc(units, un);
@@ -1237,9 +1261,9 @@ function init() {
       const api = {
         flushNow: reason => flushNow(reason || "api"),
         isDirty: () => !!storeDirty,
-        snapshotStock: () => {
+        snapshotStock: opts => {
           try {
-            return snapshotLiveStockByType();
+            return snapshotLiveStockByType(opts);
           } catch (e) {
             return {};
           }
