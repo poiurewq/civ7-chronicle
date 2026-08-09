@@ -2770,7 +2770,7 @@ try {
     open: openOverlay,
     openForStore: openOverlayForStore,
     close: closeOverlay,
-    version: "0.33.56"
+    version: "0.33.57"
   };
 } catch (e) {
   try {
@@ -2778,7 +2778,7 @@ try {
       open: openOverlay,
       openForStore: openOverlayForStore,
       close: closeOverlay,
-      version: "0.33.56"
+      version: "0.33.57"
     };
   } catch (e2) {}
 }
