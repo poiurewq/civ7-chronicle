@@ -12,6 +12,10 @@ const {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TI
   invert: !0,
   label: "LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS",
   description: "LOC_CHRONICLE_OPT_SHOW_HIDDEN_UNITS_DESC"
+}, {
+  key: "dock",
+  label: "LOC_CHRONICLE_OPT_DOCK",
+  description: "LOC_CHRONICLE_OPT_DOCK_DESC"
 } ], HOTKEY_ROWS = [ {
   slot: "catPrev",
   label: "LOC_CHRONICLE_OPT_HK_CAT_PREV"
@@ -92,12 +96,14 @@ function checkboxValue(setting) {
 
 function setCheckbox(setting, checked) {
   const stored = setting.invert ? !checked : !!checked;
-  writeSettings({
+  if (writeSettings({
     [setting.key]: stored
-  });
+  }), "dock" === setting.key) try {
+    globalThis.ozqChronicleGraphs.refreshDockButton();
+  } catch (e) {}
 }
 
-const PANEL_BOX_DIALOG = [ "position:fixed", "left:20%", "top:12%", "width:60%", "height:72%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px " + PANEL_PAD_X + "px", "overflow-x:hidden", "overflow-y:auto" ].join(";");
+const PANEL_BOX_DIALOG = [ "position:fixed", "left:20%", "top:10%", "width:60%", "height:80%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px " + PANEL_PAD_X + "px", "overflow-x:hidden", "overflow-y:auto" ].join(";");
 
 let activeRoot = null, activeOnClose = null, changedWhileOpen = !1, captureSlot = null, captureButton = null, capturePaintAll = null, captureCancelLatch = !1, captureEngineLatchCode = null;
 
@@ -293,7 +299,7 @@ try {
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.33.57"
+    version: "0.33.79"
   };
 } catch (e) {}
 

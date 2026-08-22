@@ -2770,7 +2770,8 @@ try {
     open: openOverlay,
     openForStore: openOverlayForStore,
     close: closeOverlay,
-    version: "0.33.57"
+    refreshDockButton: refreshDockButton,
+    version: "0.33.79"
   };
 } catch (e) {
   try {
@@ -2778,7 +2779,8 @@ try {
       open: openOverlay,
       openForStore: openOverlayForStore,
       close: closeOverlay,
-      version: "0.33.57"
+      refreshDockButton: refreshDockButton,
+      version: "0.33.79"
     };
   } catch (e2) {}
 }
@@ -3145,8 +3147,38 @@ function injectPauseMenuButton(container) {
   resume && resume.nextSibling ? container.insertBefore(button, resume.nextSibling) : container.insertBefore(button, container.firstChild);
 }
 
+function injectDockButton(slot) {
+  if (slot.querySelector("#ozq-chronicle-dock-button")) return;
+  const button = document.createElement("fxs-activatable");
+  button.id = "ozq-chronicle-dock-button", button.classList.add("ssb__element", "ssb__button"), 
+  button.setAttribute("data-tooltip-content", T("LOC_CHRONICLE_DOCK_TOOLTIP")), button.setAttribute("data-audio-group-ref", "audio-panel-sub-system-dock"), 
+  button.setAttribute("data-audio-press-ref", "data-audio-press-small"), button.setAttribute("data-audio-focus-ref", "data-audio-focus-small"), 
+  button.setAttribute("data-audio-activate-ref", "none"), button.addEventListener("action-activate", () => openOverlay());
+  for (const state of [ "", "--hover", "--active", "--disabled" ]) {
+    const layer = document.createElement("div");
+    layer.classList.add("ssb__button-iconbg"), state && layer.classList.add(`ssb__button-iconbg${state}`), 
+    button.appendChild(layer);
+  }
+  const icon = document.createElement("div");
+  icon.classList.add("ssb__button-icon"), icon.style.backgroundImage = "url('fs://game/ozq-chronicle/art/dock-wreath.png')", 
+  icon.style.backgroundSize = "62%", icon.style.backgroundPosition = "55% 53%", button.appendChild(icon), 
+  slot.appendChild(button);
+}
+
+function refreshDockButton() {
+  const slot = document.getElementById("panel-sub-system-dock-mod-slot");
+  slot && (readSettings().dock ? injectDockButton(slot) : function() {
+    const existing = document.getElementById("ozq-chronicle-dock-button");
+    existing && existing.parentElement && existing.parentElement.removeChild(existing);
+  }());
+}
+
 function isResultsScreen(el) {
   return el instanceof HTMLElement && "string" == typeof el.localName && "screen-victory-progress" === el.localName.toLowerCase();
+}
+
+function findById(node, id) {
+  return node instanceof HTMLElement ? node.id === id ? node : node.querySelector ? node.querySelector(`#${id}`) : null : null;
 }
 
 function inspectNode(node) {
@@ -3155,17 +3187,17 @@ function inspectNode(node) {
     injectButton(el);
     break;
   }
-  const pause = function(node) {
-    return node instanceof HTMLElement ? "pause-menu-button-container" === node.id ? node : node.querySelector ? node.querySelector("#pause-menu-button-container") : null : null;
-  }(node);
+  const pause = findById(node, "pause-menu-button-container");
   pause && injectPauseMenuButton(pause);
+  const dock = findById(node, "panel-sub-system-dock-mod-slot");
+  dock && readSettings().dock && injectDockButton(dock);
 }
 
 scheduleInstall(function() {
   const existing = document.querySelector("screen-victory-progress");
   existing && injectButton(existing);
   const existingPause = document.getElementById("pause-menu-button-container");
-  existingPause && injectPauseMenuButton(existingPause), new MutationObserver(mutations => {
+  existingPause && injectPauseMenuButton(existingPause), refreshDockButton(), new MutationObserver(mutations => {
     for (const mutation of mutations) for (const added of mutation.addedNodes) inspectNode(added);
   }).observe(document.body, {
     childList: !0,

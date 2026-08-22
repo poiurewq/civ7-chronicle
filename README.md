@@ -8,6 +8,7 @@ Civ 7 tracks a lot of historical data and barely shows it. Chronicle surfaces it
 
 Open a full-screen stats overlay from:
 
+- The **Chronicle button on the sub-system dock**, top left beside Resources, Great Works, and Legacies. It opens Chronicle without pausing the game. Turn it off in settings.
 - **F2** any turn while the map is focused. Rebind under Options → Accessibility → Keyboard + Mouse.
 - The **pause menu** on any turn. Chronicle leaves the pause menu open behind it.
 - The **end-of-game results screen**. Accessibility hotkeys including F2 do not fire there, same as the base game.
@@ -62,8 +63,8 @@ turn* and it returns. The per-turn log is never fogged, so post-game review stil
 record.
 
 **Unit vision fog** (`settings.unitFog`): on Units Owned by Type, other civs only count units
-you can currently see on the map (your own army is always full, including packs). Separate from
-unmet-civs fog.
+you can currently see on the map. Your own army always counts in full, packs included. Separate
+from unmet-civs fog.
 
 **Settings** use one stored value in two places:
 
@@ -72,6 +73,8 @@ unmet-civs fog.
 
 **Show data for civs you haven't met** — default off, so unmet-civs fog stays on.
 **Show opponent units outside your vision** — default off, so unit vision fog stays on.
+**Show Chronicle button on the sub-system dock** — default on. Turning it off removes the button
+right away, and the pause menu and hotkey still open Chronicle.
 Hotkey rebinding is on Chronicle's own Options panel only, not Add-ons.
 
 ### Keyboard navigation

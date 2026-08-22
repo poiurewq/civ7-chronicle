@@ -412,6 +412,7 @@ function engineCodesForAction(name) {
 const DEFAULT_SETTINGS = {
   fog: !0,
   unitFog: !0,
+  dock: !0,
   hotkeys: Object.assign({}, DEFAULT_HOTKEYS)
 };
 

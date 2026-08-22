@@ -6,7 +6,7 @@
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.33.57</Version>
+        <Version>0.33.79</Version>
     </Properties>
 
     <Dependencies>
@@ -28,6 +28,9 @@
                 <LoadOrder>2</LoadOrder>
             </Properties>
             <Actions>
+                <ImportFiles>
+                    <Item>art/dock-wreath.png</Item>
+                </ImportFiles>
                 <UpdateText>
                     <Item>text/en_US/InGameText.xml</Item>
                     <Item locale="zh_Hans_CN">text/zh_Hans_CN/InGameText.xml</Item>
