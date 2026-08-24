@@ -91,6 +91,8 @@ While Chronicle or Game Details is open:
 
 Rebind under **Options** in the overlay header. Number keys **1–7** stay fixed. A short footer hint shows the current binds.
 
+These keys belong to Chronicle while it is open. Opened mid-game without pausing, Chronicle stops map lens, layer, and panel hotkeys from acting on the world underneath, including bindings other mods add.
+
 ## Where the data comes from
 
 Each chart uses whichever source holds more of your game:

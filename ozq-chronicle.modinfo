@@ -6,7 +6,7 @@
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.33.79</Version>
+        <Version>0.33.80</Version>
     </Properties>
 
     <Dependencies>

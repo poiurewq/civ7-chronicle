@@ -409,6 +409,8 @@ function engineCodesForAction(name) {
   return fb ? fb.slice() : [];
 }
 
+const EAT_WORLD_ENGINE_ACTIONS = [ "keyboard-nav-left", "keyboard-nav-right", "keyboard-nav-up", "keyboard-nav-down", "cycle-prev", "cycle-next" ];
+
 const DEFAULT_SETTINGS = {
   fog: !0,
   unitFog: !0,
@@ -782,7 +784,10 @@ globalThis.ozqChronicleCommon = {
     }
     return null;
   },
-  EAT_WORLD_ENGINE_ACTIONS: [ "keyboard-nav-left", "keyboard-nav-right", "keyboard-nav-up", "keyboard-nav-down", "cycle-prev", "cycle-next" ],
+  EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS,
+  isEatableWorldAction: function(name) {
+    return !("string" != typeof name || !name) && (EAT_WORLD_ENGINE_ACTIONS.indexOf(name) >= 0 || (0 === name.indexOf("open-") || 0 === name.indexOf("toggle-") || /-lens$/.test(name) || /-layer$/.test(name)));
+  },
   stopKeydownPeers: function(e) {
     if (e) {
       try {
