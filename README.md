@@ -140,7 +140,8 @@ If you use [CivMods](https://civmods.com), open the [Chronicle install link](htt
 
 ## Compatibility
 
-- Additive UI patch. It overwrites no base-game files, so it is resilient to game updates and unlikely to conflict with other mods.
+- Requires Civ 7 version 1.5.0 or later.
+- Additive UI patch. It overwrites no base-game files and is unlikely to conflict with other mods.
 - Requires the base game only. No dependencies.
 - Chronicle stores its per-turn log under the community shared `modSettings` key. Same convention as Policy Yields Previews, City Hall, and Better Options Menu. Their settings are preserved when Chronicle reads and writes its own data.
 - Updating from an older Chronicle migrates existing history into the shared key automatically on first launch.

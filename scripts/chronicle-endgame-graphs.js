@@ -2,7 +2,7 @@ const LOG = "[ozq-chronicle]";
 
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
+const {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
 
 function metricYTitle(id, opts) {
   const api = chronicleI18n();
@@ -2724,7 +2724,7 @@ function closeOverlay() {
     colorMapCache = s.colorMapCache, legendHintShown = s.legendHintShown, fogOn = !!s.fogOn, 
     unitFogOn = !!s.unitFogOn, openedFromEndGame = !!s.openedFromEndGame, activeRoot.style.visibility = "", 
     invalidateOpenCaches());
-  }(), "function" == typeof onClose) try {
+  }(), activeRoot || removeFrontInputHandler(chronicleInputHandler), "function" == typeof onClose) try {
     onClose();
   } catch (e) {}
 }
@@ -2771,7 +2771,7 @@ try {
     openForStore: openOverlayForStore,
     close: closeOverlay,
     refreshDockButton: refreshDockButton,
-    version: "0.33.80"
+    version: "0.33.81"
   };
 } catch (e) {
   try {
@@ -2780,7 +2780,7 @@ try {
       openForStore: openOverlayForStore,
       close: closeOverlay,
       refreshDockButton: refreshDockButton,
-      version: "0.33.80"
+      version: "0.33.81"
     };
   } catch (e2) {}
 }
@@ -2869,7 +2869,8 @@ function openOverlay(opts) {
     }
     return "bar" === m.kind || "board" === m.kind ? byTypeIds.has(m.id) : standAvailable(m) || trendAvailable(m);
   }), catList = CATEGORIES.filter(c => metrics.some(m => m.category === c)), probeMs = Math.round(openNowMs() - tProbe0), root = document.createElement("div");
-  root.id = "ozq-chronicle-graphs-overlay-" + ++rootCounter, activeRoot = root, noteOverlayOpened(root.id);
+  root.id = "ozq-chronicle-graphs-overlay-" + ++rootCounter, activeRoot = root, noteOverlayOpened(root.id), 
+  installFrontInputHandler(chronicleInputHandler);
   try {
     refreshEngineKeyMap("graphs-open");
   } catch (e) {}
@@ -3202,7 +3203,7 @@ scheduleInstall(function() {
   }).observe(document.body, {
     childList: !0,
     subtree: !0
-  }), installFrontInputHandler(chronicleInputHandler);
+  });
   try {
     document.addEventListener("keydown", onOverlayKeydown, !0);
   } catch (e) {}
@@ -3214,9 +3215,11 @@ scheduleInstall(function() {
       window.addEventListener("hotkey-open-ozq-chronicle", onWorldOpenChronicleHotkey);
     } catch (e) {}
     try {
-      import("/core/ui/input/hotkey-manager.js").then(m => {
+      Promise.all([ import("/core/ui/input/hotkey-manager.js"), import("/core/ui/input/input-support.js") ]).then(([m, isMod]) => {
         const HM = m && m.default;
         if (!HM || "function" != typeof HM.handleInput) return void console.error(LOG + " HotkeyManager missing; world open hotkey not installed");
+        const IHS = isMod && isMod.InputHandlerState;
+        if (!IHS || "number" != typeof IHS.Handled) return void console.error(LOG + " InputHandlerState missing; world open hotkey not installed");
         if (HM._ozqChronicleOpenPatched) return;
         HM._ozqChronicleOpenPatched = !0;
         const prev = HM.handleInput;
@@ -3224,7 +3227,7 @@ scheduleInstall(function() {
           try {
             const d = inputEvent && inputEvent.detail || {};
             if ("open-ozq-chronicle" === d.name && "undefined" != typeof InputActionStatuses && d.status === InputActionStatuses.FINISH) return "function" == typeof this.sendHotkeyEvent ? this.sendHotkeyEvent("open-ozq-chronicle") : onWorldOpenChronicleHotkey(), 
-            !1;
+            IHS.Handled;
           } catch (e) {
             console.error(LOG + " world open handler: " + e);
           }

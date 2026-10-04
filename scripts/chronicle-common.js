@@ -1,6 +1,8 @@
+const LOG = "[chronicle-common]";
+
 function err(msg) {
   try {
-    console.error(`[chronicle-common] ${msg}`);
+    console.error(`${LOG} ${msg}`);
   } catch (e) {}
 }
 
@@ -63,7 +65,41 @@ function makeNativeButton(label, onClick, opts) {
   }), button;
 }
 
-const installedHandlers = new Set;
+const wantedHandlers = new Set, registeredAdapters = new Map;
+
+let contextManager = null, inputHandlerState = null;
+
+try {
+  Promise.all([ import("/core/ui/context-manager/context-manager.js"), import("/core/ui/input/input-support.js") ]).then(([cmMod, isMod]) => {
+    const cm = cmMod && cmMod.default, ihs = isMod && isMod.InputHandlerState;
+    cm && "function" == typeof cm.registerEngineInputHandler && Array.isArray(cm.engineInputEventHandlers) ? ihs && "number" == typeof ihs.Active && "number" == typeof ihs.Handled ? (contextManager = cm, 
+    inputHandlerState = ihs, syncFrontInputHandlers()) : console.error(LOG + " InputHandlerState missing; Escape/hotkeys disabled") : console.error(LOG + " ContextManager input chain missing; Escape/hotkeys disabled");
+  }).catch(e => {
+    console.error(LOG + " input modules failed to load: " + e);
+  });
+} catch (e) {
+  console.error(LOG + " input modules import: " + e);
+}
+
+function syncFrontInputHandlers() {
+  const cm = contextManager, ihs = inputHandlerState;
+  if (!cm || !ihs) return;
+  const arr = cm.engineInputEventHandlers;
+  registeredAdapters.forEach((adapter, handler) => {
+    if (wantedHandlers.has(handler)) return;
+    const i = arr.indexOf(adapter);
+    i >= 0 && arr.splice(i, 1), registeredAdapters.delete(handler);
+  }), wantedHandlers.forEach(handler => {
+    if (registeredAdapters.has(handler)) return;
+    const adapter = {
+      handleInput: e => handler.handleInput(e) ? ihs.Active : ihs.Handled,
+      handleNavigation: e => handler.handleNavigation(e) ? ihs.Active : ihs.Handled
+    };
+    registeredAdapters.set(handler, adapter), cm.registerEngineInputHandler(adapter);
+    const i = arr.indexOf(adapter);
+    i > 0 && (arr.splice(i, 1), arr.unshift(adapter));
+  });
+}
 
 const overlayOpenSeq = new Map;
 
@@ -558,21 +594,10 @@ globalThis.ozqChronicleCommon = {
     return !("engine-input" !== e.type || !e.detail) && ("undefined" == typeof InputActionStatuses || e.detail.status === InputActionStatuses.FINISH);
   },
   installFrontInputHandler: function(handler) {
-    if (handler && !installedHandlers.has(handler)) {
-      installedHandlers.add(handler);
-      try {
-        import("/core/ui/context-manager/context-manager.js").then(m => {
-          const cm = m && m.default;
-          if (!cm || "function" != typeof cm.registerEngineInputHandler) return;
-          cm.registerEngineInputHandler(handler);
-          const arr = cm.engineInputEventHandlers;
-          if (Array.isArray(arr)) {
-            const i = arr.indexOf(handler);
-            i > 0 && (arr.splice(i, 1), arr.unshift(handler));
-          }
-        }).catch(() => {});
-      } catch (e) {}
-    }
+    handler && !wantedHandlers.has(handler) && (wantedHandlers.add(handler), syncFrontInputHandlers());
+  },
+  removeFrontInputHandler: function(handler) {
+    handler && wantedHandlers.has(handler) && (wantedHandlers.delete(handler), syncFrontInputHandlers());
   },
   scheduleInstall: function(install) {
     const tick = () => {

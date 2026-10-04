@@ -2,7 +2,7 @@ const LOG = "[chronicle-options]";
 
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, readSettings: readSettings, writeSettings: writeSettings, DEFAULT_HOTKEYS: DEFAULT_HOTKEYS, HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS, isWatchedEngineAction: isWatchedEngineAction, isEatableWorldAction: isEatableWorldAction, engineCodesForAction: engineCodesForAction, nativeActionsForCode: nativeActionsForCode, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, engineLabelsForAction: engineLabelsForAction, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode} = globalThis.ozqChronicleCommon, T = (key, ...args) => L(key, ...args), SETTINGS = [ {
+const {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, readSettings: readSettings, writeSettings: writeSettings, DEFAULT_HOTKEYS: DEFAULT_HOTKEYS, HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS, isWatchedEngineAction: isWatchedEngineAction, isEatableWorldAction: isEatableWorldAction, engineCodesForAction: engineCodesForAction, nativeActionsForCode: nativeActionsForCode, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, engineLabelsForAction: engineLabelsForAction, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode} = globalThis.ozqChronicleCommon, T = (key, ...args) => L(key, ...args), SETTINGS = [ {
   key: "fog",
   invert: !0,
   label: "LOC_CHRONICLE_OPT_SHOW_UNMET",
@@ -230,7 +230,7 @@ function buildRow(setting) {
 function closeOptions() {
   if (!activeRoot) return;
   cancelHotkeyCapture(), captureCancelLatch = !1, captureEngineLatchCode = null, capturePaintAll = null, 
-  forgetOverlay(activeRoot.id), activeRoot.remove(), activeRoot = null;
+  forgetOverlay(activeRoot.id), activeRoot.remove(), activeRoot = null, removeFrontInputHandler(optionsInputHandler);
   const onClose = activeOnClose, changed = changedWhileOpen;
   if (activeOnClose = null, changedWhileOpen = !1, "function" == typeof onClose) try {
     onClose({
@@ -277,7 +277,8 @@ try {
       if (activeRoot) return;
       activeOnClose = (opts = opts || {}).onClose || null, changedWhileOpen = !1;
       const root = el("div", "");
-      root.id = "ozq-chronicle-options-overlay", activeRoot = root, noteOverlayOpened("ozq-chronicle-options-overlay");
+      root.id = "ozq-chronicle-options-overlay", activeRoot = root, noteOverlayOpened("ozq-chronicle-options-overlay"), 
+      installFrontInputHandler(optionsInputHandler);
       try {
         refreshEngineKeyMap("options-open");
       } catch (e) {}
@@ -299,12 +300,11 @@ try {
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.33.80"
+    version: "0.33.81"
   };
 } catch (e) {}
 
 scheduleInstall(function() {
-  installFrontInputHandler(optionsInputHandler);
   try {
     document.addEventListener("keydown", onOptionsKeydown, !0);
   } catch (e) {}

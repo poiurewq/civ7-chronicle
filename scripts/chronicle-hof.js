@@ -1,6 +1,6 @@
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
+const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
 
 function err(msg) {
   try {
@@ -370,7 +370,8 @@ function sectionTitle(text) {
 }
 
 function destroyHofDom() {
-  document.getElementById(OVERLAY_ID)?.remove(), forgetOverlay(OVERLAY_ID), activeHofNav = null;
+  document.getElementById(OVERLAY_ID)?.remove(), forgetOverlay(OVERLAY_ID), removeFrontInputHandler(hofInputHandler), 
+  activeHofNav = null;
 }
 
 function closeHof() {
@@ -750,14 +751,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.33.80"
+    version: "0.33.81"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.33.80"
+      version: "0.33.81"
     };
   } catch (e2) {}
 }
@@ -794,7 +795,6 @@ function inspectNode(node) {
 }
 
 scheduleInstall(function() {
-  installFrontInputHandler(hofInputHandler);
   try {
     document.addEventListener("keydown", onHofKeydown, !0);
   } catch (e) {}
