@@ -493,6 +493,11 @@
       zh: "幸福值/回合",
       zhHant: "幸福感/回合"
     },
+    yieldHappiness: {
+      en: "Happiness",
+      zh: "幸福值",
+      zhHant: "幸福感"
+    },
     inf: {
       en: "Influence / Turn",
       zh: "影响力/回合",
@@ -667,6 +672,31 @@
       en: "Settlement Sizes",
       zh: "定居点规模",
       zhHant: "聚落規模"
+    },
+    liveTopProduction: {
+      en: "Top Production",
+      zh: "生产力最高",
+      zhHant: "生產力最高"
+    },
+    liveTopGold: {
+      en: "Top Gold",
+      zh: "金币最高",
+      zhHant: "金幣最高"
+    },
+    liveTopScience: {
+      en: "Top Science",
+      zh: "科技值最高",
+      zhHant: "科技值最高"
+    },
+    liveTopCulture: {
+      en: "Top Culture",
+      zh: "文化值最高",
+      zhHant: "文化值最高"
+    },
+    liveHappiest: {
+      en: "Happiest",
+      zh: "最幸福",
+      zhHant: "最幸福"
     },
     popShare: {
       en: "Population Share",

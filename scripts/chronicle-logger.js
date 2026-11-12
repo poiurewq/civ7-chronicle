@@ -1,6 +1,6 @@
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, loadShared: loadShared, saveShared: saveShared} = globalThis.ozqChronicleCommon, YIELD_METRICS = [ {
+const {isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, loadShared: loadShared, saveShared: saveShared} = globalThis.ozqChronicleCommon, YIELD_METRICS = [ {
   k: "hap",
   yield: "YIELD_HAPPINESS"
 }, {
@@ -1151,7 +1151,7 @@ function captureTurn(reason, force) {
             const u = c.urbanPopulation;
             null == u || isNaN(u) || (row.u = u);
           } catch (e) {}
-          out.push(row);
+          Object.assign(row, cityYields(c)), out.push(row);
         } catch (e) {}
       }
     } catch (e) {}

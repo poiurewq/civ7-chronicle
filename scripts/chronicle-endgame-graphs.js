@@ -2,7 +2,7 @@ const LOG = "[ozq-chronicle]";
 
 globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
 
-const {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
+const {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
 
 function metricYTitle(id, opts) {
   const api = chronicleI18n();
@@ -725,6 +725,31 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
       catTitle: metricKeyLabel("Population")
     };
   }
+}, {
+  id: "liveTopProduction",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("pr", "Production")
+}, {
+  id: "liveTopGold",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("g", "goldNet")
+}, {
+  id: "liveTopScience",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("sc", "Science")
+}, {
+  id: "liveTopCulture",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("cu", "Culture")
+}, {
+  id: "liveHappiest",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("hp", "yieldHappiness")
 }, {
   id: "popShare",
   category: "World",
@@ -1730,7 +1755,14 @@ function bankedSettlementRows() {
     name: null != r.n && "" !== r.n ? r.n : T("LOC_CHRONICLE_SETTLEMENT"),
     pop: r.p,
     urb: r.u,
-    pid: r.o
+    pid: r.o,
+    yields: {
+      pr: r.pr,
+      g: r.g,
+      sc: r.sc,
+      cu: r.cu,
+      hp: r.hp
+    }
   });
   return out;
 }
@@ -1754,7 +1786,8 @@ function settlementRowsForCharts() {
           name: cityName(c),
           pop: pop,
           urb: urb,
-          pid: p.id
+          pid: p.id,
+          yields: cityYields(c)
         });
       } catch (e) {}
     } catch (e) {}
@@ -1765,6 +1798,39 @@ function settlementRowsForCharts() {
 const SIZE_BUCKETS = [ [ 1, 5 ], [ 6, 10 ], [ 11, 15 ], [ 16, 20 ], [ 21, 1 / 0 ] ], SIZE_BAR_COLORS = [ "#F0DDA0", "#E0C06A", "#C9A94E", "#B0893A", "#8C6522" ];
 
 const MIN_URBAN_POP = 5;
+
+const YIELD_BOARD_TOP_N = 15;
+
+function computeTopByYield(key, valueTitleKey) {
+  const rows = [];
+  for (const r of settlementRowsForCharts()) {
+    const v = r.yields ? r.yields[key] : void 0;
+    null == v || isNaN(v) || rows.push({
+      name: r.name,
+      val: v,
+      pid: r.pid
+    });
+  }
+  rows.sort((a, b) => b.val - a.val);
+  const top = rows.slice(0, YIELD_BOARD_TOP_N);
+  return top.length ? {
+    labels: top.map(r => r.name),
+    data: top.map(r => r.val),
+    colors: top.map(r => ownerColor({
+      ownerPlayer: r.pid
+    })),
+    indexAxis: "y",
+    valueTitle: metricKeyLabel(valueTitleKey),
+    catTitle: ""
+  } : {
+    labels: [],
+    data: [],
+    colors: [],
+    indexAxis: "y",
+    valueTitle: "",
+    catTitle: ""
+  };
+}
 
 const AXIS_TICK = "#C9BFA6";
 
@@ -2771,7 +2837,7 @@ try {
     openForStore: openOverlayForStore,
     close: closeOverlay,
     refreshDockButton: refreshDockButton,
-    version: "0.33.81"
+    version: "0.33.82"
   };
 } catch (e) {
   try {
@@ -2780,7 +2846,7 @@ try {
       openForStore: openOverlayForStore,
       close: closeOverlay,
       refreshDockButton: refreshDockButton,
-      version: "0.33.81"
+      version: "0.33.82"
     };
   } catch (e2) {}
 }

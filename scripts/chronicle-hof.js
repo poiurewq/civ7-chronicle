@@ -751,14 +751,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.33.81"
+    version: "0.33.82"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.33.81"
+      version: "0.33.82"
     };
   } catch (e2) {}
 }

@@ -656,6 +656,20 @@ globalThis.ozqChronicleCommon = {
       return !1;
     };
   },
+  cityYields: function(c) {
+    const out = {}, y = c && c.Yields;
+    if (!y) return out;
+    const put = (key, read) => {
+      try {
+        const v = read();
+        null == v || isNaN(v) || (out[key] = Math.round(10 * v) / 10);
+      } catch (e) {}
+    };
+    return "function" == typeof y.getNetYield && (put("pr", () => y.getNetYield(YieldTypes.YIELD_PRODUCTION)), 
+    put("g", () => y.getNetYield(YieldTypes.YIELD_GOLD)), put("sc", () => y.getNetYield(YieldTypes.YIELD_SCIENCE)), 
+    put("cu", () => y.getNetYield(YieldTypes.YIELD_CULTURE))), "function" == typeof y.getYield && put("hp", () => y.getYield(YieldTypes.YIELD_HAPPINESS)), 
+    out;
+  },
   SHARED_KEY: "modSettings",
   SUB_KEY: SUB_KEY,
   SCHEMA: 3,
