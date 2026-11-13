@@ -695,6 +695,31 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     };
   }
 }, {
+  id: "liveTopProduction",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("pr", "Production")
+}, {
+  id: "liveTopGold",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("g", "goldNet")
+}, {
+  id: "liveTopScience",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("sc", "Science")
+}, {
+  id: "liveTopCulture",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("cu", "Culture")
+}, {
+  id: "liveHappiest",
+  category: "World",
+  kind: "live",
+  compute: () => computeTopByYield("hp", "yieldHappiness")
+}, {
   id: "liveSizeDist",
   category: "World",
   kind: "live",
@@ -725,31 +750,6 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
       catTitle: metricKeyLabel("Population")
     };
   }
-}, {
-  id: "liveTopProduction",
-  category: "World",
-  kind: "live",
-  compute: () => computeTopByYield("pr", "Production")
-}, {
-  id: "liveTopGold",
-  category: "World",
-  kind: "live",
-  compute: () => computeTopByYield("g", "goldNet")
-}, {
-  id: "liveTopScience",
-  category: "World",
-  kind: "live",
-  compute: () => computeTopByYield("sc", "Science")
-}, {
-  id: "liveTopCulture",
-  category: "World",
-  kind: "live",
-  compute: () => computeTopByYield("cu", "Culture")
-}, {
-  id: "liveHappiest",
-  category: "World",
-  kind: "live",
-  compute: () => computeTopByYield("hp", "yieldHappiness")
 }, {
   id: "popShare",
   category: "World",
@@ -2837,7 +2837,7 @@ try {
     openForStore: openOverlayForStore,
     close: closeOverlay,
     refreshDockButton: refreshDockButton,
-    version: "0.33.82"
+    version: "0.33.83"
   };
 } catch (e) {
   try {
@@ -2846,7 +2846,7 @@ try {
       openForStore: openOverlayForStore,
       close: closeOverlay,
       refreshDockButton: refreshDockButton,
-      version: "0.33.82"
+      version: "0.33.83"
     };
   } catch (e2) {}
 }
