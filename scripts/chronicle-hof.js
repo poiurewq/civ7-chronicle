@@ -47,6 +47,14 @@ try {
   err(`boot migration threw: ${e}`);
 }
 
+function loadContainer() {
+  try {
+    const c = loadShared().container;
+    if (c && Object.keys(c.games).length) return c;
+  } catch (e) {}
+  return null;
+}
+
 function agesOrdered(store) {
   return store && store.ages ? Object.keys(store.ages).map(k => {
     const a = store.ages[k];
@@ -188,25 +196,6 @@ function summarizeGame(id, store) {
 
 function isHofEligible(g) {
   return !!(g && g.leader && g.primaryCiv);
-}
-
-function allGames() {
-  const c = function() {
-    try {
-      const c = loadShared().container;
-      if (c && Object.keys(c.games).length) return c;
-    } catch (e) {}
-    return null;
-  }();
-  if (!c || !c.games) return [];
-  const out = [];
-  for (const id in c.games) {
-    const g = c.games[id];
-    if (!g || !g.ages) continue;
-    const s = summarizeGame(id, g);
-    isHofEligible(s) && out.push(s);
-  }
-  return out.sort((a, b) => (b.updated || 0) - (a.updated || 0)), out;
 }
 
 function isDecided(g) {
@@ -370,8 +359,8 @@ function sectionTitle(text) {
 }
 
 function destroyHofDom() {
-  document.getElementById(OVERLAY_ID)?.remove(), forgetOverlay(OVERLAY_ID), removeFrontInputHandler(hofInputHandler), 
-  activeHofNav = null;
+  closeConfirm(), document.getElementById(OVERLAY_ID)?.remove(), forgetOverlay(OVERLAY_ID), 
+  removeFrontInputHandler(hofInputHandler), activeHofNav = null;
 }
 
 function closeHof() {
@@ -385,6 +374,8 @@ const hofInputHandler = {
     const d = e && e.detail || {};
     if (!isTopOverlay(OVERLAY_ID)) return !0;
     if (!d.name) return !0;
+    if (activeConfirm) return CANCEL_ACTIONS.indexOf(d.name) >= 0 ? (isPressFinished(e) && closeConfirm(), 
+    !1) : !(isWatchedEngineAction(d.name) || isEatableWorldAction(d.name));
     if (isWatchedEngineAction(d.name)) {
       const codes = engineCodesForAction(d.name);
       if (isPressFinished(e)) {
@@ -403,6 +394,7 @@ const hofInputHandler = {
 
 function onHofKeydown(e) {
   if (!isTopOverlay(OVERLAY_ID) || !activeHofNav) return;
+  if (activeConfirm) return;
   if (e.repeat) return;
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
   const code = resolveHotkeyCode(e);
@@ -416,6 +408,46 @@ function onHofKeydown(e) {
     n >= 1 && n <= 5 && (handled = !!activeHofNav.jumpTab(n - 1));
   }
   handled && stopKeydownPeers(e);
+}
+
+function deleteGameDirect(id) {
+  try {
+    const r = loadShared();
+    return !!r.container.games[id] && (delete r.container.games[id], !1 !== saveShared(r.shared, r.container));
+  } catch (e) {
+    return err(`delete ${id} threw: ${e}`), !1;
+  }
+}
+
+function resetGamesDirect() {
+  try {
+    const r = loadShared(), n = Object.keys(r.container.games).length;
+    return n ? (r.container.games = {}, !1 !== saveShared(r.shared, r.container) ? n : 0) : 0;
+  } catch (e) {
+    return err(`reset threw: ${e}`), 0;
+  }
+}
+
+let activeConfirm = null;
+
+function closeConfirm() {
+  activeConfirm && (activeConfirm.remove(), activeConfirm = null);
+}
+
+function openConfirm(parent, title, lines, okLabel, onOk) {
+  closeConfirm();
+  const layer = el("div", "position:fixed;left:0;top:0;width:100%;height:100%;z-index:1000000;background:rgba(6,7,10,0.6);display:flex;align-items:center;justify-content:center;pointer-events:auto");
+  layer.addEventListener("click", ev => {
+    ev.target === layer && closeConfirm();
+  });
+  const box = el("div", "background:#16130E;border:2px solid #6B5842;padding:32px 40px;max-width:52rem;display:flex;flex-direction:column;box-sizing:border-box");
+  box.appendChild(el("div", "color:#F0E6D2;font-size:1.65rem;margin-bottom:16px", title));
+  for (const line of lines) line && box.appendChild(el("div", "color:#C9BFA6;font-size:1.38rem;margin-bottom:8px", line));
+  const row = el("div", "display:flex;justify-content:flex-end;margin-top:24px"), ok = hofButton(okLabel, () => {
+    closeConfirm(), onOk();
+  }, "#E8574A");
+  ok.style.marginRight = "12px", row.appendChild(ok), row.appendChild(hofButton(L("LOC_CHRONICLE_HOF_CANCEL"), closeConfirm, "#FFFFFF")), 
+  box.appendChild(row), layer.appendChild(box), parent.appendChild(layer), activeConfirm = layer;
 }
 
 function renderEntityGrid(body, rows, opts) {
@@ -488,9 +520,50 @@ function renderCivs(body, games) {
   });
 }
 
+function hofButton(label, onClick, labelColor) {
+  const b = makeNativeButton(label, onClick, {});
+  if (highlightButton(b, !1), labelColor) {
+    const lab = b.querySelector(".ozq-btn-label");
+    lab && (lab.style.color = labelColor), b.style.opacity = "1";
+  }
+  return b;
+}
+
+function manageLine(card, slotChild, slots) {
+  const line = el("div", "display:flex;align-items:center;flex-shrink:0;width:100%;margin-bottom:13px;box-sizing:border-box");
+  card ? (card.style.flex = "1 1 auto", card.style.minWidth = "0", card.style.width = "auto", 
+  card.style.marginBottom = "0", line.appendChild(card)) : line.appendChild(el("div", "flex:1 1 auto"));
+  const slot = function(child) {
+    const slot = el("div", "display:flex;align-items:center;justify-content:center;flex-shrink:0;width:14rem;margin-left:16px;box-sizing:border-box");
+    return child.style.width = "100%", child.style.boxSizing = "border-box", slot.appendChild(child), 
+    slot;
+  }(slotChild);
+  return slots.push(slot), line.appendChild(slot), line;
+}
+
+function sizeSlotsToClose(slots, closeEl, tries) {
+  if (!slots.length || !closeEl) return;
+  let w = closeEl.offsetWidth || 0;
+  if (w < 1) try {
+    w = closeEl.getBoundingClientRect().width || 0;
+  } catch (e) {}
+  if (w > 1) for (const s of slots) s.style.width = w + "px"; else (tries || 0) < 10 && requestAnimationFrame(() => sizeSlotsToClose(slots, closeEl, (tries || 0) + 1));
+}
+
 function openHof(opts) {
   opts = opts || {}, destroyHofDom(), installFrontInputHandler(hofInputHandler);
-  const games = allGames(), root = document.createElement("div");
+  const games = function() {
+    const c = loadContainer();
+    if (!c || !c.games) return [];
+    const out = [];
+    for (const id in c.games) {
+      const g = c.games[id];
+      if (!g || !g.ages) continue;
+      const s = summarizeGame(id, g);
+      isHofEligible(s) && out.push(s);
+    }
+    return out.sort((a, b) => (b.updated || 0) - (a.updated || 0)), out;
+  }(), root = document.createElement("div");
   root.id = OVERLAY_ID, noteOverlayOpened(OVERLAY_ID);
   try {
     refreshEngineKeyMap("hof-open");
@@ -546,6 +619,53 @@ function openHof(opts) {
       title: L("LOC_HOF_VIEWDETAILS"),
       caption: bits.join("  ·  ")
     });
+  }
+  let manageOn = !0 === opts.manage;
+  function historyManage() {
+    const ops = function() {
+      if (!IS_GAME) return {
+        liveId: null,
+        deleteGame: deleteGameDirect,
+        resetGames: resetGamesDirect
+      };
+      let api = null;
+      try {
+        api = globalThis.ozqChronicleLog || null;
+      } catch (e) {}
+      return api && "function" == typeof api.deleteGame && "function" == typeof api.resetGames ? {
+        liveId: api.liveGameId(),
+        deleteGame: api.deleteGame,
+        resetGames: api.resetGames
+      } : null;
+    }();
+    if (!ops) return null;
+    const erasable = function(liveId) {
+      const c = loadContainer();
+      return c ? Object.keys(c.games).filter(id => id !== liveId) : [];
+    }(ops.liveId), reopen = () => openHof(Object.assign({}, opts, {
+      tab: "history",
+      manage: !0
+    }));
+    return {
+      on: manageOn,
+      toggle() {
+        manageOn = !manageOn, showTab("history");
+      },
+      erasable: erasable.length,
+      isLive: g => null != ops.liveId && g.id === ops.liveId,
+      closeEl: closeBtn,
+      requestDelete(g) {
+        openConfirm(root, L("LOC_CHRONICLE_HOF_DELETE_TITLE"), [ L("LOC_CHRONICLE_HOF_DELETE_BODY", gameTitle(g)) ], L("LOC_CHRONICLE_HOF_DELETE"), () => {
+          ops.deleteGame(g.id) || err(`delete ${g.id} failed`), reopen();
+        });
+      },
+      requestReset() {
+        const n = erasable.length;
+        openConfirm(root, L("LOC_CHRONICLE_HOF_RESET_TITLE"), [ 1 === n ? L("LOC_CHRONICLE_HOF_RESET_BODY_ONE") : L("LOC_CHRONICLE_HOF_RESET_BODY_N", n), null != ops.liveId ? L("LOC_CHRONICLE_HOF_RESET_KEEPS_LIVE") : "" ], L("LOC_CHRONICLE_HOF_RESET"), () => {
+          err(`reset: erased ${ops.resetGames()} of ${n} game(s)`), reopen();
+        });
+      }
+    };
   }
   function showTab(id) {
     curTab = id, tabButtons.forEach((b, i) => highlightButton(b, tabs[i].id === id)), 
@@ -678,9 +798,17 @@ function openHof(opts) {
       const byKills = games.filter(g => null != g.unitsKilled && g.unitsKilled > 0).slice().sort((a, b) => b.unitsKilled - a.unitsKilled).slice(0, 10);
       byKills.length && rankBoard(L("LOC_CHRONICLE_HOF_MOST_KILLS"), "", byKills, g => String(g.unitsKilled), "#D96B6B"), 
       body.appendChild(boards);
-    }(body, games, openDetail) : "history" === id && function(body, games, openDetail) {
-      if (!games.length) return void body.appendChild(el("div", "color:#C9BFA6;text-align:center;padding:3rem;font-size:1.78rem", L("LOC_CHRONICLE_HOF_NO_GAMES")));
+    }(body, games, openDetail) : "history" === id && function(body, games, openDetail, manage) {
+      const showManage = !!(manage && manage.erasable > 0), managing = showManage && manage.on, slots = [], topRows = [];
+      if (showManage && topRows.push(manageLine(null, hofButton(L(manage.on ? "LOC_CHRONICLE_HOF_DONE" : "LOC_CHRONICLE_HOF_MANAGE"), manage.toggle), slots)), 
+      managing && topRows.push(manageLine(null, hofButton(L("LOC_CHRONICLE_HOF_RESET"), manage.requestReset), slots)), 
+      !games.length) {
+        for (const r of topRows) body.appendChild(r);
+        return body.appendChild(el("div", "color:#C9BFA6;text-align:center;padding:3rem;font-size:1.78rem", L("LOC_CHRONICLE_HOF_NO_GAMES"))), 
+        void sizeSlotsToClose(slots, manage && manage.closeEl);
+      }
       const list = el("div", "display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:auto;width:100%;box-sizing:border-box");
+      for (const r of topRows) list.appendChild(r);
       for (const g of games) {
         const row = makeCard({
           pad: "19px 23px",
@@ -716,10 +844,10 @@ function openHof(opts) {
         const tl = turnsLabel(g);
         tl && statsLine.appendChild(el("div", "color:#B7A987;font-size:1.38rem;white-space:nowrap", tl)), 
         statsLine.children.length && right.appendChild(statsLine), row.appendChild(right), 
-        list.appendChild(row);
+        managing ? list.appendChild(manageLine(row, manage.isLive(g) ? el("div", "color:#8A7F63;font-size:1.3rem;text-align:center", L("LOC_CHRONICLE_HOF_CURRENT_GAME")) : hofButton(L("LOC_CHRONICLE_HOF_DELETE"), () => manage.requestDelete(g)), slots)) : list.appendChild(row);
       }
-      body.appendChild(list);
-    }(body, games, openDetail);
+      body.appendChild(list), sizeSlotsToClose(slots, manage && manage.closeEl);
+    }(body, games, openDetail, historyManage());
   }
   tabs.forEach((t, i) => {
     const b = makeNativeButton(t.label, () => showTab(t.id), {});
@@ -751,14 +879,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.33.84"
+    version: "0.33.85"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.33.84"
+      version: "0.33.85"
     };
   } catch (e2) {}
 }

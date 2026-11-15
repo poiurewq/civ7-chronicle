@@ -1267,6 +1267,16 @@ function init() {
           } catch (e) {
             return {};
           }
+        },
+        liveGameId: () => guid,
+        deleteGame: id => !(!container || null == id || id === guid || !container.games[id]) && (delete container.games[id], 
+        !1 !== saveContainer(container, guid)),
+        resetGames: () => {
+          if (!container) return 0;
+          let n = 0;
+          for (const gid of Object.keys(container.games)) gid !== guid && (delete container.games[gid], 
+          n++);
+          return n && saveContainer(container, guid), n;
         }
       };
       try {

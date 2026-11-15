@@ -13,13 +13,13 @@ Open a full-screen stats overlay from:
 - The **pause menu** on any turn. Chronicle leaves the pause menu open behind it.
 - The **end-of-game results screen**. Accessibility hotkeys including F2 do not fire there, same as the base game.
 
-Open **Hall of Fame** from the Main Menu or from the Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record, per-leader and per-civilization stats, game history, and high-score / fastest-finish boards. Open any past game for Chronicle graphs from the log.
+Open **Hall of Fame** from the Main Menu or from the Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record, per-leader and per-civilization stats, game history, and high-score / fastest-finish boards. Open any past game for Chronicle graphs from the log. On the History tab, **Manage** lets you delete a recorded game or reset the whole Hall of Fame. Only Chronicle's own stats are cleared. Your save files are never touched.
 
 This mod changes no gameplay rules and does **not** affect your saved games.
 
 ### Languages
 
-Full UI in **English**, **Simplified Chinese (简体中文)**, and **Traditional Chinese (繁體中文)**. The Add-Ons menu name and description match. Dynamic game names such as Ages, leaders, unit types, and victory paths use the game's own translations.
+Full UI in **English**, **Simplified Chinese** / 简体中文, and **Traditional Chinese** / 繁體中文. The Add-Ons menu name and description match. Dynamic game names such as Ages, leaders, unit types, and victory paths use the game's own translations.
 
 ### Two views of most stats
 
@@ -52,8 +52,8 @@ By-type breakdowns and World settlement leaderboards are current snapshots, so t
 
 ### Fog of war and settings
 
-**Unmet-civs fog** (`settings.fog`): on a **live mid-game** open, Chronicle can hide civs you
-have not met. No line, bar, legend entry, tooltip, by-type column, or settlement-board row.
+**Unmet-civs fog** is the `settings.fog` setting. On a **live mid-game** open, Chronicle can
+hide civs you have not met. No line, bar, legend entry, tooltip, by-type column, or settlement-board row.
 Captions say how many civs are withheld, for example `3 civs not yet met`. Settlement boards
 filter by **plot discovery**, not owner-met. Religions founded by unmet civs are hidden. You
 are always fully visible.
@@ -62,8 +62,8 @@ That fog is **off** for end-game results, Hall of Fame, and Game Details. Take *
 turn* and it returns. The per-turn log is never fogged, so post-game review still has the full
 record.
 
-**Unit vision fog** (`settings.unitFog`): on Units Owned by Type, other civs only count units
-you can currently see on the map. Your own army always counts in full, packs included. Separate
+**Unit vision fog** is the `settings.unitFog` setting. On Units Owned by Type, other civs only
+count units you can currently see on the map. Your own army always counts in full, packs included. Separate
 from unmet-civs fog.
 
 **Settings** use one stored value in two places:
@@ -71,9 +71,9 @@ from unmet-civs fog.
 - Main Menu or pause → **Options → Add-ons → Chronicle**
 - An **Options** button in every Chronicle / Hall of Fame / Game Details header
 
-**Show data for civs you haven't met** — default off, so unmet-civs fog stays on.
-**Show opponent units outside your vision** — default off, so unit vision fog stays on.
-**Show Chronicle button on the sub-system dock** — default on. Turning it off removes the button
+**Show data for civs you haven't met**: default off, so unmet-civs fog stays on.
+**Show opponent units outside your vision**: default off, so unit vision fog stays on.
+**Show Chronicle button on the sub-system dock**: default on. Turning it off removes the button
 right away, and the pause menu and hotkey still open Chronicle.
 Hotkey rebinding is on Chronicle's own Options panel only, not Add-ons.
 

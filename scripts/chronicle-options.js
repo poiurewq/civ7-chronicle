@@ -300,7 +300,7 @@ try {
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.33.84"
+    version: "0.33.85"
   };
 } catch (e) {}
 
