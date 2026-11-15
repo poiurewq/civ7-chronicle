@@ -2837,7 +2837,7 @@ try {
     openForStore: openOverlayForStore,
     close: closeOverlay,
     refreshDockButton: refreshDockButton,
-    version: "0.33.85"
+    version: "0.33.86"
   };
 } catch (e) {
   try {
@@ -2846,7 +2846,7 @@ try {
       openForStore: openOverlayForStore,
       close: closeOverlay,
       refreshDockButton: refreshDockButton,
-      version: "0.33.85"
+      version: "0.33.86"
     };
   } catch (e2) {}
 }
@@ -2974,7 +2974,8 @@ function openOverlay(opts) {
     if (res && res.changed && !isHistoricalView()) {
       const wasFromEndGame = openedFromEndGame;
       closeOverlay(), openOverlay({
-        fromEndGame: wasFromEndGame
+        fromEndGame: wasFromEndGame,
+        navMemory: navMemory
       });
     }
   };
@@ -3062,7 +3063,10 @@ function openOverlay(opts) {
     stand: null
   };
   let curMetric = null, curView = "trend", curPage = 0, curCatIndex = 0, curChartIndex = 0, curInCat = [];
-  const renderPage = () => {
+  const navMemory = !historical && opts && opts.navMemory || {
+    chartByCat: {},
+    viewByMetric: {}
+  }, chartByCat = navMemory.chartByCat, viewByMetric = navMemory.viewByMetric, renderPage = () => {
     renderChart(ui, curMetric, curView, curPage), pageBar.textContent = "";
     const pages = curMetric && "bar" === curMetric.kind ? barPageCount(curMetric) : 1;
     if (pages <= 1) return;
@@ -3082,7 +3086,7 @@ function openOverlay(opts) {
   }, setView = v => {
     const btn = viewButtons[v];
     if (!btn || !1 !== btn._avail) {
-      (viewButtons.trend || viewButtons.stand) && (curView = v);
+      (viewButtons.trend || viewButtons.stand) && (curView = v, curMetric && curMetric.id && (viewByMetric[curMetric.id] = v));
       for (const key of [ "trend", "stand" ]) {
         const b = viewButtons[key];
         if (!b) continue;
@@ -3098,7 +3102,8 @@ function openOverlay(opts) {
   }, selectChart = (inCat, index, preferView) => {
     if (!inCat || !inCat.length || index < 0 || index >= inCat.length) return;
     curInCat = inCat, curChartIndex = index, chartButtons.forEach((b, i) => highlightButton(b, i === index)), 
-    curMetric = inCat[index];
+    curMetric = inCat[index], curMetric.id && (chartByCat[curMetric.category] = curMetric.id, 
+    viewByMetric[curMetric.id] && (preferView = viewByMetric[curMetric.id]));
     let v = (metric => {
       if (viewBar.textContent = "", viewButtons.trend = viewButtons.stand = null, "live" === metric.kind || "bar" === metric.kind || "board" === metric.kind) return viewBar.style.display = "none", 
       "stand";
@@ -3126,7 +3131,8 @@ function openOverlay(opts) {
         secondary: !0
       });
       chartButtons.push(b);
-    }), chartRow.setButtons(chartButtons), inCat.length) {
+    }), chartRow.setButtons(chartButtons), preferId || (preferId = chartByCat[catList[catIndex]]), 
+    inCat.length) {
       const idx = preferId ? Math.max(0, inCat.findIndex(m => m.id === preferId)) : 0;
       selectChart(inCat, idx < 0 ? 0 : idx, preferView);
     } else curInCat = [], curChartIndex = 0, curMetric = null;

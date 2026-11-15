@@ -46,6 +46,7 @@ By-type breakdowns and World settlement leaderboards are current snapshots, so t
 - **Hold and drag** in a Trends plot to scrub turns: a vertical crosshair snaps to the nearest logged turn, with dots on each visible series and a multi-civ value panel. Release clears. Hover tooltips stay when you are not scrubbing.
 - Stats the base game leaves empty are filled in: **Civics**, **net Gold per turn**, **Units Killed**, and **Units Lost**. Technologies and Civics **count Masteries**, not just base nodes.
 - **Eliminated civs** drop out of current standings. Their Units Killed, Lost, and trained stay on the Military charts.
+- Switch category and back and Chronicle returns to the chart you last had open there, in the Trends or Standings view you picked for it. It resets when you close Chronicle.
 - Trend lines start where the data begins and stop at the last real point.
 - Charts with no data are **hidden automatically**. An Antiquity game will not show empty Tourism or Great People charts.
 - Colors too dark to read are brightened. Near-identical civ colors are nudged apart.
