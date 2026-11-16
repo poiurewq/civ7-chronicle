@@ -6,7 +6,7 @@
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.33.86</Version>
+        <Version>0.33.87</Version>
     </Properties>
 
     <Dependencies>
@@ -30,6 +30,8 @@
             <Actions>
                 <ImportFiles>
                     <Item>art/dock-wreath.png</Item>
+                    <Item>scripts/chronicle-i18n.js</Item>
+                    <Item>scripts/chronicle-common.js</Item>
                 </ImportFiles>
                 <UpdateText>
                     <Item>text/en_US/InGameText.xml</Item>
@@ -55,6 +57,10 @@
                 <UpdateDatabase>
                     <Item>config/chronicle-input.xml</Item>
                 </UpdateDatabase>
+                <ImportFiles>
+                    <Item>scripts/chronicle-i18n.js</Item>
+                    <Item>scripts/chronicle-common.js</Item>
+                </ImportFiles>
                 <UpdateText>
                     <Item>text/en_US/InGameText.xml</Item>
                     <Item locale="zh_Hans_CN">text/zh_Hans_CN/InGameText.xml</Item>

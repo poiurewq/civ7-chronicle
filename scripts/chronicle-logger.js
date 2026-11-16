@@ -1,4 +1,4 @@
-globalThis.ozqChronicleCommon || console.error("[ozq-chronicle] chronicle-common.js did not load before this script — check the UIScripts order in ozq-chronicle.modinfo");
+import "/ozq-chronicle/scripts/chronicle-common.js";
 
 const {isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, loadShared: loadShared, saveShared: saveShared} = globalThis.ozqChronicleCommon, YIELD_METRICS = [ {
   k: "hap",

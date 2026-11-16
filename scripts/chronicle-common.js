@@ -1,3 +1,5 @@
+import "/ozq-chronicle/scripts/chronicle-i18n.js";
+
 const LOG = "[chronicle-common]";
 
 function err(msg) {
@@ -521,7 +523,7 @@ function readSettings() {
   }
 }
 
-globalThis.ozqChronicleCommon = {
+globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first published copy") : globalThis.ozqChronicleCommon = {
   chronicleI18n: chronicleI18n,
   L: L,
   metricKeyLabel: function(id) {
