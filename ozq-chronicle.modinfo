@@ -6,7 +6,7 @@
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.33.88</Version>
+        <Version>0.33.91</Version>
     </Properties>
 
     <Dependencies>
@@ -32,6 +32,7 @@
                     <Item>art/dock-wreath.png</Item>
                     <Item>scripts/chronicle-i18n.js</Item>
                     <Item>scripts/chronicle-common.js</Item>
+                    <Item>scripts/chronicle-triumphs-data.js</Item>
                 </ImportFiles>
                 <UpdateText>
                     <Item>text/en_US/InGameText.xml</Item>
@@ -45,6 +46,7 @@
                     <Item>scripts/chronicle-kbm-editor.js</Item>
                     <Item>scripts/chronicle-endgame-graphs.js</Item>
                     <Item>scripts/chronicle-logger.js</Item>
+                    <Item>scripts/chronicle-triumphs-data.js</Item>
                     <Item>scripts/chronicle-hof.js</Item>
                 </UIScripts>
             </Actions>
@@ -60,6 +62,7 @@
                 <ImportFiles>
                     <Item>scripts/chronicle-i18n.js</Item>
                     <Item>scripts/chronicle-common.js</Item>
+                    <Item>scripts/chronicle-triumphs-data.js</Item>
                 </ImportFiles>
                 <UpdateText>
                     <Item>text/en_US/InGameText.xml</Item>
@@ -72,6 +75,7 @@
                     <Item>scripts/chronicle-options.js</Item>
                     <Item>scripts/chronicle-kbm-editor.js</Item>
                     <Item>scripts/chronicle-endgame-graphs.js</Item>
+                    <Item>scripts/chronicle-triumphs-data.js</Item>
                     <Item>scripts/chronicle-hof.js</Item>
                 </UIScripts>
             </Actions>

@@ -96,6 +96,17 @@
     LOC_CHRONICLE_HOF_RESET_BODY_ONE: "1 recorded game will be erased. Your settings are kept. This cannot be undone.",
     LOC_CHRONICLE_HOF_RESET_BODY_N: "{1} recorded games will be erased. Your settings are kept. This cannot be undone.",
     LOC_CHRONICLE_HOF_RESET_KEEPS_LIVE: "The campaign in progress is kept.",
+    LOC_CHRONICLE_HOF_TRIUMPHS: "Triumphs",
+    LOC_CHRONICLE_HOF_TRI_MAJOR: "Major",
+    LOC_CHRONICLE_HOF_TRI_MINOR: "Minor",
+    LOC_CHRONICLE_HOF_TRI_ALL_MAJOR: "All Major Triumphs",
+    LOC_CHRONICLE_HOF_TRI_ALL_MINOR: "All Minor Triumphs",
+    LOC_CHRONICLE_HOF_TRI_TOTAL: "{1} of {2} triumphs completed",
+    LOC_CHRONICLE_HOF_TRI_NATIVE_ON: "Includes your 2K account's record",
+    LOC_CHRONICLE_HOF_TRI_NATIVE_OFF: "Not signed in to 2K: showing only campaigns Chronicle recorded",
+    LOC_CHRONICLE_HOF_TRI_ACCOUNT: "2K account record",
+    LOC_CHRONICLE_HOF_TRI_MORE: "+{1} more",
+    LOC_CHRONICLE_HOF_TRI_TURN: "T{1}",
     LOC_CHRONICLE_OPT_BUTTON: "Options",
     LOC_CHRONICLE_OPT_TITLE: "Chronicle Options",
     LOC_CHRONICLE_OPT_ON: "On",
@@ -224,6 +235,17 @@
     LOC_CHRONICLE_HOF_RESET_BODY_ONE: "将清除 1 场已记录的对局。你的设置会保留。此操作无法撤销。",
     LOC_CHRONICLE_HOF_RESET_BODY_N: "将清除 {1} 场已记录的对局。你的设置会保留。此操作无法撤销。",
     LOC_CHRONICLE_HOF_RESET_KEEPS_LIVE: "进行中的对局会保留。",
+    LOC_CHRONICLE_HOF_TRIUMPHS: "伟业",
+    LOC_CHRONICLE_HOF_TRI_MAJOR: "主要",
+    LOC_CHRONICLE_HOF_TRI_MINOR: "次要",
+    LOC_CHRONICLE_HOF_TRI_ALL_MAJOR: "全部主要伟业",
+    LOC_CHRONICLE_HOF_TRI_ALL_MINOR: "全部次要伟业",
+    LOC_CHRONICLE_HOF_TRI_TOTAL: "已完成 {1} / {2} 项伟业",
+    LOC_CHRONICLE_HOF_TRI_NATIVE_ON: "包含 2K 账户记录",
+    LOC_CHRONICLE_HOF_TRI_NATIVE_OFF: "未登录 2K：仅显示编年史记录的对局",
+    LOC_CHRONICLE_HOF_TRI_ACCOUNT: "2K 账户记录",
+    LOC_CHRONICLE_HOF_TRI_MORE: "另有 {1} 场",
+    LOC_CHRONICLE_HOF_TRI_TURN: "{1}回合",
     LOC_CHRONICLE_OPT_BUTTON: "设置",
     LOC_CHRONICLE_OPT_TITLE: "编年史设置",
     LOC_CHRONICLE_OPT_ON: "开",
@@ -352,6 +374,17 @@
     LOC_CHRONICLE_HOF_RESET_BODY_ONE: "將清除 1 場已記錄的對局。你的設定會保留。此操作無法復原。",
     LOC_CHRONICLE_HOF_RESET_BODY_N: "將清除 {1} 場已記錄的對局。你的設定會保留。此操作無法復原。",
     LOC_CHRONICLE_HOF_RESET_KEEPS_LIVE: "進行中的對局會保留。",
+    LOC_CHRONICLE_HOF_TRIUMPHS: "凱旋挑戰",
+    LOC_CHRONICLE_HOF_TRI_MAJOR: "大型",
+    LOC_CHRONICLE_HOF_TRI_MINOR: "小型",
+    LOC_CHRONICLE_HOF_TRI_ALL_MAJOR: "全部大型凱旋挑戰",
+    LOC_CHRONICLE_HOF_TRI_ALL_MINOR: "全部小型凱旋挑戰",
+    LOC_CHRONICLE_HOF_TRI_TOTAL: "已完成 {1} / {2} 項凱旋挑戰",
+    LOC_CHRONICLE_HOF_TRI_NATIVE_ON: "包含 2K 帳戶記錄",
+    LOC_CHRONICLE_HOF_TRI_NATIVE_OFF: "未登入 2K：僅顯示編年史記錄的對局",
+    LOC_CHRONICLE_HOF_TRI_ACCOUNT: "2K 帳戶記錄",
+    LOC_CHRONICLE_HOF_TRI_MORE: "另有 {1} 場",
+    LOC_CHRONICLE_HOF_TRI_TURN: "{1}回合",
     LOC_CHRONICLE_OPT_BUTTON: "設定",
     LOC_CHRONICLE_OPT_TITLE: "編年史設定",
     LOC_CHRONICLE_OPT_ON: "開",
@@ -874,6 +907,15 @@
         return "";
       }
     },
+    formatShortDate: function(ms) {
+      if (!ms) return "";
+      try {
+        const d = new Date(Number(ms));
+        return isNaN(d.getTime()) ? "" : isZh() ? d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate() : EN_MONTHS_SHORT[d.getMonth()] + " " + d.getDate() + " '" + String(d.getFullYear()).slice(-2);
+      } catch (e) {
+        return "";
+      }
+    },
     metricLabel: function(id) {
       const m = metricEntry(id);
       return m ? pickPair(m) : "";
@@ -897,7 +939,8 @@
       } catch (e2) {
         return String(num);
       }
-    }
+    },
+    pickPair: pickPair
   };
   root.ozqChronicleI18n = api, "undefined" != typeof module && module.exports && (module.exports = api);
 }("undefined" != typeof globalThis ? globalThis : "undefined" != typeof window ? window : this);

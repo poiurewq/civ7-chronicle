@@ -13,7 +13,7 @@ Open a full-screen stats overlay from:
 - The **pause menu** on any turn. Chronicle leaves the pause menu open behind it.
 - The **end-of-game results screen**. Accessibility hotkeys including F2 do not fire there, same as the base game.
 
-Open **Hall of Fame** from the Main Menu or from the Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record, per-leader and per-civilization stats, game history, and high-score / fastest-finish boards. Open any past game for Chronicle graphs from the log. On the History tab, **Manage** lets you delete a recorded game or reset the whole Hall of Fame. Only Chronicle's own stats are cleared. Your save files are never touched.
+Open **Hall of Fame** from the Main Menu or from the Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record, per-leader and per-civilization stats, game history, and high-score / fastest-finish boards. Open any past game for Chronicle graphs from the log. On the History tab, **Manage** lets you delete a recorded game or reset the whole Hall of Fame. Only Chronicle's own stats are cleared. Your save files are never touched. The **Triumphs** tab shows all 90 triumphs by Age and attribute, which ones you have completed, and the campaigns you earned them in. Click a triumph to see what it requires.
 
 This mod changes no gameplay rules and does **not** affect your saved games.
 
@@ -82,7 +82,7 @@ Hotkey rebinding is on Chronicle's own Options panel only, not Add-ons.
 
 While Chronicle or Game Details is open:
 
-- **1–7:** jump category. On Hall of Fame, **1–5** jump tabs.
+- **1–7:** jump category. On Hall of Fame, **1–6** jump tabs.
 - **- =:** previous / next category. Same keys step Hall of Fame tabs.
 - **[ ]:** previous / next chart.
 - **, .:** Trends / Standings, or prev / next page on multi-page bars.

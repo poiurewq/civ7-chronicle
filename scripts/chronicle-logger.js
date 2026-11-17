@@ -932,6 +932,24 @@ function recordOutcome(reason) {
   } catch (e) {}
 }
 
+function recordTriumph(legacyType, turn) {
+  if (!store || !legacyType) return !1;
+  const tri = store.tri || (store.tri = {}), prev = tri[legacyType];
+  if (prev && (null != prev.t || null == turn)) return !1;
+  const rec = {
+    a: currentAge().key
+  };
+  null != turn && (rec.t = turn);
+  const civ = function() {
+    try {
+      const pc = Configuration.getPlayer(GameContext.localPlayerID);
+      if (pc && null != pc.civilizationTypeName) return String(pc.civilizationTypeName);
+    } catch (e) {}
+    return null;
+  }();
+  return civ && (rec.c = civ), tri[legacyType] = rec, !0;
+}
+
 function captureTurn(reason, force) {
   if (!store || !container) return null;
   const age = currentAge(), ageKey = age.key, turn = Game.turn;
@@ -1175,8 +1193,23 @@ function captureTurn(reason, force) {
   try {
     store._rzPend && delete store._rzPend, store._rzFrom && delete store._rzFrom;
   } catch (e) {}
-  store.updated = Date.now(), lap("settlements"), saveContainer(container, guid), 
-  storeDirty = !1, lap("save");
+  store.updated = Date.now(), lap("settlements");
+  const triNew = function() {
+    let legacies = null;
+    try {
+      legacies = Players.get(GameContext.localPlayerID).Legacies;
+    } catch (e) {
+      return 0;
+    }
+    if (!legacies || "function" != typeof legacies.isTriggered) return 0;
+    let n = 0;
+    try {
+      for (const row of GameInfo.Legacies) row && ("function" != typeof legacies.isValidLegacy || legacies.isValidLegacy(row.LegacyType)) && legacies.isTriggered(row.LegacyType) && recordTriumph(row.LegacyType, null) && n++;
+    } catch (e) {}
+    return n;
+  }();
+  "load" === reason && err(`triumphs: sweep added ${triNew}; ${Object.keys(store.tri || {}).length} logged this campaign`), 
+  lap("triumphs"), saveContainer(container, guid), storeDirty = !1, lap("save");
   try {
     recordOutcome("capture");
   } catch (e) {}
@@ -1318,6 +1351,27 @@ function init() {
       } catch (e) {}
     });
   } catch (e) {}
+  try {
+    engine.on("PlayerLegacyCompleted", data => {
+      try {
+        !function(data) {
+          if (!data || data.player != GameContext.localPlayerID) return;
+          let def = null;
+          try {
+            def = GameInfo.Legacies.lookup(data.legacy);
+          } catch (e) {}
+          if (def && def.LegacyType && recordTriumph(def.LegacyType, Game.turn)) {
+            store.updated = Date.now();
+            try {
+              saveContainer(container, guid);
+            } catch (e) {}
+          }
+        }(data);
+      } catch (e) {}
+    });
+  } catch (e) {
+    err(`PlayerLegacyCompleted subscribe failed: ${e && e.message}`);
+  }
   try {
     engine.on("TeamVictory", () => {
       try {

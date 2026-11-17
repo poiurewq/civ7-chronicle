@@ -1,5 +1,7 @@
 import "/ozq-chronicle/scripts/chronicle-common.js";
 
+import "/ozq-chronicle/scripts/chronicle-triumphs-data.js";
+
 const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
 
 function err(msg) {
@@ -405,7 +407,7 @@ function onHofKeydown(e) {
   if (code === hk.catPrev) handled = !!activeHofNav.stepTab(-1); else if (code === hk.catNext) handled = !!activeHofNav.stepTab(1); else if (code === hk.openHof) closeHof(), 
   handled = !0; else if (code === hk.openOptions) handled = !!activeHofNav.openOptions(); else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
     const n = Number(code.replace("Digit", "").replace("NumPad", "").replace("Numpad", ""));
-    n >= 1 && n <= 5 && (handled = !!activeHofNav.jumpTab(n - 1));
+    n >= 1 && n <= 6 && (handled = !!activeHofNav.jumpTab(n - 1));
   }
   handled && stopKeydownPeers(e);
 }
@@ -520,6 +522,72 @@ function renderCivs(body, games) {
   });
 }
 
+function pickName(pair) {
+  const api = chronicleI18n();
+  return api && "function" == typeof api.pickPair ? api.pickPair(pair) : pair && pair.en || "";
+}
+
+function triumphStatus(games) {
+  const data = globalThis.ozqChronicleTriumphs;
+  if (!data) return null;
+  const byType = {};
+  for (const g of games) {
+    const tri = g.store && g.store.tri;
+    if (tri) for (const type in tri) (byType[type] || (byType[type] = [])).push({
+      g: g,
+      rec: tri[type] || {}
+    });
+  }
+  const native = function() {
+    const done = new Set;
+    let online = !1;
+    try {
+      online = "undefined" != typeof Network && "function" == typeof Network.isLoggedIn && !!Network.isLoggedIn();
+      const rows = Online.Metaprogression.getChallengeData();
+      for (const r of Array.from(rows || [])) r && r.completed && "string" == typeof r.name && done.add(r.name.replace(/^LOC_METAPROGRESSION_/, "").replace(/_NAME$/, ""));
+    } catch (e) {
+      err(`triumphs: native read failed: ${e}`);
+    }
+    return {
+      online: online,
+      done: done
+    };
+  }(), rows = data.triumphs.map(t => {
+    const seen = new Set, campaigns = [];
+    for (const type of t.types) for (const c of byType[type] || []) seen.has(c.g.id) || (seen.add(c.g.id), 
+    campaigns.push(c));
+    return {
+      t: t,
+      campaigns: campaigns,
+      native: native.done.has(t.ch)
+    };
+  });
+  return {
+    data: data,
+    rows: rows,
+    online: native.online
+  };
+}
+
+function triumphCampaignLine(c) {
+  const bits = [ leaderName(c.g.leader) ];
+  null != c.rec.t && bits.push(L("LOC_CHRONICLE_HOF_TRI_TURN", c.rec.t));
+  const api = chronicleI18n(), when = api && "function" == typeof api.formatShortDate ? api.formatShortDate(c.g.updated) : fmtDate(c.g.updated);
+  return when && bits.push(when), bits.join(" · ");
+}
+
+function triumphReqNode(req) {
+  const text = pickName(req), n = el("div", "color:#B7A987;font-size:1.13rem;margin-top:4px;white-space:normal");
+  try {
+    if ("undefined" != typeof Locale && "function" == typeof Locale.stylize) return n.innerHTML = Locale.stylize(text), 
+    n;
+  } catch (e) {
+    err(`triumphs: stylize failed: ${e}`);
+  }
+  return n.textContent = text.replace(/\[\/?B\]|\[icon:[^\]]*\]/g, "").replace(/\s{2,}/g, " "), 
+  n;
+}
+
 function hofButton(label, onClick, labelColor) {
   const b = makeNativeButton(label, onClick, {});
   if (highlightButton(b, !1), labelColor) {
@@ -595,6 +663,9 @@ function openHof(opts) {
   }, {
     id: "civs",
     label: L("LOC_PROFILE_TAB_CIVILIZATIONS")
+  }, {
+    id: "triumphs",
+    label: L("LOC_CHRONICLE_HOF_TRIUMPHS")
   }, {
     id: "history",
     label: L("LOC_HOF_HISTORY")
@@ -798,7 +869,7 @@ function openHof(opts) {
       const byKills = games.filter(g => null != g.unitsKilled && g.unitsKilled > 0).slice().sort((a, b) => b.unitsKilled - a.unitsKilled).slice(0, 10);
       byKills.length && rankBoard(L("LOC_CHRONICLE_HOF_MOST_KILLS"), "", byKills, g => String(g.unitsKilled), "#D96B6B"), 
       body.appendChild(boards);
-    }(body, games, openDetail) : "history" === id && function(body, games, openDetail, manage) {
+    }(body, games, openDetail) : "history" === id ? function(body, games, openDetail, manage) {
       const showManage = !!(manage && manage.erasable > 0), managing = showManage && manage.on, slots = [], topRows = [];
       if (showManage && topRows.push(manageLine(null, hofButton(L(manage.on ? "LOC_CHRONICLE_HOF_DONE" : "LOC_CHRONICLE_HOF_MANAGE"), manage.toggle), slots)), 
       managing && topRows.push(manageLine(null, hofButton(L("LOC_CHRONICLE_HOF_RESET"), manage.requestReset), slots)), 
@@ -847,7 +918,60 @@ function openHof(opts) {
         managing ? list.appendChild(manageLine(row, manage.isLive(g) ? el("div", "color:#8A7F63;font-size:1.3rem;text-align:center", L("LOC_CHRONICLE_HOF_CURRENT_GAME")) : hofButton(L("LOC_CHRONICLE_HOF_DELETE"), () => manage.requestDelete(g)), slots)) : list.appendChild(row);
       }
       body.appendChild(list), sizeSlotsToClose(slots, manage && manage.closeEl);
-    }(body, games, openDetail, historyManage());
+    }(body, games, openDetail, historyManage()) : "triumphs" === id && function(body, games, openDetail) {
+      const st = triumphStatus(games);
+      if (!st) return void err("triumphs: table missing");
+      const isDone = r => r.native || r.campaigns.length > 0;
+      body.appendChild(el("div", "color:#B7A987;font-size:1.38rem;margin:0 0 26px 0;flex-shrink:0", L("LOC_CHRONICLE_HOF_TRI_TOTAL", st.rows.filter(isDone).length, st.rows.length) + "  ·  " + L(st.online ? "LOC_CHRONICLE_HOF_TRI_NATIVE_ON" : "LOC_CHRONICLE_HOF_TRI_NATIVE_OFF")));
+      for (const age of st.data.ages) {
+        const inAge = st.rows.filter(r => r.t.age === age);
+        body.appendChild(sectionTitle(ageName(age)));
+        const aggRow = el("div", "display:flex;flex-wrap:wrap;margin:0 0 19px 0;flex-shrink:0");
+        for (const major of [ !0, !1 ]) {
+          const set = inAge.filter(r => r.t.major === major);
+          if (!set.length) continue;
+          const n = set.filter(isDone).length, card = makeCard({
+            pad: "16px 23px"
+          });
+          card.style.margin = "0 19px 0 0", card.appendChild(el("div", "color:#E8E2D0;font-size:1.46rem;margin-right:19px", L(major ? "LOC_CHRONICLE_HOF_TRI_ALL_MAJOR" : "LOC_CHRONICLE_HOF_TRI_ALL_MINOR"))), 
+          card.appendChild(el("div", "color:" + (n === set.length ? "#6BCB77" : "#FFD98A") + ";font-size:1.6rem;font-weight:600;margin-right:19px", n + " / " + set.length)), 
+          card.appendChild(makeWinBar(n, set.length, 162)), aggRow.appendChild(card);
+        }
+        body.appendChild(aggRow);
+        const grid = el("div", "display:flex;flex-wrap:wrap;align-items:flex-start;margin:0 0 23px 0;flex-shrink:0");
+        for (const attr of st.data.attrs) {
+          const set = inAge.filter(r => r.t.attr === attr.type), card = el("div", "display:flex;flex-direction:column;background:#1E1A14;border:1px solid #4A3F32;padding:16px 19px;box-sizing:border-box;flex:0 0 32%;max-width:32%;min-width:0;margin:0 1.33% 16px 0"), head = el("div", "display:flex;align-items:center;margin-bottom:10px");
+          head.appendChild(el("div", "color:#F0E6D2;font-size:1.46rem;flex:1 1 auto;letter-spacing:0.04em;text-transform:uppercase", pickName(attr.name))), 
+          head.appendChild(el("div", "color:#B7A987;font-size:1.33rem;flex-shrink:0", set.filter(isDone).length + " / " + set.length)), 
+          card.appendChild(head);
+          for (const r of set) {
+            const done = isDone(r), line = el("div", "display:flex;margin-top:6px;min-width:0;padding:4px 8px;box-sizing:border-box;border-left:3px solid " + (done ? "#FFD98A;background:rgba(255,217,138,0.08)" : "transparent")), col = el("div", "display:flex;flex-direction:column;min-width:0;flex:1 1 auto"), top = el("div", "display:flex;align-items:center;min-width:0");
+            top.appendChild(el("div", "color:" + (done ? "#FFD98A" : "#6B5F4A") + ";font-size:1.33rem;flex:1 1 auto;min-width:0;white-space:normal", pickName(r.t.name))), 
+            top.appendChild(el("div", "color:#6B5842;font-size:1.04rem;letter-spacing:0.06em;text-transform:uppercase;flex-shrink:0;margin-left:10px", L(r.t.major ? "LOC_CHRONICLE_HOF_TRI_MAJOR" : "LOC_CHRONICLE_HOF_TRI_MINOR"))), 
+            col.appendChild(top), top.style.cursor = "pointer";
+            let reqNode = null;
+            top.addEventListener("click", () => {
+              if (reqNode) return reqNode.remove(), void (reqNode = null);
+              reqNode = triumphReqNode(r.t.req), col.insertBefore(reqNode, top.nextSibling);
+            });
+            const SUB = "color:#8A7F63;font-size:1.13rem;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+            for (const c of r.campaigns.slice(0, 3)) {
+              const sub = el("div", SUB + ";cursor:pointer", triumphCampaignLine(c));
+              sub.addEventListener("click", () => openDetail(c.g)), sub.addEventListener("mouseenter", () => {
+                sub.style.color = "#E8E2D0";
+              }), sub.addEventListener("mouseleave", () => {
+                sub.style.color = "#8A7F63";
+              }), col.appendChild(sub);
+            }
+            r.campaigns.length > 3 && col.appendChild(el("div", SUB, L("LOC_CHRONICLE_HOF_TRI_MORE", r.campaigns.length - 3))), 
+            !r.campaigns.length && r.native && col.appendChild(el("div", SUB, L("LOC_CHRONICLE_HOF_TRI_ACCOUNT"))), 
+            line.appendChild(col), card.appendChild(line);
+          }
+          grid.appendChild(card);
+        }
+        body.appendChild(grid);
+      }
+    }(body, games, openDetail);
   }
   tabs.forEach((t, i) => {
     const b = makeNativeButton(t.label, () => showTab(t.id), {});
@@ -879,14 +1003,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.33.88"
+    version: "0.33.91"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.33.88"
+      version: "0.33.91"
     };
   } catch (e2) {}
 }
