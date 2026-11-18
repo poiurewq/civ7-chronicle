@@ -29,6 +29,10 @@ A Trends line from Chronicle's log needs **3+ recorded turns**. A game logged fr
 
 By-type breakdowns and World settlement leaderboards are current snapshots, so they have a single view. Population Share and the religion charts keep full Trends ⇄ Standings.
 
+### Leaders mode
+
+Switch the Chronicle header from **Metrics** to **Leaders** to see every leader's current value and rank on every stat. Pick a leader in the column on the left for a dashboard of their stats, or turn on **Compare** to put several leaders side by side. Click a leader or stat header in Compare to sort. The category buttons become stat-group filters. Works in live games and in Hall of Fame Game Details, and your setup is kept while the game runs.
+
 ### Categories
 
 - **Research:** Science, Culture, Technologies, Civics, and Great Works, plus per-citizen ratios.
@@ -88,6 +92,8 @@ While Chronicle or Game Details is open:
 - **, .:** Trends / Standings, or prev / next page on multi-page bars.
 - **H:** open or close Hall of Fame from live Chronicle.
 - **O:** open or close Options.
+- **L:** switch Metrics / Leaders.
+- In Leaders mode: **1–7** toggle a stat group, **S** all stat groups, **G** group stats, **C** Dashboard / Compare, **A** all leaders in Compare, **[ ]** previous / next leader on the dashboard.
 - **Escape:** close the topmost overlay.
 
 Rebind under **Options** in the overlay header. Number keys **1–7** stay fixed. A short footer hint shows the current binds.

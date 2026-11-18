@@ -1,6 +1,10 @@
 import "/ozq-chronicle/scripts/chronicle-common.js";
 
-const LOG = "[ozq-chronicle]", {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
+const LOG = "[ozq-chronicle]", {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, leaderIconCss: leaderIconCss, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
+
+function catLabel(cat) {
+  return T("LOC_CHRONICLE_CAT_" + cat);
+}
 
 function metricYTitle(id, opts) {
   const api = chronicleI18n();
@@ -505,7 +509,8 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
   trend: {
     loggerKey: "sLost",
     stepped: !0,
-    includeDead: !0
+    includeDead: !0,
+    lowerBetter: !0
   }
 }, {
   id: "trendSettlementCap",
@@ -545,6 +550,7 @@ const CATEGORIES = [ "Research", "Economy", "Society", "Expansion", "Military", 
     loggerKey: "uLost",
     stepped: !0,
     includeDead: !0,
+    lowerBetter: !0,
     summary: {
       id: "UnitsLost",
       scope: "Player",
@@ -1319,6 +1325,7 @@ function buildStandings(trend) {
   }(trend);
   const src = trendSource(trend), includeDead = !!trend.includeDead, rows = [];
   if ("summary" === src.source && src.turnCount > 0) for (const ds of src.datasets) ds.data.length && (includeDead || isPlayerAlive(ds.pid)) && rows.push({
+    pid: Number(ds.pid),
     label: ds.label,
     value: ds.data[ds.data.length - 1].y,
     color: ds.borderColor
@@ -1344,15 +1351,18 @@ function buildStandings(trend) {
       ownerPlayer: pid
     };
     rows.push({
+      pid: Number(pid),
       label: ownerName(owner),
       value: y,
       color: ownerColor(owner)
     });
   }
-  return rows.sort((a, b) => b.value - a.value), {
+  return rows.sort(trend.lowerBetter ? (a, b) => a.value - b.value : (a, b) => b.value - a.value), 
+  {
     labels: rows.map(r => r.label),
     data: rows.map(r => r.value),
     colors: rows.map(r => r.color),
+    pids: rows.map(r => r.pid),
     indexAxis: "x",
     catTitle: "",
     signed: !!trend.signed
@@ -1830,7 +1840,7 @@ function computeTopByYield(key, valueTitleKey) {
   };
 }
 
-const AXIS_TICK = "#C9BFA6";
+const AXIS_TICK = "#C9BFA6", FOOTER_LINE_STYLE = "height:1.3rem;line-height:1.3rem;flex-shrink:0;width:100%;min-width:0;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-sizing:border-box", NOTE_BASE_STYLE = FOOTER_LINE_STYLE + ";color:#B7A987;font-size:0.85rem;letter-spacing:0.04em", HINT_LINE_STYLE = FOOTER_LINE_STYLE + ";color:#8A7F63;font-size:0.78rem;opacity:0.9";
 
 function axisTitle(text) {
   return text ? {
@@ -2000,7 +2010,7 @@ function bankedPrimaryColor(pid) {
   return rec && rec.pri ? rec.pri : null;
 }
 
-let activeChart = null, legendHintShown = !1;
+let activeChart = null;
 
 function scrubRelativePos(e, chart) {
   if ("undefined" != typeof Chart && Chart.helpers && "function" == typeof Chart.helpers.getRelativePosition) return Chart.helpers.getRelativePosition(e, chart);
@@ -2044,8 +2054,8 @@ function endTrendsScrub(chart) {
   if (!state) return;
   const wasActive = state.active;
   if (state.active = !1, state.x = null, state.items = [], state.tip && (state.tip.style.display = "none"), 
-  state.onMove && window.removeEventListener("mousemove", state.onMove), state.onUp && window.removeEventListener("mouseup", state.onUp), 
-  setTrendsHoverTooltipEnabled(chart, !0), wasActive) try {
+  state.windowBound && (window.removeEventListener("mousemove", state.onMove), window.removeEventListener("mouseup", state.onUp), 
+  state.windowBound = !1), setTrendsHoverTooltipEnabled(chart, !0), wasActive) try {
     chart.draw();
   } catch (e) {}
 }
@@ -2076,7 +2086,8 @@ function bindTrendsScrubber(chart, opts) {
     tip: tip,
     onDown: null,
     onMove: null,
-    onUp: null
+    onUp: null,
+    windowBound: !1
   };
   function applyAtEvent(e) {
     if (!chart.scales || !chart.scales.x || !chart.chartArea) return;
@@ -2157,8 +2168,8 @@ function bindTrendsScrubber(chart, opts) {
     if (!chart.chartArea || !chart.scales || !chart.scales.x) return;
     const pos = scrubRelativePos(e, chart), ca = chart.chartArea;
     pos.x < ca.left || pos.x > ca.right || pos.y < ca.top || pos.y > ca.bottom || (state.active = !0, 
-    setTrendsHoverTooltipEnabled(chart, !1), applyAtEvent(e), window.addEventListener("mousemove", onMove), 
-    window.addEventListener("mouseup", onUp), e.preventDefault && e.preventDefault());
+    setTrendsHoverTooltipEnabled(chart, !1), applyAtEvent(e), state.windowBound || (window.addEventListener("mousemove", onMove), 
+    window.addEventListener("mouseup", onUp), state.windowBound = !0), e.preventDefault && e.preventDefault());
   }
   function onMove(e) {
     state.active && applyAtEvent(e);
@@ -2260,14 +2271,14 @@ function renderChart(ui, metric, view, page) {
   }, tickOpts = {
     color: AXIS_TICK,
     font: tickFont
-  }, valTicks = (base = tickOpts, Object.assign({}, base || {}, {
+  }, pct = isPercentTrend(metric.trend) ? "%" : "", valTicks = (base = tickOpts, Object.assign({}, base || {}, {
     callback: function(value) {
       return formatChartNumber(value);
     }
   }));
   var base;
   let config;
-  if ("bar" === metric.kind) {
+  if (pct && (valTicks.callback = value => formatChartNumber(value) + pct), "bar" === metric.kind) {
     setNote(ui, byTypeNote(metric), metric);
     const {labels: labels, datasets: datasets} = buildBarChart(metric, page), hasData = datasets.length > 0 && labels.length > 0;
     if (setNoData(ui.canvas, hasData ? "" : T("LOC_CHRONICLE_NO_DATA_RECORDED", metricLabel(metric))), 
@@ -2335,7 +2346,9 @@ function renderChart(ui, metric, view, page) {
       grid: {
         color: "#4A4034"
       }
-    };
+    }, dpOpt = !isLive && metric.trend && metric.trend.ratioKey && null != metric.trend.ratioKey.dp ? {
+      dp: metric.trend.ratioKey.dp
+    } : void 0;
     config = {
       type: "bar",
       data: {
@@ -2361,7 +2374,7 @@ function renderChart(ui, metric, view, page) {
           },
           tooltip: {
             callbacks: {
-              label: item => formatChartNumber(null != item.parsed ? horiz ? item.parsed.x : item.parsed.y : item.raw)
+              label: item => formatChartNumber(null != item.parsed ? horiz ? item.parsed.x : item.parsed.y : item.raw, dpOpt) + pct
             }
           }
         },
@@ -2382,10 +2395,8 @@ function renderChart(ui, metric, view, page) {
     {
       const {datasets: datasets, start: start, end: end} = src;
       setNoData(ui.canvas, "");
-      const agePretty = prettifyType(src.firstAgeLabel), scope = src.currentAgeOnly ? T("LOC_CHRONICLE_AGE_ONLY", agePretty) : src.startedLate ? T("LOC_CHRONICLE_TRACKED_SINCE", agePretty, src.firstTurn) : "", provenance = [ sourceLabel(src), scope ].filter(Boolean).join("  ·  ");
-      let hint = "";
-      !legendHintShown && datasets.length > 1 && (hint = T("LOC_CHRONICLE_LEGEND_HINT"), 
-      legendHintShown = !0), setNote(ui, [ provenance, hint ].filter(Boolean).join("  ·  "), metric);
+      const agePretty = prettifyType(src.firstAgeLabel), scope = src.currentAgeOnly ? T("LOC_CHRONICLE_AGE_ONLY", agePretty) : src.startedLate ? T("LOC_CHRONICLE_TRACKED_SINCE", agePretty, src.firstTurn) : "", provenance = [ sourceLabel(src), scope ].filter(Boolean).join("  ·  "), hint = datasets.length > 1 ? T("LOC_CHRONICLE_LEGEND_HINT") : "";
+      setNote(ui, [ provenance, hint ].filter(Boolean).join("  ·  "), metric);
       const turnLabel = x => {
         for (const b of src.blocks) {
           const bEndX = b.offset + (b.maxT - b.minT);
@@ -2394,7 +2405,7 @@ function renderChart(ui, metric, view, page) {
         return T("LOC_CHRONICLE_TURN", x);
       }, dp = trend.ratioKey ? trend.ratioKey.dp : null, fmtVal = y => formatChartNumber(y, {
         dp: null != dp ? dp : Number.isInteger(Number(y)) ? null : 1
-      }), tk = turnAxisTicks(src.blocks, start, end);
+      }) + pct, tk = turnAxisTicks(src.blocks, start, end);
       config = {
         type: "line",
         data: {
@@ -2480,10 +2491,11 @@ function renderChart(ui, metric, view, page) {
   });
 }
 
-function setNote(ui, text, metric) {
+function setNote(ui, text, metric, civsMode) {
   if (!ui || !ui.note) return;
   const parts = text ? [ text ] : [];
-  if (fogOn) {
+  if (isHistoricalView() && readSettings().fog && parts.push(T(civsMode ? "LOC_CHRONICLE_HIST_ALL_CIVS_DEAD" : "LOC_CHRONICLE_HIST_ALL_CIVS")), 
+  fogOn) {
     const trend = metric && metric.trend;
     trend && trend.ratioKey && trend.ratioKey.denSum && parts.push(T("LOC_CHRONICLE_FOG_KNOWN_WORLD"));
     const fog = function() {
@@ -2745,11 +2757,12 @@ const chronicleInputHandler = {
     !1;
     if (isWatchedEngineAction(d.name)) {
       const codes = engineCodesForAction(d.name);
+      if (isKeydownPress(e, codes)) return !1;
       if (isPressFinished(e) && activeNav) {
         const hk = readHotkeys();
         let slot = null;
         for (let i = 0; i < codes.length && (slot = hotkeySlotForCode(hk, codes[i]), !slot); i++) ;
-        "openHof" === slot ? activeNav.openHof() : "openOptions" === slot ? activeNav.openOptions() : "catPrev" === slot ? activeNav.stepCategory(-1) : "catNext" === slot ? activeNav.stepCategory(1) : "chartPrev" === slot ? activeNav.stepChart(-1) : "chartNext" === slot ? activeNav.stepChart(1) : "pagePrev" === slot ? activeNav.secondaryPrev() : "pageNext" === slot && activeNav.secondaryNext();
+        "openHof" === slot ? activeNav.openHof() : "openOptions" === slot ? activeNav.openOptions() : "catPrev" === slot ? activeNav.stepCategory(-1) : "catNext" === slot ? activeNav.stepCategory(1) : "chartPrev" === slot ? activeNav.stepChart(-1) : "chartNext" === slot ? activeNav.stepChart(1) : "pagePrev" === slot ? activeNav.secondaryPrev() : "pageNext" === slot ? activeNav.secondaryNext() : "leadersMode" === slot ? activeNav.toggleMode() : "leadersCompare" === slot ? activeNav.toggleCompare() : "leadersGrouped" === slot ? activeNav.toggleGrouped() : "leadersSelectAll" === slot ? activeNav.selectAllLeaders() : "leadersStatGroups" === slot && activeNav.toggleAllGroups();
       }
       return !1;
     }
@@ -2758,6 +2771,15 @@ const chronicleInputHandler = {
   },
   handleNavigation: () => !0
 };
+
+function hotkeyHintText(mode, compare) {
+  const h = readHotkeys(), openLabs = engineLabelsForAction("open-ozq-chronicle"), openPhrase = (openLabs.length ? openLabs.join(" / ") : "F2") + " " + T("LOC_CHRONICLE_TITLE"), cats = formatHotkeyCode(h.catPrev) + " " + formatHotkeyCode(h.catNext), charts = formatHotkeyCode(h.chartPrev) + " " + formatHotkeyCode(h.chartNext), page = formatHotkeyCode(h.pagePrev) + " " + formatHotkeyCode(h.pageNext);
+  if ("civs" === mode) {
+    const all = formatHotkeyCode(h.leadersStatGroups), grp = formatHotkeyCode(h.leadersGrouped), cmp = formatHotkeyCode(h.leadersCompare), mode = formatHotkeyCode(h.leadersMode);
+    return compare ? T("LOC_CHRONICLE_HOTKEY_HINT_CIVS_COMPARE", openPhrase, all, grp, formatHotkeyCode(h.leadersSelectAll), cmp, mode) : T("LOC_CHRONICLE_HOTKEY_HINT_CIVS", openPhrase, all, grp, charts, cmp, mode);
+  }
+  return T("LOC_CHRONICLE_HOTKEY_HINT", openPhrase, cats, charts, page, formatHotkeyCode(h.leadersMode));
+}
 
 function onOverlayKeydown(e) {
   if (!activeRoot || !isTopOverlay(activeRoot.id) || !activeNav) return;
@@ -2768,11 +2790,11 @@ function onOverlayKeydown(e) {
   if (isEngineBoundHotkeyCode(code)) return;
   const hk = readHotkeys();
   let handled = !1;
-  if (code === hk.catPrev) handled = !!activeNav.stepCategory(-1); else if (code === hk.catNext) handled = !!activeNav.stepCategory(1); else if (code === hk.chartPrev) handled = !!activeNav.stepChart(-1); else if (code === hk.chartNext) handled = !!activeNav.stepChart(1); else if (code === hk.pagePrev) handled = !!activeNav.secondaryPrev(); else if (code === hk.pageNext) handled = !!activeNav.secondaryNext(); else if (code === hk.openHof) handled = !!activeNav.openHof(); else if (code === hk.openOptions) handled = !!activeNav.openOptions(); else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
+  if (code === hk.catPrev) handled = !!activeNav.stepCategory(-1); else if (code === hk.catNext) handled = !!activeNav.stepCategory(1); else if (code === hk.chartPrev) handled = !!activeNav.stepChart(-1); else if (code === hk.chartNext) handled = !!activeNav.stepChart(1); else if (code === hk.pagePrev) handled = !!activeNav.secondaryPrev(); else if (code === hk.pageNext) handled = !!activeNav.secondaryNext(); else if (code === hk.openHof) handled = !!activeNav.openHof(); else if (code === hk.openOptions) handled = !!activeNav.openOptions(); else if (code === hk.leadersMode) handled = !!activeNav.toggleMode(); else if (code === hk.leadersCompare) handled = !!activeNav.toggleCompare(); else if (code === hk.leadersGrouped) handled = !!activeNav.toggleGrouped(); else if (code === hk.leadersSelectAll) handled = !!activeNav.selectAllLeaders(); else if (code === hk.leadersStatGroups) handled = !!activeNav.toggleAllGroups(); else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
     const n = Number(code.replace("Digit", "").replace("NumPad", "").replace("Numpad", ""));
     n >= 1 && n <= 7 && (handled = !!activeNav.jumpCategory(n - 1));
   }
-  handled && stopKeydownPeers(e);
+  handled && (noteKeydownPress(code), stopKeydownPeers(e));
 }
 
 const suspendedOverlays = [];
@@ -2785,9 +2807,8 @@ function closeOverlay() {
   invalidateOpenCaches(), function() {
     const s = suspendedOverlays.pop();
     s && (activeRoot = s.root, activeNav = s.nav || null, viewMode = s.viewMode, activeChart = s.activeChart, 
-    colorMapCache = s.colorMapCache, legendHintShown = s.legendHintShown, fogOn = !!s.fogOn, 
-    unitFogOn = !!s.unitFogOn, openedFromEndGame = !!s.openedFromEndGame, activeRoot.style.visibility = "", 
-    invalidateOpenCaches());
+    colorMapCache = s.colorMapCache, fogOn = !!s.fogOn, unitFogOn = !!s.unitFogOn, openedFromEndGame = !!s.openedFromEndGame, 
+    activeRoot.style.visibility = "", invalidateOpenCaches());
   }(), activeRoot || removeFrontInputHandler(chronicleInputHandler), "function" == typeof onClose) try {
     onClose();
   } catch (e) {}
@@ -2807,6 +2828,365 @@ function applyChartDefaults() {
   } catch (e) {}
 }
 
+function isPercentTrend(trend) {
+  return !(!trend || !trend.ratioKey || 100 !== trend.ratioKey.scale);
+}
+
+function civValueDp(metric) {
+  const r = metric.trend && metric.trend.ratioKey;
+  return r && null != r.dp ? r.dp : null;
+}
+
+function roundCivValue(v, dp) {
+  if (null != dp) {
+    const f = Math.pow(10, dp);
+    return Math.round(v * f) / f;
+  }
+  return Number.isInteger(v) ? v : Math.round(10 * v) / 10;
+}
+
+function formatCivValue(v, dp, pct) {
+  return formatChartNumber(v, null != dp ? {
+    dp: dp
+  } : void 0) + (pct ? "%" : "");
+}
+
+function civIdentity(pid) {
+  const owner = {
+    ownerPlayer: pid
+  }, store = loadLoggerStore(), players = store && store.meta && store.meta.players, rec = players && (players[pid] || players[String(pid)]);
+  let leaderType = rec && rec.leader ? String(rec.leader) : "";
+  if (!leaderType && !isHistoricalView()) try {
+    const pc = Configuration.getPlayer(pid);
+    pc && pc.leaderTypeName && (leaderType = String(pc.leaderTypeName));
+  } catch (e) {}
+  let civ = "";
+  const ctx = ensureStoreLayout();
+  if (ctx && store && store.ages) for (let i = ctx.layout.length - 1; i >= 0 && !civ; i--) {
+    const a = store.ages[ctx.layout[i].age.key], t = a && a.civ && (a.civ[pid] || a.civ[String(pid)]);
+    t && (civ = resolveTypeNameOrNull("Civilizations", t) || resolveTypeName("Civilizations", t));
+  }
+  return {
+    pid: pid,
+    name: ownerName(owner),
+    civ: civ,
+    color: ownerColor(owner),
+    leaderType: leaderType
+  };
+}
+
+function competitionRanks(values, lowerBetter) {
+  return values.map(v => {
+    let ahead = 0;
+    for (const w of values) (lowerBetter ? w < v : w > v) && ahead++;
+    return ahead + 1;
+  });
+}
+
+function buildCivStats(metrics) {
+  const rows = [], living = new Set;
+  for (const m of metrics) {
+    if (!m.trend || m.trend.religionKey) continue;
+    let st = null;
+    try {
+      st = buildStandings(m.trend);
+    } catch (e) {
+      st = null;
+    }
+    if (!st || !st.data || !st.data.length) continue;
+    const dp = civValueDp(m), pairs = [];
+    if (st.data.forEach((v, i) => {
+      const n = Number(v);
+      isFinite(n) && pairs.push({
+        pid: st.pids[i],
+        value: roundCivValue(n, dp)
+      });
+    }), !pairs.length) continue;
+    const byPid = new Map;
+    let deadCounted = !1;
+    const ranks = competitionRanks(pairs.map(p => p.value), !!m.trend.lowerBetter);
+    pairs.forEach((p, i) => {
+      byPid.set(p.pid, {
+        value: p.value,
+        rank: ranks[i],
+        of: pairs.length
+      }), isPlayerAlive(p.pid) ? living.add(p.pid) : deadCounted = !0;
+    }), rows.push({
+      metric: m,
+      dp: dp,
+      byPid: byPid,
+      deadCounted: deadCounted
+    });
+  }
+  const me = function() {
+    if (isHistoricalView()) {
+      const m = viewMode.store && viewMode.store.meta;
+      return m && null != m.local ? Number(m.local) : -1;
+    }
+    return localPlayerId();
+  }(), pids = Array.from(living), ident = new Map(pids.map(p => [ p, civIdentity(p) ]));
+  return pids.sort((a, b) => {
+    if (a === me) return -1;
+    if (b === me) return 1;
+    const na = ident.get(a).name, nb = ident.get(b).name;
+    return na < nb ? -1 : na > nb ? 1 : 0;
+  }), {
+    rows: rows,
+    pids: pids,
+    ident: ident,
+    me: me
+  };
+}
+
+function civRankColor(rank) {
+  return 1 === rank ? "#FFCF3F" : 2 === rank ? "#C8D2DC" : 3 === rank ? "#D2874A" : "#B7A987";
+}
+
+const CIV_GROUP_ACCENT = {
+  Research: "#6EA0DA",
+  Economy: "#EEE97C",
+  Society: "#7DBB6A",
+  Expansion: "#4FB8B0",
+  Military: "#D96A5E",
+  Overall: "#A68CE0",
+  World: "#E37FB4"
+};
+
+function civGroupAccent(cat) {
+  return CIV_GROUP_ACCENT[cat] || "#8A7F63";
+}
+
+function civEl(tag, style, text) {
+  const e = document.createElement(tag);
+  return style && e.setAttribute("style", style), null != text && (e.textContent = text), 
+  e;
+}
+
+function civPortrait(id, size) {
+  const wrap = civEl("div", "width:" + size + "px;height:" + size + "px;flex-shrink:0;border-radius:" + Math.round(size / 2) + "px;overflow:hidden;background:#2A241C;border:2px solid " + id.color + ";box-sizing:border-box;background-position:center;background-repeat:no-repeat;background-size:cover;display:flex;align-items:center;justify-content:center"), css = leaderIconCss(id.leaderType);
+  return css ? wrap.style.backgroundImage = css : wrap.appendChild(civEl("div", "color:#B7A987;font-weight:600;font-size:" + Math.max(12, Math.round(.4 * size)) + "px", (id.name || "?").charAt(0).toUpperCase())), 
+  wrap;
+}
+
+function makeCivsView(opts) {
+  const {catList: catList, stats: stats, memory: memory} = opts, root = civEl("div", "display:none;flex-direction:row;flex:1 1 auto;width:100%;min-height:0;overflow:hidden"), col = civEl("div", "display:flex;flex-direction:column;width:18rem;flex-shrink:0;margin-right:18px;min-height:0"), list = civEl("div", "flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden"), colFoot = civEl("div", "display:flex;flex-direction:column;align-items:center;flex-shrink:0;margin-top:10px");
+  col.appendChild(list), col.appendChild(colFoot);
+  const content = civEl("div", "flex:1 1 auto;min-width:0;min-height:0;overflow-y:auto;overflow-x:auto;padding-right:6px");
+  root.appendChild(col), root.appendChild(content), stats.pids.includes(memory.pid) || (memory.pid = stats.pids.length ? stats.pids[0] : null), 
+  memory.picks = (memory.picks || []).filter(p => stats.pids.includes(p)), stats.pids.length < 2 && (memory.compare = !1);
+  const rowsIn = cat => stats.rows.filter(r => r.metric.category === cat), groupHasRows = cat => rowsIn(cat).length > 0, groupOn = cat => !memory.off[cat], shownGroups = () => catList.filter(c => groupOn(c) && groupHasRows(c)), shownRows = () => {
+    const out = [];
+    for (const cat of shownGroups()) for (const r of rowsIn(cat)) out.push(r);
+    return out;
+  }, rankIn = (r, pid) => {
+    const c = r.byPid.get(pid);
+    return c ? c.rank : 1 / 0;
+  }, byRankFor = (rows, pid) => rows.map((r, i) => ({
+    r: r,
+    i: i,
+    k: rankIn(r, pid)
+  })).sort((a, b) => a.k - b.k || a.i - b.i).map(x => x.r);
+  function toggleCompare() {
+    return !(stats.pids.length < 2) && (memory.compare = !memory.compare, memory.compare && !memory.picks.length && null != memory.pid && (memory.picks = [ memory.pid ]), 
+    render(), !0);
+  }
+  function toggleGrouped() {
+    return memory.ungrouped = !memory.ungrouped, render(), !0;
+  }
+  const allPicked = () => stats.pids.every(p => memory.picks.includes(p));
+  function selectAll() {
+    if (!memory.compare || !stats.pids.length) return !1;
+    if (allPicked()) memory.picks = []; else for (const p of stats.pids) memory.picks.includes(p) || memory.picks.push(p);
+    return render(), !0;
+  }
+  const allGroupsOn = () => catList.every(c => !groupHasRows(c) || groupOn(c));
+  function toggleAllGroups() {
+    if (!catList.some(groupHasRows)) return !1;
+    const turnOff = allGroupsOn();
+    for (const c of catList) groupHasRows(c) && (turnOff ? memory.off[c] = !0 : delete memory.off[c]);
+    return render(), opts.onGroupsChanged && opts.onGroupsChanged(), !0;
+  }
+  function footnote(any) {
+    any && content.appendChild(civEl("div", "color:#8A7F63;font-size:0.8rem;margin:6px 0 4px 2px", T("LOC_CHRONICLE_CIVS_DEAD_NOTE")));
+  }
+  function message(text) {
+    content.appendChild(civEl("div", "color:#C9BFA6;font-size:1.15rem;text-align:center;padding:3rem", text));
+  }
+  function groupTitle(cat) {
+    const t = civEl("div", "font-size:0.95rem;margin-bottom:10px;color:" + civGroupAccent(cat), catLabel(cat));
+    return t.className = "font-title uppercase tracking-150", t;
+  }
+  function tile(r, c) {
+    const t = civEl("div", "flex:1 1 14rem;min-width:13rem;margin:0 10px 10px 0;padding:10px 12px;box-sizing:border-box;background:#221D16;border:1px solid #3A3226;border-left:4px solid " + civGroupAccent(r.metric.category));
+    return t.appendChild(civEl("div", "font-size:0.85rem;color:#B7A987;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", metricLabel(r.metric))), 
+    t.appendChild(civEl("div", "font-size:1.55rem;color:#F0E6D2;margin:4px 0 4px 0", formatCivValue(c.value, r.dp, isPercentTrend(r.metric.trend)))), 
+    t.appendChild(civEl("div", "font-size:0.9rem;color:" + civRankColor(c.rank), T("LOC_CHRONICLE_CIVS_RANK", c.rank, c.of) + (r.deadCounted ? " *" : ""))), 
+    t;
+  }
+  function renderCompare(picked) {
+    if (!picked.length) return void message(T("LOC_CHRONICLE_CIVS_PICK"));
+    const groups = shownGroups();
+    if (!groups.length) return void message(T("LOC_CHRONICLE_CIVS_NO_GROUPS"));
+    const sortPid = picked.includes(memory.sortPid) ? memory.sortPid : null, colRow = memory.colMetric ? stats.rows.find(r => r.metric.id === memory.colMetric) : null, pids = colRow ? picked.map((p, i) => ({
+      p: p,
+      i: i,
+      k: rankIn(colRow, p)
+    })).sort((a, b) => a.k - b.k || a.i - b.i).map(x => x.p) : picked, LABEL_W = null != fit.labelPx ? fit.labelPx + "px" : "15rem", CELL = "flex:1 1 0px;min-width:0;margin-left:6px;box-sizing:border-box;", table = civEl("div", "display:flex;flex-direction:column;width:100%;box-sizing:border-box;min-width:" + compareMinWidth(fit.labelPx, pids.length)), head = civEl("div", "display:flex;flex-direction:row;align-items:stretch;margin-bottom:4px"), spacer = civEl("div", "width:" + LABEL_W + ";flex-shrink:0");
+    head.appendChild(spacer);
+    const labs = [];
+    for (const pid of pids) {
+      const id = stats.ident.get(pid), on = pid === sortPid, cell = civEl("div", CELL + "display:flex;align-items:center;padding:8px 10px;cursor:pointer;background:" + (on ? "#2E271D" : "#1E1A14") + ";border-top:4px solid " + id.color + ";border-bottom:2px solid " + (on ? "#FFD98A" : "transparent"));
+      cell.appendChild(civPortrait(id, 34));
+      const t = civEl("div", "display:flex;flex-direction:column;min-width:0;flex:1 1 auto;margin-left:8px");
+      t.appendChild(civEl("div", "font-size:1rem;color:" + (on ? "#FFD98A" : "#F0E6D2"), id.name)), 
+      id.civ && t.appendChild(civEl("div", "font-size:0.78rem;color:#8A7F63", id.civ)), 
+      cell.appendChild(t), cell.addEventListener("click", () => {
+        memory.sortPid = on ? null : pid, render();
+      }), head.appendChild(cell);
+    }
+    table.appendChild(head);
+    let anyDead = !1;
+    const line = (r, i) => {
+      const ln = civEl("div", "display:flex;flex-direction:row;align-items:center;background:" + (i % 2 ? "#16130E" : "#1A1712")), on = colRow === r, lab = civEl("div", "width:" + LABEL_W + ";flex-shrink:0;padding:6px 8px;box-sizing:border-box;font-size:0.9rem;cursor:pointer;border-left:4px solid " + civGroupAccent(r.metric.category) + ";color:" + (on ? "#FFD98A" : "#C9BFA6"), metricLabel(r.metric));
+      labs.push(lab), lab.addEventListener("click", () => {
+        memory.colMetric = on ? null : r.metric.id, render();
+      }), ln.appendChild(lab);
+      let best = 1 / 0;
+      for (const p of pids) best = Math.min(best, rankIn(r, p));
+      r.deadCounted && (anyDead = !0);
+      for (const p of pids) {
+        const c = r.byPid.get(p), cell = civEl("div", CELL + "display:flex;align-items:center;padding:6px 10px");
+        c ? (cell.appendChild(civEl("div", "font-size:1rem;color:" + (c.rank === best && pids.length > 1 ? "#FFD98A" : "#E8E2D0"), formatCivValue(c.value, r.dp, isPercentTrend(r.metric.trend)))), 
+        cell.appendChild(civEl("div", "font-size:0.8rem;margin-left:8px;color:" + civRankColor(c.rank), T("LOC_CHRONICLE_CIVS_RANK", c.rank, c.of) + (r.deadCounted ? " *" : "")))) : cell.appendChild(civEl("div", "font-size:1rem;color:#6B5842", "—")), 
+        ln.appendChild(cell);
+      }
+      table.appendChild(ln);
+    }, order = rows => null != sortPid ? byRankFor(rows, sortPid) : rows, has = r => pids.some(p => r.byPid.has(p));
+    if (memory.ungrouped) order(shownRows().filter(has)).forEach(line); else for (const cat of groups) {
+      const rows = order(rowsIn(cat).filter(has));
+      if (!rows.length) continue;
+      const gt = groupTitle(cat);
+      gt.style.margin = "14px 0 4px 0", gt.style.paddingBottom = "4px", gt.style.borderBottom = "1px solid #4A3F32", 
+      table.appendChild(gt), rows.forEach(line);
+    }
+    content.appendChild(table), footnote(anyDead), function(table, spacer, labs, n) {
+      const meter = civEl("div", "position:absolute;left:0;top:0;visibility:hidden;display:flex;flex-direction:row");
+      for (const l of labs) meter.appendChild(civEl("div", "flex:none;white-space:nowrap;font-size:0.9rem", l.textContent));
+      content.appendChild(meter);
+      let tries = 0;
+      const run = () => {
+        if (table.parentNode !== content) return;
+        tries++;
+        let sw = 0, natural = 0;
+        try {
+          sw = spacer.getBoundingClientRect().width;
+        } catch (e) {
+          sw = 0;
+        }
+        for (const c of Array.prototype.slice.call(meter.children)) try {
+          natural = Math.max(natural, c.getBoundingClientRect().width);
+        } catch (e) {}
+        if ((!sw || labs.length && !natural) && tries < 60) return void requestAnimationFrame(run);
+        if (meter.parentNode && meter.parentNode.removeChild(meter), !sw) return;
+        null == fit.remPx && null == fit.labelPx && (fit.remPx = sw / 15);
+        const cap = Math.round(LABEL_CAP * content.clientWidth), w = natural ? Math.min(Math.ceil(natural) + LABEL_EXTRA_PX, cap) : Math.round(sw);
+        if (w !== fit.labelPx || Math.round(sw) !== w) {
+          fit.labelPx = w, spacer.style.width = w + "px";
+          for (const l of labs) l.style.width = w + "px";
+          table.style.minWidth = compareMinWidth(w, n);
+        }
+      };
+      requestAnimationFrame(run);
+    }(table, spacer, labs, pids.length);
+  }
+  const LABEL_CAP = .35, LABEL_EXTRA_PX = 22, fit = {
+    labelPx: null,
+    remPx: null
+  };
+  function compareMinWidth(labelPx, n) {
+    return null != labelPx && fit.remPx ? Math.round(labelPx + fit.remPx * (1 + 10 * n)) + "px" : 16 + 10 * n + "rem";
+  }
+  function render() {
+    !function() {
+      list.textContent = "";
+      for (const pid of stats.pids) {
+        const id = stats.ident.get(pid), sel = memory.compare ? memory.picks.includes(pid) : pid === memory.pid, row = civEl("div", "display:flex;align-items:center;padding:8px 10px;margin-bottom:6px;cursor:pointer;box-sizing:border-box;background:" + (sel ? "#2E271D" : "#1E1A14") + ";border:1px solid " + (sel ? "#8A6F4A" : "#3A3226") + ";border-left:4px solid " + id.color);
+        memory.compare && !sel && (row.style.opacity = "0.45"), row.appendChild(civPortrait(id, 40));
+        const text = civEl("div", "display:flex;flex-direction:column;min-width:0;flex:1 1 auto;margin-left:10px");
+        text.appendChild(civEl("div", "font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:" + (sel ? "#FFD98A" : "#E8E2D0"), id.name));
+        const sub = [ id.civ, pid === stats.me ? T("LOC_CHRONICLE_CIVS_YOU") : "" ].filter(Boolean).join("  ·  ");
+        sub && text.appendChild(civEl("div", "font-size:0.8rem;color:#8A7F63;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", sub)), 
+        row.appendChild(text), row.addEventListener("click", () => {
+          if (memory.compare) {
+            const i = memory.picks.indexOf(pid);
+            i >= 0 ? memory.picks.splice(i, 1) : memory.picks.push(pid);
+          } else memory.pid = pid;
+          render();
+        }), list.appendChild(row);
+      }
+    }(), function() {
+      colFoot.textContent = "";
+      const add = (label, fn, on) => {
+        const b = makeNativeButton(label, fn, {
+          secondary: !0
+        });
+        colFoot.firstChild && (b.style.marginTop = "6px"), highlightButton(b, !!on), colFoot.appendChild(b);
+      };
+      stats.pids.length >= 2 && (memory.compare && add(T("LOC_CHRONICLE_CIVS_ALL_LEADERS"), selectAll, allPicked()), 
+      add(T(memory.compare ? "LOC_CHRONICLE_CIVS_DONE" : "LOC_CHRONICLE_CIVS_COMPARE"), toggleCompare, memory.compare)), 
+      add(T(allGroupsOn() ? "LOC_CHRONICLE_CIVS_ALL_GROUPS_OFF" : "LOC_CHRONICLE_CIVS_ALL_GROUPS_ON"), toggleAllGroups, !1), 
+      add(T("LOC_CHRONICLE_CIVS_GROUPED"), toggleGrouped, !memory.ungrouped);
+    }(), content.textContent = "", stats.pids.length ? memory.compare ? renderCompare(memory.picks.filter(p => stats.pids.includes(p))) : function(pid) {
+      const id = stats.ident.get(pid), hero = civEl("div", "display:flex;align-items:center;padding:16px 20px;margin-bottom:16px;box-sizing:border-box;background:#1E1A14;border:1px solid #4A3F32;border-left:6px solid " + id.color);
+      hero.appendChild(civPortrait(id, 76));
+      const htext = civEl("div", "display:flex;flex-direction:column;min-width:0;flex:1 1 auto;margin-left:18px");
+      htext.appendChild(civEl("div", "font-size:1.7rem;color:#F0E6D2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", id.name));
+      const sub = [ id.civ, pid === stats.me ? T("LOC_CHRONICLE_CIVS_YOU") : "" ].filter(Boolean).join("  ·  ");
+      sub && htext.appendChild(civEl("div", "font-size:1rem;color:#B7A987;margin-top:4px", sub)), 
+      hero.appendChild(htext), content.appendChild(hero);
+      const groups = shownGroups();
+      if (!groups.length) return void message(T("LOC_CHRONICLE_CIVS_NO_GROUPS"));
+      let anyDead = !1;
+      const card = (cat, rows) => {
+        const c = civEl("div", "margin-bottom:14px;padding:14px 16px 6px 16px;background:#1A1712;border:1px solid #3A3226;box-sizing:border-box");
+        cat && c.appendChild(groupTitle(cat));
+        const tiles = civEl("div", "display:flex;flex-wrap:wrap;margin-right:-10px");
+        for (const r of rows) r.deadCounted && (anyDead = !0), tiles.appendChild(tile(r, r.byPid.get(pid)));
+        c.appendChild(tiles), content.appendChild(c);
+      };
+      if (memory.ungrouped) {
+        const rows = byRankFor(shownRows().filter(r => r.byPid.has(pid)), pid);
+        rows.length && card(null, rows);
+      } else for (const cat of groups) {
+        const rows = byRankFor(rowsIn(cat).filter(r => r.byPid.has(pid)), pid);
+        rows.length && card(cat, rows);
+      }
+      footnote(anyDead);
+    }(memory.pid) : message(T("LOC_CHRONICLE_CIVS_EMPTY")), opts.onRender && opts.onRender();
+  }
+  return {
+    el: root,
+    render: render,
+    groupOn: groupOn,
+    groupHasRows: groupHasRows,
+    toggleCompare: toggleCompare,
+    toggleGrouped: toggleGrouped,
+    selectAll: selectAll,
+    toggleAllGroups: toggleAllGroups,
+    toggleGroup(i) {
+      const cat = catList[i];
+      return !(!cat || !groupHasRows(cat)) && (memory.off[cat] ? delete memory.off[cat] : memory.off[cat] = !0, 
+      render(), opts.onGroupsChanged && opts.onGroupsChanged(), !0);
+    },
+    stepCiv(d) {
+      if (memory.compare || stats.pids.length < 2) return !1;
+      const i = Math.max(0, stats.pids.indexOf(memory.pid));
+      return memory.pid = stats.pids[(i + d + stats.pids.length) % stats.pids.length], 
+      render(), !0;
+    }
+  };
+}
+
 function openOverlayForStore(store, opts) {
   opts = opts || {}, store && store.ages && (activeRoot && (activeRoot.style.visibility = "hidden", 
   activeChart && endTrendsScrub(activeChart), suspendedOverlays.push({
@@ -2814,7 +3194,6 @@ function openOverlayForStore(store, opts) {
     viewMode: viewMode,
     activeChart: activeChart,
     colorMapCache: colorMapCache,
-    legendHintShown: legendHintShown,
     fogOn: fogOn,
     unitFogOn: unitFogOn,
     openedFromEndGame: openedFromEndGame,
@@ -2835,7 +3214,7 @@ try {
     openForStore: openOverlayForStore,
     close: closeOverlay,
     refreshDockButton: refreshDockButton,
-    version: "0.33.91"
+    version: "0.34.1"
   };
 } catch (e) {
   try {
@@ -2844,7 +3223,7 @@ try {
       openForStore: openOverlayForStore,
       close: closeOverlay,
       refreshDockButton: refreshDockButton,
-      version: "0.33.91"
+      version: "0.34.1"
     };
   } catch (e2) {}
 }
@@ -2890,7 +3269,7 @@ function openOverlay(opts) {
     }
   }(() => openOverlay(opts));
   const seq = ++openSeq, tOpen0 = openNowMs();
-  applyChartDefaults(), legendHintShown = !1;
+  applyChartDefaults();
   const historical = isHistoricalView();
   openedFromEndGame = fromEndGame, fogOn = function() {
     if (!fogContextAllows()) return !1;
@@ -2953,9 +3332,27 @@ function openOverlay(opts) {
   title.textContent = historical ? viewMode && viewMode.title || T("LOC_HOF_VIEWDETAILS") : T("LOC_CHRONICLE_TITLE"), 
   title.className = "font-title uppercase tracking-150", title.setAttribute("style", TITLE_TEXT), 
   titleRow.appendChild(title);
+  const modeSwitch = catList.length ? function(onPick) {
+    const wrap = civEl("div", "display:flex;flex-direction:row;flex-shrink:0;margin-right:20px;margin-bottom:3px;border:1px solid #6B5842;background:#110F0B"), segs = {};
+    for (const [key, loc] of [ [ "metrics", "LOC_CHRONICLE_MODE_METRICS" ], [ "civs", "LOC_CHRONICLE_MODE_CIVS" ] ]) {
+      const seg = civEl("div", "padding:6px 16px;font-size:0.85rem;cursor:pointer", T(loc));
+      seg.className = "font-title uppercase tracking-150", seg.addEventListener("click", () => onPick(key)), 
+      segs[key] = seg, wrap.appendChild(seg);
+    }
+    return {
+      el: wrap,
+      paint(mode) {
+        for (const key in segs) {
+          const on = key === mode;
+          segs[key].style.background = on ? "#4A3B26" : "transparent", segs[key].style.color = on ? "#FFD98A" : "#B7A987";
+        }
+      }
+    };
+  }(m => setMode(m)) : null;
+  modeSwitch && titleRow.appendChild(modeSwitch.el);
   const note = document.createElement("div");
-  if (note.className = "font-body text-sm", note.setAttribute("style", "color:#B7A987;font-size:0.85rem;letter-spacing:0.04em;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-bottom:0.3rem"), 
-  titleRow.appendChild(note), titleCol.appendChild(titleRow), historical && viewMode && viewMode.caption) {
+  if (note.className = "font-body text-sm", note.setAttribute("style", NOTE_BASE_STYLE), 
+  titleCol.appendChild(titleRow), historical && viewMode && viewMode.caption) {
     const cap = document.createElement("div");
     cap.className = "font-body text-sm", cap.textContent = viewMode.caption, cap.setAttribute("style", "color:#B7A987;font-size:0.9rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"), 
     titleCol.appendChild(cap);
@@ -3017,6 +3414,11 @@ function openOverlay(opts) {
       setViewKey: () => !1,
       secondaryPrev: () => !1,
       secondaryNext: () => !1,
+      toggleMode: () => !1,
+      toggleCompare: () => !1,
+      toggleGrouped: () => !1,
+      selectAllLeaders: () => !1,
+      toggleAllGroups: () => !1,
       openHof: () => openHofFromHeader(),
       openOptions: () => openOptionsFromHeader()
     }, document.body.appendChild(root), void openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " empty=1 historical=" + (historical ? 1 : 0));
@@ -3045,12 +3447,12 @@ function openOverlay(opts) {
   const pageBar = document.createElement("div");
   pageBar.setAttribute("style", "display:flex;gap:12px;align-items:center;justify-content:center;margin-top:10px;flex-shrink:0"), 
   panel.appendChild(pageBar);
+  const footer = document.createElement("div");
+  footer.setAttribute("style", "display:flex;flex-direction:column;flex-shrink:0;width:100%;min-width:0;margin-top:10px"), 
+  footer.appendChild(note);
   const hotkeyHint = document.createElement("div");
-  hotkeyHint.textContent = function() {
-    const h = readHotkeys(), openLabs = engineLabelsForAction("open-ozq-chronicle"), openPhrase = (openLabs.length ? openLabs.join(" / ") : "F2") + " " + T("LOC_CHRONICLE_TITLE"), cats = formatHotkeyCode(h.catPrev) + " " + formatHotkeyCode(h.catNext), charts = formatHotkeyCode(h.chartPrev) + " " + formatHotkeyCode(h.chartNext), page = formatHotkeyCode(h.pagePrev) + " " + formatHotkeyCode(h.pageNext);
-    return T("LOC_CHRONICLE_HOTKEY_HINT", openPhrase, cats, charts, page);
-  }(), hotkeyHint.setAttribute("style", "color:#8A7F63;font-size:0.78rem;text-align:center;margin-top:10px;flex-shrink:0;opacity:0.9"), 
-  panel.appendChild(hotkeyHint);
+  hotkeyHint.textContent = hotkeyHintText(), hotkeyHint.setAttribute("style", HINT_LINE_STYLE), 
+  footer.appendChild(hotkeyHint), panel.appendChild(footer);
   const ui = {
     canvas: canvas,
     chartInner: chartInner,
@@ -3064,7 +3466,18 @@ function openOverlay(opts) {
   const navMemory = !historical && opts && opts.navMemory || {
     chartByCat: {},
     viewByMetric: {}
-  }, chartByCat = navMemory.chartByCat, viewByMetric = navMemory.viewByMetric, renderPage = () => {
+  }, chartByCat = navMemory.chartByCat, viewByMetric = navMemory.viewByMetric, civMemory = navMemory.civs || (navMemory.civs = !historical && liveSessionSelection && liveSessionSelection.civs || {
+    mode: "metrics",
+    pid: null,
+    compare: !1,
+    picks: [],
+    off: {}
+  });
+  historical || (liveSessionSelection = Object.assign({}, liveSessionSelection, {
+    civs: civMemory
+  }));
+  let curMode = "metrics", civsView = null, metricsPending = null;
+  const renderPage = () => {
     renderChart(ui, curMetric, curView, curPage), pageBar.textContent = "";
     const pages = curMetric && "bar" === curMetric.kind ? barPageCount(curMetric) : 1;
     if (pages <= 1) return;
@@ -3092,10 +3505,10 @@ function openOverlay(opts) {
         label && (label.style.color = active ? "#FFD98A" : "#E8E2D0"), b.style.opacity = active ? "1" : b._avail ? "0.72" : "0.4", 
         b.style.cursor = b._avail ? "pointer" : "default";
       }
-      curPage = 0, renderPage(), !historical && curMetric && curMetric.id && (liveSessionSelection = {
+      curPage = 0, renderPage(), !historical && curMetric && curMetric.id && (liveSessionSelection = Object.assign({}, liveSessionSelection, {
         metricId: curMetric.id,
         view: curView
-      });
+      }));
     }
   }, selectChart = (inCat, index, preferView) => {
     if (!inCat || !inCat.length || index < 0 || index >= inCat.length) return;
@@ -3134,27 +3547,68 @@ function openOverlay(opts) {
       const idx = preferId ? Math.max(0, inCat.findIndex(m => m.id === preferId)) : 0;
       selectChart(inCat, idx < 0 ? 0 : idx, preferView);
     } else curInCat = [], curChartIndex = 0, curMetric = null;
-  }, catButtons = catList.map((cat, i) => makeNativeButton(function(cat) {
-    return T("LOC_CHRONICLE_CAT_" + cat);
-  }(cat), () => selectCategory(i), {}));
+  }, catButtons = catList.map((cat, i) => makeNativeButton(catLabel(cat), () => {
+    "civs" === curMode ? civsView && civsView.toggleGroup(i) : selectCategory(i);
+  }, {})), paintCatButtons = () => {
+    catButtons.forEach((b, i) => {
+      const label = b.querySelector(".ozq-btn-label");
+      if ("civs" !== curMode || !civsView) return highlightButton(b, i === curCatIndex), 
+      void (b.style.cursor = "pointer");
+      const cat = catList[i], has = civsView.groupHasRows(cat), on = has && civsView.groupOn(cat);
+      label && (label.style.color = on ? civGroupAccent(cat) : "#8A7F63"), b.style.opacity = has ? on ? "1" : "0.5" : "0.2", 
+      b.style.cursor = has ? "pointer" : "default";
+    });
+  }, paintHint = () => {
+    hotkeyHint.textContent = "civs" === curMode ? hotkeyHintText("civs", !!civMemory.compare) : hotkeyHintText("metrics");
+  }, setMode = m => {
+    if ("metrics" !== m && "civs" !== m) return;
+    if (m === curMode && ("metrics" === m || civsView)) return;
+    curMode = m, civMemory.mode = m, modeSwitch.paint(m);
+    const civs = "civs" === m;
+    if (chartRow.root.style.display = civs ? "none" : "", chartWrap.style.display = civs ? "none" : "", 
+    pageBar.style.display = civs ? "none" : "flex", civs) return viewBar.style.display = "none", 
+    activeChart && (activeChart.destroy(), activeChart = null), civsView || (civsView = makeCivsView({
+      catList: catList,
+      stats: buildCivStats(metrics),
+      memory: civMemory,
+      onGroupsChanged: paintCatButtons,
+      onRender: paintHint
+    }), panel.insertBefore(civsView.el, viewBar)), civsView.el.style.display = "flex", 
+    civsView.render(), setNote(ui, "", null, !0), paintHint(), void paintCatButtons();
+    if (civsView && (civsView.el.style.display = "none"), paintHint(), paintCatButtons(), 
+    metricsPending) {
+      const p = metricsPending;
+      metricsPending = null, selectCategory(p.cat, p.id, p.view);
+    } else curInCat.length && selectChart(curInCat, curChartIndex, curView);
+    requestAnimationFrame(() => {
+      activeRoot === root && chartRow.remeasure();
+    });
+  };
   activeNav = {
-    jumpCategory: i => !(i < 0 || i >= catList.length) && (selectCategory(i), !0),
-    stepCategory: d => !!catList.length && (selectCategory((curCatIndex + d + catList.length) % catList.length), 
+    jumpCategory: i => !(i < 0 || i >= catList.length) && ("civs" === curMode ? !(!civsView || !civsView.toggleGroup(i)) : (selectCategory(i), 
+    !0)),
+    toggleMode: () => (setMode("civs" === curMode ? "metrics" : "civs"), !0),
+    toggleCompare: () => "civs" === curMode && !(!civsView || !civsView.toggleCompare()),
+    toggleGrouped: () => "civs" === curMode && !(!civsView || !civsView.toggleGrouped()),
+    selectAllLeaders: () => "civs" === curMode && !(!civsView || !civsView.selectAll()),
+    toggleAllGroups: () => "civs" === curMode && !(!civsView || !civsView.toggleAllGroups()),
+    stepCategory: d => !(!catList.length || "civs" === curMode) && (selectCategory((curCatIndex + d + catList.length) % catList.length), 
     !0),
     stepChart(d) {
+      if ("civs" === curMode) return !(!civsView || !civsView.stepCiv(d));
       if (!curInCat.length) return !1;
       const next = (curChartIndex + d + curInCat.length) % curInCat.length;
       return selectChart(curInCat, next, curView), !0;
     },
     stepPage(d) {
-      if (!curMetric || "bar" !== curMetric.kind) return !1;
+      if ("civs" === curMode || !curMetric || "bar" !== curMetric.kind) return !1;
       const pages = barPageCount(curMetric);
       if (pages <= 1) return !1;
       const next = Math.max(0, Math.min(pages - 1, curPage + d));
       return next !== curPage && (curPage = next, renderPage(), !0);
     },
     setViewKey(v) {
-      if ("trend" !== v && "stand" !== v) return !1;
+      if ("civs" === curMode || "trend" !== v && "stand" !== v) return !1;
       const b = viewButtons[v];
       return !(!b || !1 === b._avail) && (setView(v), !0);
     },
@@ -3176,8 +3630,12 @@ function openOverlay(opts) {
   requestAnimationFrame(() => {
     if (seq !== openSeq || !activeRoot) return;
     const tChart0 = openNowMs();
-    selectCategory(openCat, openMetric && openMetric.id, openView), openLog("open-first-chart " + Math.round(openNowMs() - tChart0) + "ms"), 
-    requestAnimationFrame(() => {
+    modeSwitch.paint("metrics"), "civs" === civMemory.mode ? (metricsPending = {
+      cat: openCat,
+      id: openMetric && openMetric.id,
+      view: openView
+    }, setMode("civs")) : selectCategory(openCat, openMetric && openMetric.id, openView), 
+    openLog("open-first-chart " + Math.round(openNowMs() - tChart0) + "ms"), requestAnimationFrame(() => {
       seq === openSeq && activeRoot && (categoryRow.remeasure(), chartRow.remeasure());
     });
   });

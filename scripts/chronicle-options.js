@@ -1,6 +1,6 @@
 import "/ozq-chronicle/scripts/chronicle-common.js";
 
-const LOG = "[chronicle-options]", {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, readSettings: readSettings, writeSettings: writeSettings, DEFAULT_HOTKEYS: DEFAULT_HOTKEYS, HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS, isWatchedEngineAction: isWatchedEngineAction, isEatableWorldAction: isEatableWorldAction, engineCodesForAction: engineCodesForAction, nativeActionsForCode: nativeActionsForCode, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, engineLabelsForAction: engineLabelsForAction, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode} = globalThis.ozqChronicleCommon, T = (key, ...args) => L(key, ...args), SETTINGS = [ {
+const LOG = "[chronicle-options]", {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, readSettings: readSettings, writeSettings: writeSettings, DEFAULT_HOTKEYS: DEFAULT_HOTKEYS, HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS, isWatchedEngineAction: isWatchedEngineAction, isEatableWorldAction: isEatableWorldAction, engineCodesForAction: engineCodesForAction, nativeActionsForCode: nativeActionsForCode, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, engineLabelsForAction: engineLabelsForAction, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode} = globalThis.ozqChronicleCommon, T = (key, ...args) => L(key, ...args), SETTINGS = [ {
   key: "fog",
   invert: !0,
   label: "LOC_CHRONICLE_OPT_SHOW_UNMET",
@@ -38,6 +38,21 @@ const LOG = "[chronicle-options]", {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: 
 }, {
   slot: "openOptions",
   label: "LOC_CHRONICLE_OPT_HK_OPEN_OPTIONS"
+}, {
+  slot: "leadersMode",
+  label: "LOC_CHRONICLE_OPT_HK_LEADERS_MODE"
+}, {
+  slot: "leadersCompare",
+  label: "LOC_CHRONICLE_OPT_HK_LEADERS_COMPARE"
+}, {
+  slot: "leadersStatGroups",
+  label: "LOC_CHRONICLE_OPT_HK_LEADERS_ALL_GROUPS"
+}, {
+  slot: "leadersSelectAll",
+  label: "LOC_CHRONICLE_OPT_HK_LEADERS_SELECT_ALL"
+}, {
+  slot: "leadersGrouped",
+  label: "LOC_CHRONICLE_OPT_HK_LEADERS_GROUPED"
 } ], HOTKEY_CAPTURE_BLOCKED = {
   Escape: !0,
   Digit1: !0,
@@ -127,7 +142,7 @@ function applyHotkeyCapture(code, fromEngine) {
   patch[slot] = code, writeSettings({
     hotkeys: patch
   }), changedWhileOpen = !0, !fromEngine && isEngineBoundHotkeyCode(code) && (captureEngineLatchCode = code), 
-  cancelHotkeyCapture();
+  fromEngine || noteKeydownPress(code), cancelHotkeyCapture();
 }
 
 function onOptionsKeydown(e) {
@@ -141,8 +156,8 @@ function onOptionsKeydown(e) {
     if (HOTKEY_CAPTURE_BLOCKED[code] || e.shiftKey) return;
     applyHotkeyCapture(code);
   } else if (!e.shiftKey) try {
-    code !== readHotkeys().openOptions || isEngineBoundHotkeyCode(code) || (stopKeydownPeers(e), 
-    closeOptions());
+    code !== readHotkeys().openOptions || isEngineBoundHotkeyCode(code) || (noteKeydownPress(code), 
+    stopKeydownPeers(e), closeOptions());
   } catch (err) {}
 }
 
@@ -253,6 +268,7 @@ const optionsInputHandler = {
       }
       if (captureEngineLatchCode && codes.indexOf(captureEngineLatchCode) >= 0) return isPressFinished(e) && (captureEngineLatchCode = null), 
       !1;
+      if (isKeydownPress(e, codes)) return !1;
       if (isPressFinished(e)) try {
         const hk = readHotkeys();
         for (let i = 0; i < codes.length; i++) if (hk.openOptions === codes[i]) {
@@ -286,7 +302,7 @@ try {
       root.appendChild(panel);
       const header = el("div", HEADER_BOX), titleCol = el("div", TITLE_COL_ROW), title = el("div", TITLE_TEXT, T("LOC_CHRONICLE_OPT_TITLE"));
       title.className = "font-title uppercase tracking-150", titleCol.appendChild(title), 
-      titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.75rem;padding-bottom:4px;flex-shrink:0;margin-right:16px", "v0.33.91")), 
+      titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.75rem;padding-bottom:4px;flex-shrink:0;margin-right:16px", "v0.34.1")), 
       header.appendChild(titleCol);
       const actions = el("div", HEADER_ACTIONS), closeBtn = makeNativeButton(T("LOC_GENERIC_CLOSE"), closeOptions, {});
       closeBtn.style.opacity = "0.72";
@@ -299,7 +315,7 @@ try {
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.33.91"
+    version: "0.34.1"
   };
 } catch (e) {}
 

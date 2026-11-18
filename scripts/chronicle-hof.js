@@ -2,7 +2,7 @@ import "/ozq-chronicle/scripts/chronicle-common.js";
 
 import "/ozq-chronicle/scripts/chronicle-triumphs-data.js";
 
-const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
+const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, uiIconCss: uiIconCss, leaderIconCss: leaderIconCss, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
 
 function err(msg) {
   try {
@@ -252,23 +252,6 @@ const VICTORY_BADGE_BLP = {
   VICTORY_CLASS_ECONOMIC: "fs://game/leg_pro_eco_victory_icon.png"
 };
 
-function uiIconCss(id, context) {
-  if (null == id || "" === id) return "";
-  try {
-    if ("undefined" != typeof UI) {
-      if ("function" == typeof UI.getIconCSS) {
-        const css = null != context && "" !== context ? UI.getIconCSS(id, context) : UI.getIconCSS(id);
-        if (css && "url('')" !== css && 'url("")' !== css && "none" !== css) return css;
-      }
-      if ("function" == typeof UI.getIconURL) {
-        const url = null != context && "" !== context ? UI.getIconURL(id, context) : UI.getIconURL(id);
-        if (url && String(url).indexOf("unknown") < 0) return "url('" + url + "')";
-      }
-    }
-  } catch (e) {}
-  return "";
-}
-
 function victoryIconResolved(cls) {
   if (!cls) return {
     css: "",
@@ -303,9 +286,7 @@ function makeIcon(css, size, extraStyle, bgSize) {
 }
 
 function makeLeaderPortrait(leaderType, size) {
-  const wrap = el("div", "width:" + (size = size || 112) + "px;height:" + size + "px;flex-shrink:0;border-radius:" + Math.round(size / 2) + "px;overflow:hidden;background:#2A241C;border:2px solid #6B5842;box-sizing:border-box;background-position:center;background-repeat:no-repeat;background-size:cover"), css = function(leaderType) {
-    return leaderType && (uiIconCss(leaderType, "CIRCLE_MASK") || uiIconCss(leaderType)) || "";
-  }(leaderType);
+  const wrap = el("div", "width:" + (size = size || 112) + "px;height:" + size + "px;flex-shrink:0;border-radius:" + Math.round(size / 2) + "px;overflow:hidden;background:#2A241C;border:2px solid #6B5842;box-sizing:border-box;background-position:center;background-repeat:no-repeat;background-size:cover"), css = leaderIconCss(leaderType);
   if (css) wrap.style.backgroundImage = css; else {
     wrap.style.display = "flex", wrap.style.alignItems = "center", wrap.style.justifyContent = "center";
     const name = leaderType ? leaderName(leaderType) : "?";
@@ -380,6 +361,7 @@ const hofInputHandler = {
     !1) : !(isWatchedEngineAction(d.name) || isEatableWorldAction(d.name));
     if (isWatchedEngineAction(d.name)) {
       const codes = engineCodesForAction(d.name);
+      if (isKeydownPress(e, codes)) return !1;
       if (isPressFinished(e)) {
         const hk = readHotkeys();
         let slot = null;
@@ -409,7 +391,7 @@ function onHofKeydown(e) {
     const n = Number(code.replace("Digit", "").replace("NumPad", "").replace("Numpad", ""));
     n >= 1 && n <= 6 && (handled = !!activeHofNav.jumpTab(n - 1));
   }
-  handled && stopKeydownPeers(e);
+  handled && (noteKeydownPress(code), stopKeydownPeers(e));
 }
 
 function deleteGameDirect(id) {
@@ -1003,14 +985,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.33.91"
+    version: "0.34.1"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.33.91"
+      version: "0.34.1"
     };
   } catch (e2) {}
 }

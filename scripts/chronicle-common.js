@@ -1,5 +1,7 @@
 import "/ozq-chronicle/scripts/chronicle-i18n.js";
 
+import "/ozq-chronicle/scripts/chronicle-dlc-names-data.js";
+
 const LOG = "[chronicle-common]";
 
 function err(msg) {
@@ -21,12 +23,9 @@ function L() {
   return api && api.L ? api.L.apply(api, arguments) : "";
 }
 
-const LEADER_PERSONA_NAMES = {
-  LEADER_NAPOLEON_ALT: "Napoleon, Revolutionary",
-  LEADER_ASHOKA_ALT: "Ashoka, World Conqueror",
-  LEADER_HIMIKO_ALT: "Himiko, High Shaman",
-  LEADER_FRIEDRICH_ALT: "Friedrich, Baroque",
-  LEADER_XERXES_ALT: "Xerxes, the Achaemenid"
+const DLC_NAME_TABLES = {
+  Leaders: "leaders",
+  Civilizations: "civs"
 };
 
 function isResolvedLoc(n, key) {
@@ -67,6 +66,26 @@ function makeNativeButton(label, onClick, opts) {
   }), button;
 }
 
+function isPressFinished(e) {
+  return !("engine-input" !== e.type || !e.detail) && ("undefined" == typeof InputActionStatuses || e.detail.status === InputActionStatuses.FINISH);
+}
+
+let actionHandler = null;
+
+try {
+  import("/core/ui/input/action-handler.js").then(m => {
+    actionHandler = m && m.default || null;
+  }).catch(() => {});
+} catch (e) {}
+
+function recheckCursorCamera(block) {
+  try {
+    if (!actionHandler || actionHandler.isGamepadActive || "function" != typeof actionHandler.forceCursorCheck) return;
+    block && "undefined" != typeof Camera && "function" == typeof Camera.setPreventMouseCameraMovement && Camera.setPreventMouseCameraMovement(!0), 
+    actionHandler.forceCursorCheck();
+  } catch (e) {}
+}
+
 const wantedHandlers = new Set, registeredAdapters = new Map;
 
 let contextManager = null, inputHandlerState = null;
@@ -94,7 +113,10 @@ function syncFrontInputHandlers() {
   }), wantedHandlers.forEach(handler => {
     if (registeredAdapters.has(handler)) return;
     const adapter = {
-      handleInput: e => handler.handleInput(e) ? ihs.Active : ihs.Handled,
+      handleInput: e => function(e) {
+        const n = e && e.detail && e.detail.name;
+        return "string" == typeof n && 0 === n.indexOf("mousewheel-");
+      }(e) ? ihs.Handled : handler.handleInput(e) ? ihs.Active : ihs.Handled,
       handleNavigation: e => handler.handleNavigation(e) ? ihs.Active : ihs.Handled
     };
     registeredAdapters.set(handler, adapter), cm.registerEngineInputHandler(adapter);
@@ -234,8 +256,13 @@ const DEFAULT_HOTKEYS = {
   pagePrev: "Comma",
   pageNext: "Period",
   openHof: "KeyH",
-  openOptions: "KeyO"
-}, HOTKEY_SLOT_KEYS = [ "catPrev", "catNext", "chartPrev", "chartNext", "pagePrev", "pageNext", "openHof", "openOptions" ], ENGINE_WATCHED_ACTIONS = [ "unit-heal", "unit-fortify", "unit-sleep", "unit-alert", "unit-auto-explore", "unit-move", "unit-ranged-attack", "unit-skip-turn", "open-greatworks", "open-techs", "open-civics", "open-traditions", "open-rankings", "open-attributes", "open-civilopedia", "open-advisors", "open-legacies", "open-religion", "open-trade", "open-ozq-chronicle", "quick-save", "quick-load", "toggle-grid-layer", "toggle-yields-layer", "toggle-resources-layer", "toggle-frame-stats", "next-action", "keyboard-enter", "text-to-speech-keyboard" ], ENGINE_NO_SKIP_KEYDOWN = {
+  openOptions: "KeyO",
+  leadersMode: "KeyL",
+  leadersCompare: "KeyC",
+  leadersGrouped: "KeyG",
+  leadersSelectAll: "KeyA",
+  leadersStatGroups: "KeyS"
+}, HOTKEY_SLOT_KEYS = [ "catPrev", "catNext", "chartPrev", "chartNext", "pagePrev", "pageNext", "openHof", "openOptions", "leadersMode", "leadersCompare", "leadersGrouped", "leadersSelectAll", "leadersStatGroups" ], ENGINE_WATCHED_ACTIONS = [ "unit-heal", "unit-fortify", "unit-sleep", "unit-alert", "unit-auto-explore", "unit-move", "unit-ranged-attack", "unit-skip-turn", "open-greatworks", "open-techs", "open-civics", "open-traditions", "open-rankings", "open-attributes", "open-civilopedia", "open-advisors", "open-legacies", "open-religion", "open-trade", "open-ozq-chronicle", "quick-save", "quick-load", "toggle-grid-layer", "toggle-yields-layer", "toggle-resources-layer", "toggle-frame-stats", "next-action", "keyboard-enter", "text-to-speech-keyboard" ], ENGINE_NO_SKIP_KEYDOWN = {
   "toggle-grid-layer": !0,
   "toggle-yields-layer": !0,
   "toggle-resources-layer": !0,
@@ -447,6 +474,8 @@ function engineCodesForAction(name) {
   return fb ? fb.slice() : [];
 }
 
+const keydownPresses = Object.create(null);
+
 const EAT_WORLD_ENGINE_ACTIONS = [ "keyboard-nav-left", "keyboard-nav-right", "keyboard-nav-up", "keyboard-nav-down", "cycle-prev", "cycle-next" ];
 
 const DEFAULT_SETTINGS = {
@@ -459,9 +488,14 @@ const DEFAULT_SETTINGS = {
 function normalizeHotkeys(raw) {
   const out = Object.assign({}, DEFAULT_HOTKEYS);
   if (!raw || "object" != typeof raw) return out;
+  const stored = Object.create(null);
   for (let i = 0; i < HOTKEY_SLOT_KEYS.length; i++) {
     const k = HOTKEY_SLOT_KEYS[i], v = raw[k];
-    "string" == typeof v && v && (out[k] = toGamefaceCode(v));
+    "string" == typeof v && v && (out[k] = toGamefaceCode(v), stored[out[k]] = !0);
+  }
+  for (let i = 0; i < HOTKEY_SLOT_KEYS.length; i++) {
+    const k = HOTKEY_SLOT_KEYS[i], v = raw[k];
+    "string" == typeof v && v || !stored[out[k]] || (out[k] = "");
   }
   return out;
 }
@@ -523,6 +557,23 @@ function readSettings() {
   }
 }
 
+function uiIconCss(id, context) {
+  if (null == id || "" === id) return "";
+  try {
+    if ("undefined" != typeof UI) {
+      if ("function" == typeof UI.getIconCSS) {
+        const css = null != context && "" !== context ? UI.getIconCSS(id, context) : UI.getIconCSS(id);
+        if (css && "url('')" !== css && 'url("")' !== css && "none" !== css) return css;
+      }
+      if ("function" == typeof UI.getIconURL) {
+        const url = null != context && "" !== context ? UI.getIconURL(id, context) : UI.getIconURL(id);
+        if (url && String(url).indexOf("unknown") < 0) return "url('" + url + "')";
+      }
+    }
+  } catch (e) {}
+  return "";
+}
+
 globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first published copy") : globalThis.ozqChronicleCommon = {
   chronicleI18n: chronicleI18n,
   L: L,
@@ -541,7 +592,6 @@ globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first publi
   prettifyTypeEnglish: function(type) {
     return null == type ? "" : String(type).replace(/^[A-Z]+_/, "").toLowerCase().replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   },
-  LEADER_PERSONA_NAMES: LEADER_PERSONA_NAMES,
   isResolvedLoc: isResolvedLoc,
   resolveTypeNameOrNull: function(table, type) {
     if (null == type || "" === type) return null;
@@ -561,7 +611,12 @@ globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first publi
         if (isResolvedLoc(n, key)) return n;
       }
     } catch (e) {}
-    return "Leaders" === table && LEADER_PERSONA_NAMES[t] ? LEADER_PERSONA_NAMES[t] : null;
+    return function(table, type) {
+      const key = DLC_NAME_TABLES[table], data = "undefined" != typeof globalThis ? globalThis.ozqChronicleDlcNames : null, names = key && data && data[key] && data[key][type];
+      if (!names) return null;
+      const api = chronicleI18n();
+      return (api && "function" == typeof api.pickPair ? api.pickPair(names) : names.en) || null;
+    }(table, t);
   },
   PANEL_PAD_X: 36,
   PANEL_BOX: PANEL_BOX,
@@ -591,15 +646,19 @@ globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first publi
     const label = button.querySelector(".ozq-btn-label");
     return label && (label.style.color = "#E8E2D0"), button;
   },
-  CANCEL_ACTIONS: [ "cancel", "keyboard-escape", "mousebutton-right", "sys-menu" ],
-  isPressFinished: function(e) {
-    return !("engine-input" !== e.type || !e.detail) && ("undefined" == typeof InputActionStatuses || e.detail.status === InputActionStatuses.FINISH);
+  uiIconCss: uiIconCss,
+  leaderIconCss: function(leaderType) {
+    return leaderType && (uiIconCss(leaderType, "CIRCLE_MASK") || uiIconCss(leaderType)) || "";
   },
+  CANCEL_ACTIONS: [ "cancel", "keyboard-escape", "mousebutton-right", "sys-menu" ],
+  isPressFinished: isPressFinished,
   installFrontInputHandler: function(handler) {
-    handler && !wantedHandlers.has(handler) && (wantedHandlers.add(handler), syncFrontInputHandlers());
+    handler && !wantedHandlers.has(handler) && (0 === wantedHandlers.size && recheckCursorCamera(!0), 
+    wantedHandlers.add(handler), syncFrontInputHandlers());
   },
   removeFrontInputHandler: function(handler) {
-    handler && wantedHandlers.has(handler) && (wantedHandlers.delete(handler), syncFrontInputHandlers());
+    handler && wantedHandlers.has(handler) && (wantedHandlers.delete(handler), syncFrontInputHandlers(), 
+    0 === wantedHandlers.size && recheckCursorCamera(!1));
   },
   scheduleInstall: function(install) {
     const tick = () => {
@@ -824,6 +883,21 @@ globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first publi
       if (hk[k] === code) return k;
     }
     return null;
+  },
+  noteKeydownPress: function(code) {
+    code && (keydownPresses[code] = Date.now());
+  },
+  isKeydownPress: function(e, codes) {
+    const now = Date.now();
+    for (let i = 0; i < codes.length; i++) {
+      const t = keydownPresses[codes[i]];
+      if (null != t) {
+        if (!(now - t > 5e3)) return isPressFinished(e) && delete keydownPresses[codes[i]], 
+        !0;
+        delete keydownPresses[codes[i]];
+      }
+    }
+    return !1;
   },
   EAT_WORLD_ENGINE_ACTIONS: EAT_WORLD_ENGINE_ACTIONS,
   isEatableWorldAction: function(name) {

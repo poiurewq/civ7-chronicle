@@ -6,7 +6,7 @@
         <Authors>ozq</Authors>
         <Package>Mod</Package>
         <AffectsSavedGames>0</AffectsSavedGames>
-        <Version>0.33.91</Version>
+        <Version>0.34.1</Version>
     </Properties>
 
     <Dependencies>
@@ -31,6 +31,7 @@
                 <ImportFiles>
                     <Item>art/dock-wreath.png</Item>
                     <Item>scripts/chronicle-i18n.js</Item>
+                    <Item>scripts/chronicle-dlc-names-data.js</Item>
                     <Item>scripts/chronicle-common.js</Item>
                     <Item>scripts/chronicle-triumphs-data.js</Item>
                 </ImportFiles>
@@ -41,6 +42,7 @@
                 </UpdateText>
                 <UIScripts>
                     <Item>scripts/chronicle-i18n.js</Item>
+                    <Item>scripts/chronicle-dlc-names-data.js</Item>
                     <Item>scripts/chronicle-common.js</Item>
                     <Item>scripts/chronicle-options.js</Item>
                     <Item>scripts/chronicle-kbm-editor.js</Item>
@@ -61,6 +63,7 @@
                 </UpdateDatabase>
                 <ImportFiles>
                     <Item>scripts/chronicle-i18n.js</Item>
+                    <Item>scripts/chronicle-dlc-names-data.js</Item>
                     <Item>scripts/chronicle-common.js</Item>
                     <Item>scripts/chronicle-triumphs-data.js</Item>
                 </ImportFiles>
@@ -71,6 +74,7 @@
                 </UpdateText>
                 <UIScripts>
                     <Item>scripts/chronicle-i18n.js</Item>
+                    <Item>scripts/chronicle-dlc-names-data.js</Item>
                     <Item>scripts/chronicle-common.js</Item>
                     <Item>scripts/chronicle-options.js</Item>
                     <Item>scripts/chronicle-kbm-editor.js</Item>
