@@ -13,7 +13,7 @@ Open a full-screen stats overlay from:
 - The **pause menu** on any turn. Chronicle leaves the pause menu open behind it.
 - The **end-of-game results screen**. Accessibility hotkeys including F2 do not fire there, same as the base game.
 
-Open **Hall of Fame** from the Main Menu or from the Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record, per-leader and per-civilization stats, game history, and high-score / fastest-finish boards. Open any past game for Chronicle graphs from the log. On the History tab, **Manage** lets you delete a recorded game or reset the whole Hall of Fame. Only Chronicle's own stats are cleared. Your save files are never touched. The **Triumphs** tab shows all 90 triumphs by Age and attribute, which ones you have completed, and the campaigns you earned them in. Click a triumph to see what it requires.
+Open **Hall of Fame** from the Main Menu or from the Chronicle overlay. It lists every campaign Chronicle has tracked: win/loss record, per-leader and per-civilization stats, game history, and high-score / fastest-finish boards. Open any past game for Chronicle graphs from the log. On the History tab, **Manage** shows how much space each game takes, and lets you delete a recorded game or reset the whole Hall of Fame. Only Chronicle's own stats are cleared. Your save files are never touched. The **Triumphs** tab shows all 90 triumphs by Age and attribute, which ones you have completed, and the campaigns you earned them in. Click a triumph to see what it requires.
 
 This mod changes no gameplay rules and does **not** affect your saved games.
 
@@ -31,7 +31,11 @@ By-type breakdowns and World settlement leaderboards are current snapshots, so t
 
 ### Leaders mode
 
-Switch the Chronicle header from **Metrics** to **Leaders** to see every leader's current value and rank on every stat. Pick a leader in the column on the left for a dashboard of their stats, or turn on **Compare** to put several leaders side by side. Click a leader or stat header in Compare to sort. The category buttons become stat-group filters. Works in live games and in Hall of Fame Game Details, and your setup is kept while the game runs.
+Switch the Chronicle header from **Metrics** to **Leaders** to see every leader's value and rank on every stat. Pick a leader in the column on the left for a dashboard of their stats, or turn on **Compare** to put several leaders side by side. Click a leader or stat header in Compare to sort. The category buttons become stat-group filters. Works in live games and in Hall of Fame Game Details, and your setup is kept while the game runs.
+
+### Stats at any turn
+
+Pick any turn Chronicle has logged and the whole overlay shows how every civ stood then: every Trends chart's crosshair, the Standings bars, and the Leaders dashboard and Compare. Set the turn by dragging in a Trends plot, with the timeline under Leaders mode, or with **; '**. The timeline has one band per Age, with a gold notch where each Age ended. A gold chip above the chart buttons shows the selected turn. Click it to return to Now. By-type breakdowns and World snapshot charts always show the current turn.
 
 ### Categories
 
@@ -47,11 +51,12 @@ Switch the Chronicle header from **Metrics** to **Leaders** to see every leader'
 
 - Every chart includes **all players**, including you. The base game's own charts hide the local player.
 - **Hover** a line point for its exact value at that turn. **Click** a civ in the legend to hide or show its line.
-- **Hold and drag** in a Trends plot to scrub turns: a vertical crosshair snaps to the nearest logged turn, with dots on each visible series and a multi-civ value panel. Release clears. Hover tooltips stay when you are not scrubbing.
+- **Hold and drag** in a Trends plot to scrub turns: a vertical crosshair snaps to the nearest logged turn, with dots on each visible series and a multi-civ value panel. The turn stays pinned when you let go and becomes the selected turn for the whole overlay. Click the value panel to clear it, or press **L** to open Leaders at that turn. Hover tooltips stay when you are not scrubbing.
 - Stats the base game leaves empty are filled in: **Civics**, **net Gold per turn**, **Units Killed**, and **Units Lost**. Technologies and Civics **count Masteries**, not just base nodes.
 - **Eliminated civs** drop out of current standings. Their Units Killed, Lost, and trained stay on the Military charts.
 - Switch category and back and Chronicle returns to the chart you last had open there, in the Trends or Standings view you picked for it. It resets when you close Chronicle.
 - Trend lines start where the data begins and stop at the last real point.
+- Trends charts run Ages end to end, with a faint line at each Age boundary.
 - Charts with no data are **hidden automatically**. An Antiquity game will not show empty Tourism or Great People charts.
 - Colors too dark to read are brightened. Near-identical civ colors are nudged apart.
 
@@ -90,6 +95,7 @@ While Chronicle or Game Details is open:
 - **- =:** previous / next category. Same keys step Hall of Fame tabs.
 - **[ ]:** previous / next chart.
 - **, .:** Trends / Standings, or prev / next page on multi-page bars.
+- **; ':** previous / next logged turn.
 - **H:** open or close Hall of Fame from live Chronicle.
 - **O:** open or close Options.
 - **L:** switch Metrics / Leaders.

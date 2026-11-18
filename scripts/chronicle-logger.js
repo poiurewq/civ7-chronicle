@@ -1,6 +1,6 @@
 import "/ozq-chronicle/scripts/chronicle-common.js";
 
-const {isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, loadShared: loadShared, saveShared: saveShared} = globalThis.ozqChronicleCommon, YIELD_METRICS = [ {
+const {isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, loadShared: loadShared, saveShared: saveShared, serialiseShared: serialiseShared, writeShared: writeShared} = globalThis.ozqChronicleCommon, YIELD_METRICS = [ {
   k: "hap",
   yield: "YIELD_HAPPINESS"
 }, {
@@ -816,14 +816,6 @@ function cloneByTypeMap(src) {
 
 let bootNotes = [];
 
-function containerBytes(c) {
-  try {
-    return JSON.stringify(c).length;
-  } catch (e) {
-    return -1;
-  }
-}
-
 function evictOldestGame(c, currentGameId) {
   let oldest = null, oldestT = 1 / 0;
   for (const gid in c.games) {
@@ -839,11 +831,12 @@ const CONTAINER_CAP = 20971520;
 function saveContainer(c, currentGameId) {
   c.updated = Date.now();
   let guard = 0;
-  for (;containerBytes(c) > CONTAINER_CAP && guard++ < 64 && evictOldestGame(c, currentGameId); ) ;
   for (let attempt = 0; attempt < 10; attempt++) try {
     const r = loadShared();
-    return r.container && r.container.settings && "object" == typeof r.container.settings && (c.settings = Object.assign({}, r.container.settings)), 
-    saveShared(r.shared, c);
+    r.container && r.container.settings && "object" == typeof r.container.settings && (c.settings = Object.assign({}, r.container.settings));
+    let str = serialiseShared(r.shared, c);
+    for (;str.length > CONTAINER_CAP && guard++ < 64 && evictOldestGame(c, currentGameId); ) str = serialiseShared(r.shared, c);
+    return writeShared(r.shared, str);
   } catch (e) {
     if (!evictOldestGame(c, currentGameId)) return !1;
   }
@@ -876,14 +869,6 @@ function stampEventCounters() {
   } catch (e) {}
 }
 
-function flushNow(reason) {
-  try {
-    return captureTurn(reason || "flush", !0);
-  } catch (e) {
-    return null;
-  }
-}
-
 function nowMs() {
   try {
     if ("undefined" != typeof performance && "function" == typeof performance.now) return performance.now();
@@ -891,7 +876,7 @@ function nowMs() {
   return Date.now();
 }
 
-function recordOutcome(reason) {
+function recordOutcome(reason, noSave) {
   if (!store || "undefined" == typeof Game) return;
   const vm = Game.VictoryManager;
   if (!vm) return;
@@ -915,19 +900,26 @@ function recordOutcome(reason) {
   } catch (e) {}
   let defeatType = null;
   try {
-    if ("PlayerDefeat" === reason && "function" == typeof vm.getLatestPlayerDefeat) {
-      const d = vm.getLatestPlayerDefeat();
-      !d || null == d.defeatType && null == d.DefeatType || (defeatType = String(null != d.defeatType ? d.defeatType : d.DefeatType));
+    if ("PlayerDefeat" === reason && "function" == typeof vm.getLatestPlayerDefeat && "undefined" != typeof DefeatTypes) {
+      const d = vm.getLatestPlayerDefeat(GameContext.localPlayerID);
+      if (null != d && d != DefeatTypes.NO_DEFEAT) {
+        defeatType = String(d);
+        try {
+          const def = GameInfo.Defeats.lookup(d);
+          def && def.DefeatType && (defeatType = String(def.DefeatType));
+        } catch (e) {}
+      }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error("[chronicle-log] getLatestPlayerDefeat failed: " + e);
+  }
   if (null == winnerTeam && null == defeatType) return;
   const res = store.meta && store.meta.result ? store.meta.result : {};
-  res.turn = Game.turn, res.ageKey = currentAge().key, null != winnerTeam && (res.victorTeam = winnerTeam, 
+  if (res.turn = Game.turn, res.ageKey = currentAge().key, null != winnerTeam && (res.victorTeam = winnerTeam, 
   res.place = place, victoryClass && (res.victoryClass = victoryClass), null != localTeam && (res.localWon = winnerTeam === localTeam)), 
   null != defeatType && (res.localDefeated = !0, res.defeatType = defeatType), store.meta || (store.meta = {
     players: {}
-  }), store.meta.result = res, store.updated = Date.now();
-  try {
+  }), store.meta.result = res, store.updated = Date.now(), !noSave) try {
     saveContainer(container, guid);
   } catch (e) {}
 }
@@ -950,7 +942,7 @@ function recordTriumph(legacyType, turn) {
   return civ && (rec.c = civ), tri[legacyType] = rec, !0;
 }
 
-function captureTurn(reason, force) {
+function captureTurn(reason, force, noSave) {
   if (!store || !container) return null;
   const age = currentAge(), ageKey = age.key, turn = Game.turn;
   if (null == turn) return null;
@@ -1209,11 +1201,12 @@ function captureTurn(reason, force) {
     return n;
   }();
   "load" === reason && err(`triumphs: sweep added ${triNew}; ${Object.keys(store.tri || {}).length} logged this campaign`), 
-  lap("triumphs"), saveContainer(container, guid), storeDirty = !1, lap("save");
+  lap("triumphs");
   try {
-    recordOutcome("capture");
+    recordOutcome("capture", !0);
   } catch (e) {}
-  lap("outcome");
+  lap("outcome"), noSave ? storeDirty = !0 : (saveContainer(container, guid), storeDirty = !1), 
+  lap("save");
   const totalMs = Math.round(nowMs() - t0);
   if (force || totalMs >= 50) {
     err(`capture ${reason || "?"} force=${force ? 1 : 0} total=${totalMs}ms ${Object.keys(phases).map(k => k + "=" + phases[k]).join(" ")}`);
@@ -1224,8 +1217,42 @@ function captureTurn(reason, force) {
   };
 }
 
-function maybeCapture(reason) {
-  captureTurn(reason, !1);
+let sawTurnEnd = !1;
+
+function installPublicApi() {
+  const api = {
+    flushNow: reason => function(reason) {
+      try {
+        return captureTurn(reason || "flush", !0);
+      } catch (e) {
+        return null;
+      }
+    }(reason || "api"),
+    isDirty: () => !!storeDirty,
+    snapshotStock: opts => {
+      try {
+        return snapshotLiveStockByType(opts);
+      } catch (e) {
+        return {};
+      }
+    },
+    liveGameId: () => guid,
+    deleteGame: id => !(!container || null == id || id === guid || !container.games[id]) && (delete container.games[id], 
+    !1 !== saveContainer(container, guid)),
+    resetGames: () => {
+      if (!container) return 0;
+      let n = 0;
+      for (const gid of Object.keys(container.games)) gid !== guid && (delete container.games[gid], 
+      n++);
+      return n && saveContainer(container, guid), n;
+    }
+  };
+  try {
+    globalThis.ozqChronicleLog = api;
+  } catch (e) {}
+  try {
+    "undefined" != typeof window && (window.ozqChronicleLog = api);
+  } catch (e) {}
 }
 
 function init() {
@@ -1257,8 +1284,13 @@ function init() {
       t && (n += Object.keys(t).length);
     }
     return n;
-  }(store)} prior rows across ${Object.keys(store.ages).length} ages; container has ${Object.keys(container.games).length} game(s), ${containerBytes(container)} B; storage: ${bootNotes.join(", ")}`), 
-  seedKillCounters();
+  }(store)} prior rows across ${Object.keys(store.ages).length} ages; container has ${Object.keys(container.games).length} game(s), ${function(c) {
+    try {
+      return JSON.stringify(c).length;
+    } catch (e) {
+      return -1;
+    }
+  }(container)} B; storage: ${bootNotes.join(", ")}`), seedKillCounters();
   try {
     installOverbuildHandlers();
   } catch (e) {
@@ -1277,59 +1309,43 @@ function init() {
   try {
     !function() {
       try {
-        engine.on("PlayerTurnDeactivated", () => {
-          try {
-            flushNow("PlayerTurnDeactivated");
+        engine.on("PlayerTurnDeactivated", data => {
+          const local = !data || data.player == GameContext.localPlayerID;
+          if (local || !sawTurnEnd) try {
+            captureTurn("PlayerTurnDeactivated", !0, !local);
           } catch (e) {}
         });
       } catch (e) {
         err(`PlayerTurnDeactivated subscribe failed: ${e && e.message}`);
       }
+      try {
+        engine.on("TurnEnd", () => {
+          sawTurnEnd = !0;
+          try {
+            captureTurn("TurnEnd", !0, !0);
+          } catch (e) {}
+        });
+      } catch (e) {
+        err(`TurnEnd subscribe failed: ${e && e.message}`);
+      }
     }();
   } catch (e) {
-    err(`deactivate install threw: ${e && e.message}`);
+    err(`turn-end install threw: ${e && e.message}`);
   }
   try {
-    !function() {
-      const api = {
-        flushNow: reason => flushNow(reason || "api"),
-        isDirty: () => !!storeDirty,
-        snapshotStock: opts => {
-          try {
-            return snapshotLiveStockByType(opts);
-          } catch (e) {
-            return {};
-          }
-        },
-        liveGameId: () => guid,
-        deleteGame: id => !(!container || null == id || id === guid || !container.games[id]) && (delete container.games[id], 
-        !1 !== saveContainer(container, guid)),
-        resetGames: () => {
-          if (!container) return 0;
-          let n = 0;
-          for (const gid of Object.keys(container.games)) gid !== guid && (delete container.games[gid], 
-          n++);
-          return n && saveContainer(container, guid), n;
-        }
-      };
-      try {
-        globalThis.ozqChronicleLog = api;
-      } catch (e) {}
-      try {
-        "undefined" != typeof window && (window.ozqChronicleLog = api);
-      } catch (e) {}
-    }();
+    installPublicApi();
   } catch (e) {}
   try {
     seedUnitTypeCacheFromMap();
   } catch (e) {}
   try {
-    maybeCapture("load");
+    captureTurn("load", !1);
   } catch (e) {}
   try {
-    engine.on("PlayerTurnActivated", () => {
+    engine.on("PlayerTurnActivated", data => {
       try {
-        maybeCapture("PlayerTurnActivated");
+        !captureTurn("PlayerTurnActivated", !1) && storeDirty && data && data.player == GameContext.localPlayerID && (err("save PlayerTurnActivated: unsaved samples from the other players' turns"), 
+        saveContainer(container, guid), storeDirty = !1);
       } catch (e) {}
     });
   } catch (e) {}
@@ -1371,6 +1387,17 @@ function init() {
     });
   } catch (e) {
     err(`PlayerLegacyCompleted subscribe failed: ${e && e.message}`);
+  }
+  try {
+    engine.on("StartSaveRequest", () => {
+      try {
+        if (!storeDirty || !container) return;
+        err("save StartSaveRequest: unsaved samples before the game saves"), saveContainer(container, guid), 
+        storeDirty = !1;
+      } catch (e) {}
+    });
+  } catch (e) {
+    err(`StartSaveRequest subscribe failed: ${e && e.message}`);
   }
   try {
     engine.on("TeamVictory", () => {

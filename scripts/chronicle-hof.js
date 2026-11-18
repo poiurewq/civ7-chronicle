@@ -2,7 +2,7 @@ import "/ozq-chronicle/scripts/chronicle-common.js";
 
 import "/ozq-chronicle/scripts/chronicle-triumphs-data.js";
 
-const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, uiIconCss: uiIconCss, leaderIconCss: leaderIconCss, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, loadShared: loadShared, saveShared: saveShared, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
+const {chronicleI18n: chronicleI18n, L: L, typeDisplayName: typeDisplayName, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, uiIconCss: uiIconCss, leaderIconCss: leaderIconCss, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, observeBody: observeBody, loadShared: loadShared, saveShared: saveShared, SHARED_KEY: SHARED_KEY, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys} = globalThis.ozqChronicleCommon, OVERLAY_ID = "ozq-chronicle-hof-overlay", IS_GAME = "undefined" != typeof Game;
 
 function err(msg) {
   try {
@@ -412,6 +412,28 @@ function resetGamesDirect() {
   }
 }
 
+function storedRowBytes() {
+  try {
+    const raw = localStorage.getItem(SHARED_KEY);
+    return raw ? raw.length : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function gameStoredBytes(store) {
+  try {
+    return store ? JSON.stringify(store).length : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function fmtStoredSize(bytes) {
+  const kb = Math.max(1, Math.round(bytes / 1024));
+  return kb < 1024 ? L("LOC_CHRONICLE_HOF_SIZE_KB", kb) : L("LOC_CHRONICLE_HOF_SIZE_MB", (bytes / 1048576).toFixed(1));
+}
+
 let activeConfirm = null;
 
 function closeConfirm() {
@@ -705,6 +727,7 @@ function openHof(opts) {
         manageOn = !manageOn, showTab("history");
       },
       erasable: erasable.length,
+      storedBytes: storedRowBytes(),
       isLive: g => null != ops.liveId && g.id === ops.liveId,
       closeEl: closeBtn,
       requestDelete(g) {
@@ -895,10 +918,16 @@ function openHof(opts) {
         const statsLine = el("div", "display:flex;align-items:center");
         null != g.score && statsLine.appendChild(el("div", "color:#FFD98A;font-size:1.43rem;margin-right:19px;white-space:nowrap", L("LOC_CHRONICLE_HOF_PTS", Math.round(g.score))));
         const tl = turnsLabel(g);
-        tl && statsLine.appendChild(el("div", "color:#B7A987;font-size:1.38rem;white-space:nowrap", tl)), 
+        if (tl && statsLine.appendChild(el("div", "color:#B7A987;font-size:1.38rem;white-space:nowrap", tl)), 
         statsLine.children.length && right.appendChild(statsLine), row.appendChild(right), 
-        managing ? list.appendChild(manageLine(row, manage.isLive(g) ? el("div", "color:#8A7F63;font-size:1.3rem;text-align:center", L("LOC_CHRONICLE_HOF_CURRENT_GAME")) : hofButton(L("LOC_CHRONICLE_HOF_DELETE"), () => manage.requestDelete(g)), slots)) : list.appendChild(row);
+        managing) {
+          const cell = el("div", "display:flex;flex-direction:column;align-items:stretch");
+          cell.appendChild(manage.isLive(g) ? el("div", "color:#8A7F63;font-size:1.3rem;text-align:center", L("LOC_CHRONICLE_HOF_CURRENT_GAME")) : hofButton(L("LOC_CHRONICLE_HOF_DELETE"), () => manage.requestDelete(g))), 
+          null == g.storedBytes && (g.storedBytes = gameStoredBytes(g.store)), cell.appendChild(el("div", "color:#8A7F63;font-size:1.13rem;text-align:center;margin-top:5px", fmtStoredSize(g.storedBytes))), 
+          list.appendChild(manageLine(row, cell, slots));
+        } else list.appendChild(row);
       }
+      showManage && manage.storedBytes > 5242880 && list.appendChild(el("div", "color:#8A7F63;font-size:1.3rem;text-align:center;padding:6px 23px 13px;flex-shrink:0", L("LOC_CHRONICLE_HOF_TRIM_HINT", Math.round(manage.storedBytes / 1048576)))), 
       body.appendChild(list), sizeSlotsToClose(slots, manage && manage.closeEl);
     }(body, games, openDetail, historyManage()) : "triumphs" === id && function(body, games, openDetail) {
       const st = triumphStatus(games);
@@ -985,14 +1014,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.34.1"
+    version: "0.35.7"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.34.1"
+      version: "0.35.7"
     };
   } catch (e2) {}
 }
@@ -1033,14 +1062,9 @@ scheduleInstall(function() {
     document.addEventListener("keydown", onHofKeydown, !0);
   } catch (e) {}
   const existing = document.querySelector(".main-menu-button-container");
-  existing && injectMainMenuButton(existing);
-  const observer = new MutationObserver(mutations => {
-    for (const m of mutations) for (const n of m.addedNodes) inspectNode(n);
-  });
-  try {
-    observer.observe(document.body, {
-      childList: !0,
-      subtree: !0
+  if (existing && injectMainMenuButton(existing), !IS_GAME) try {
+    observeBody(mutations => {
+      for (const m of mutations) for (const n of m.addedNodes) inspectNode(n);
     });
   } catch (e) {}
   err("loaded (" + (IS_GAME ? "game" : "shell") + ").");

@@ -1,6 +1,6 @@
 import "/ozq-chronicle/scripts/chronicle-common.js";
 
-const LOG = "[ozq-chronicle]", {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, leaderIconCss: leaderIconCss, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
+const LOG = "[ozq-chronicle]", {chronicleI18n: chronicleI18n, L: T, metricKeyLabel: metricKeyLabel, typeDisplayName: typeDisplayName, prettifyTypeEnglish: prettifyTypeEnglish, resolveTypeNameOrNull: resolveTypeNameOrNull, PANEL_BOX: PANEL_BOX, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, CHART_SRC: CHART_SRC, makeNativeButton: makeNativeButton, highlightButton: highlightButton, makeSettingsButton: makeSettingsButton, leaderIconCss: leaderIconCss, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, observeBody: observeBody, isSyntheticReligionLabel: isSyntheticReligionLabel, resolvePlayerReligionName: resolvePlayerReligionName, makeIsMajorPid: makeIsMajorPid, cityYields: cityYields, readSettings: readSettings, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode, isWatchedEngineAction: isWatchedEngineAction, engineCodesForAction: engineCodesForAction, engineLabelsForAction: engineLabelsForAction, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, hotkeySlotForCode: hotkeySlotForCode, isEatableWorldAction: isEatableWorldAction, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, SHARED_KEY: SHARED_KEY, SUB_KEY: SUB_KEY} = globalThis.ozqChronicleCommon;
 
 function catLabel(cat) {
   return T("LOC_CHRONICLE_CAT_" + cat);
@@ -23,6 +23,8 @@ function locSrcYTitle(metric, src) {
     summary: summary
   }) || "";
 }
+
+const SCREEN_TAG = "screen-victory-progress";
 
 let activeRoot = null, rootCounter = 0;
 
@@ -202,9 +204,9 @@ function ensureStoreLayout() {
         turns: turns,
         minT: minT,
         offset: cursor
-      }), cursor += maxT - minT + 2;
+      }), cursor += maxT - minT + 1;
     }
-    const end = Math.max(0, cursor - 2);
+    const end = Math.max(0, cursor - 1);
     return {
       layout: layout,
       earliestCi: layout.length ? layout[0].age.ci || 0 : null,
@@ -1121,6 +1123,7 @@ function buildSeriesDatasets(metric, spec) {
     offset: L.offset,
     minT: L.minT,
     maxT: L.turns[L.turns.length - 1],
+    ci: L.age.ci,
     label: prettifyType(L.age.label || L.age.key)
   }));
   let firstX = null, lastX = null;
@@ -1232,7 +1235,7 @@ function trendSourceUncached(trend) {
         tension: trend.stepped ? 0 : .15
       });
     }
-    const ageLabel = prettifyType(resolveAgeMeta("undefined" != typeof Game && null != Game.age ? String(Game.age) : "", null).label);
+    const ageKey = "undefined" != typeof Game && null != Game.age ? String(Game.age) : "", ageLabel = prettifyType(resolveAgeMeta(ageKey, null).label);
     return {
       datasets: datasets,
       start: 0,
@@ -1241,6 +1244,7 @@ function trendSourceUncached(trend) {
         offset: 0,
         minT: minT,
         maxT: maxT,
+        ci: resolveAgeMeta(ageKey, null).ci,
         label: ageLabel
       } ],
       turnCount: turns.length,
@@ -1277,7 +1281,34 @@ function isPlayerAlive(pid) {
   }
 }
 
-function buildStandings(trend) {
+function buildStandings(trend, at) {
+  if (at) return function(trend, at) {
+    const src = trendSource(trend);
+    if (!src || !src.datasets || !src.datasets.length) return null;
+    const x = sourceXAt(src, at.pos);
+    if (null == x) return null;
+    const rows = [];
+    for (const ds of src.datasets) {
+      const y = valueAtOrBefore(ds.data, x);
+      null != y && isFinite(Number(y)) && ((null == ds.pid || trend.includeDead || at.living.has(Number(ds.pid))) && rows.push({
+        pid: null != ds.pid ? Number(ds.pid) : null,
+        label: ds.label,
+        value: Number(y),
+        color: ds.borderColor
+      }));
+    }
+    if (!rows.length) return null;
+    return rows.sort(trend.lowerBetter ? (a, b) => a.value - b.value : (a, b) => b.value - a.value), 
+    {
+      labels: rows.map(r => r.label),
+      data: rows.map(r => r.value),
+      colors: rows.map(r => r.color),
+      pids: rows.map(r => r.pid),
+      indexAxis: "x",
+      catTitle: trend.religionKey ? T("LOC_CHRONICLE_RELIGION") : "",
+      signed: !!trend.signed
+    };
+  }(trend, at);
   if (trend.religionKey) return function(trend) {
     const key = trend.religionKey, relCat = T("LOC_CHRONICLE_RELIGION"), empty = {
       labels: [],
@@ -1367,6 +1398,20 @@ function buildStandings(trend) {
     catTitle: "",
     signed: !!trend.signed
   };
+}
+
+function sourceXAt(src, pos) {
+  for (const b of src && src.blocks || []) if (b.ci === pos.ci && pos.t >= b.minT && pos.t <= b.maxT) return b.offset + (pos.t - b.minT);
+  return null;
+}
+
+function valueAtOrBefore(data, x) {
+  let lo = 0, hi = data.length - 1, y = null;
+  for (;lo <= hi; ) {
+    const mid = lo + hi >> 1;
+    data[mid].x <= x + 1e-9 ? (y = data[mid].y, lo = mid + 1) : hi = mid - 1;
+  }
+  return y;
 }
 
 const BASE_RELIGION_TYPES = [ "RELIGION_BUDDHISM", "RELIGION_CATHOLICISM", "RELIGION_CONFUCIANISM", "RELIGION_HINDUISM", "RELIGION_ISLAM", "RELIGION_JUDAISM", "RELIGION_ORTHODOXY", "RELIGION_PROTESTANTISM", "RELIGION_SHINTO", "RELIGION_SIKHISM", "RELIGION_TAOISM", "RELIGION_ZOROASTRIANISM", "RELIGION_CUSTOM_1", "RELIGION_CUSTOM_2", "RELIGION_CUSTOM_3", "RELIGION_CUSTOM_4", "RELIGION_CUSTOM_5", "RELIGION_CUSTOM_6", "RELIGION_CUSTOM_7", "RELIGION_CUSTOM_8", "RELIGION_CUSTOM_9", "RELIGION_CUSTOM_10", "RELIGION_CUSTOM_11", "RELIGION_CUSTOM_12" ];
@@ -2031,6 +2076,54 @@ function scrubValueAtOrBeforeX(data, x) {
   return y;
 }
 
+function scrubCollectItems(chart, x, fmtVal) {
+  const items = [], datasets = chart.data.datasets || [];
+  for (let di = 0; di < datasets.length; di++) {
+    const meta = chart.getDatasetMeta(di);
+    if (meta && meta.hidden) continue;
+    const ds = datasets[di], y = scrubValueAtOrBeforeX(ds.data, x);
+    null != y && isFinite(Number(y)) && items.push({
+      label: ds.label || "",
+      color: ds.borderColor || "#E8E2D0",
+      y: Number(y),
+      text: fmtVal(y)
+    });
+  }
+  return items.sort((a, b) => b.y - a.y), items;
+}
+
+function paintScrubTip(tip, turnTitle, items) {
+  for (;tip.firstChild; ) tip.removeChild(tip.firstChild);
+  if (!items.length) return void (tip.style.display = "none");
+  const title = document.createElement("div");
+  title.textContent = turnTitle, title.setAttribute("style", "color:#F5EFDD;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"), 
+  tip.appendChild(title);
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i], row = document.createElement("div");
+    row.setAttribute("style", "display:flex;flex-direction:row;align-items:center;margin-top:3px;min-width:0;width:100%");
+    const sw = document.createElement("div");
+    sw.setAttribute("style", "width:10px;height:10px;margin-right:8px;flex-shrink:0;background-color:" + it.color);
+    const name = document.createElement("div");
+    name.textContent = it.label || "", name.setAttribute("style", "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap");
+    const val = document.createElement("div");
+    val.textContent = it.text, val.setAttribute("style", "flex-shrink:0;margin-left:10px;white-space:nowrap"), 
+    row.appendChild(sw), row.appendChild(name), row.appendChild(val), tip.appendChild(row);
+  }
+  tip.style.display = "block";
+}
+
+function positionScrubTip(tip, chart, px) {
+  const ca = chart.chartArea;
+  if (!ca) return;
+  const rect = chart.canvas.getBoundingClientRect(), cssW = rect.right - rect.left, cssH = rect.bottom - rect.top;
+  if (!(cssW > 0 && chart.width > 0)) return;
+  const scaleX = cssW / chart.width, scaleY = cssH / chart.height, leftCss = px * scaleX, topCss = ca.top * scaleY, tipW = tip.offsetWidth || 280;
+  let left = leftCss + 12;
+  left + tipW > cssW - 4 && (left = leftCss - tipW - 12), left < 4 && (left = 4), 
+  left + tipW > cssW - 4 && (left = Math.max(4, cssW - tipW - 4)), tip.style.left = left + "px", 
+  tip.style.top = Math.max(4, topCss) + "px", tip.style.right = "auto";
+}
+
 function setTrendsHoverTooltipEnabled(chart, on) {
   if (!chart) return;
   chart.options && chart.options.plugins && chart.options.plugins.tooltip && (chart.options.plugins.tooltip.enabled = !!on);
@@ -2053,7 +2146,7 @@ function endTrendsScrub(chart) {
   const state = chart && chart.$ozqScrub;
   if (!state) return;
   const wasActive = state.active;
-  if (state.active = !1, state.x = null, state.items = [], state.tip && (state.tip.style.display = "none"), 
+  if (state.active = !1, state.pinned = !1, state.x = null, state.items = [], state.tip && (state.tip.style.display = "none"), 
   state.windowBound && (window.removeEventListener("mousemove", state.onMove), window.removeEventListener("mouseup", state.onUp), 
   state.windowBound = !1), setTrendsHoverTooltipEnabled(chart, !0), wasActive) try {
     chart.draw();
@@ -2073,13 +2166,17 @@ function bindTrendsScrubber(chart, opts) {
   const tip = function(wrap) {
     let el = wrap.querySelector(".ozq-scrub-tip");
     return el || (el = document.createElement("div"), el.className = "ozq-scrub-tip", 
-    el.setAttribute("style", "position:absolute;display:none;pointer-events:none;z-index:4;background:rgba(6,7,10,0.92);border:1px solid rgba(232,226,208,0.25);padding:10px 12px;color:#E8E2D0;font-size:0.95rem;box-sizing:border-box;width:280px;overflow:hidden"), 
+    el.setAttribute("style", "position:absolute;display:none;pointer-events:auto;z-index:4;background:rgba(6,7,10,0.92);border:1px solid rgba(232,226,208,0.25);padding:10px 12px;color:#E8E2D0;font-size:0.95rem;cursor:pointer;box-sizing:border-box;width:280px;overflow:hidden"), 
     wrap.appendChild(el)), el;
   }(chart.canvas.parentNode), state = {
     active: !1,
     x: null,
     items: [],
+    pinned: !1,
     turnLabel: opts.turnLabel,
+    toTurn: opts.toTurn,
+    onPin: opts.onPin,
+    onDrag: opts.onDrag,
     fmtVal: opts.fmtVal,
     start: opts.start,
     end: opts.end,
@@ -2114,51 +2211,10 @@ function bindTrendsScrubber(chart, opts) {
       null != end && isFinite(end) && end >= start && x > end && (x = Math.round(end)), 
       x;
     }(chart, rawX, state.start, state.end);
-    state.x = x, state.items = function(chart, x, fmtVal) {
-      const items = [], datasets = chart.data.datasets || [];
-      for (let di = 0; di < datasets.length; di++) {
-        const meta = chart.getDatasetMeta(di);
-        if (meta && meta.hidden) continue;
-        const ds = datasets[di], y = scrubValueAtOrBeforeX(ds.data, x);
-        null != y && isFinite(Number(y)) && items.push({
-          label: ds.label || "",
-          color: ds.borderColor || "#E8E2D0",
-          y: Number(y),
-          text: fmtVal(y)
-        });
-      }
-      return items.sort((a, b) => b.y - a.y), items;
-    }(chart, x, state.fmtVal), function(tip, turnTitle, items) {
-      for (;tip.firstChild; ) tip.removeChild(tip.firstChild);
-      if (!items.length) return void (tip.style.display = "none");
-      const title = document.createElement("div");
-      title.textContent = turnTitle, title.setAttribute("style", "color:#F5EFDD;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"), 
-      tip.appendChild(title);
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i], row = document.createElement("div");
-        row.setAttribute("style", "display:flex;flex-direction:row;align-items:center;margin-top:3px;min-width:0;width:100%");
-        const sw = document.createElement("div");
-        sw.setAttribute("style", "width:10px;height:10px;margin-right:8px;flex-shrink:0;background-color:" + it.color);
-        const name = document.createElement("div");
-        name.textContent = it.label || "", name.setAttribute("style", "flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap");
-        const val = document.createElement("div");
-        val.textContent = it.text, val.setAttribute("style", "flex-shrink:0;margin-left:10px;white-space:nowrap"), 
-        row.appendChild(sw), row.appendChild(name), row.appendChild(val), tip.appendChild(row);
-      }
-      tip.style.display = "block";
-    }(state.tip, state.turnLabel(x), state.items);
+    state.x = x, state.items = scrubCollectItems(chart, x, state.fmtVal), paintScrubTip(state.tip, state.turnLabel(x), state.items);
     const px = xScale.getPixelForValue(x);
-    !function(tip, chart, px) {
-      const ca = chart.chartArea;
-      if (!ca) return;
-      const rect = chart.canvas.getBoundingClientRect(), cssW = rect.right - rect.left, cssH = rect.bottom - rect.top;
-      if (!(cssW > 0 && chart.width > 0)) return;
-      const scaleX = cssW / chart.width, scaleY = cssH / chart.height, leftCss = px * scaleX, topCss = ca.top * scaleY, tipW = tip.offsetWidth || 280;
-      let left = leftCss + 12;
-      left + tipW > cssW - 4 && (left = leftCss - tipW - 12), left < 4 && (left = 4), 
-      left + tipW > cssW - 4 && (left = Math.max(4, cssW - tipW - 4)), tip.style.left = left + "px", 
-      tip.style.top = Math.max(4, topCss) + "px", tip.style.right = "auto";
-    }(state.tip, chart, px), setTrendsHoverTooltipEnabled(chart, !1);
+    positionScrubTip(state.tip, chart, px), state.onDrag && state.toTurn && state.onDrag(state.toTurn(x)), 
+    setTrendsHoverTooltipEnabled(chart, !1);
     try {
       chart.draw();
     } catch (err) {}
@@ -2168,21 +2224,56 @@ function bindTrendsScrubber(chart, opts) {
     if (!chart.chartArea || !chart.scales || !chart.scales.x) return;
     const pos = scrubRelativePos(e, chart), ca = chart.chartArea;
     pos.x < ca.left || pos.x > ca.right || pos.y < ca.top || pos.y > ca.bottom || (state.active = !0, 
-    setTrendsHoverTooltipEnabled(chart, !1), applyAtEvent(e), state.windowBound || (window.addEventListener("mousemove", onMove), 
+    state.pinned = !1, setTrendsHoverTooltipEnabled(chart, !1), applyAtEvent(e), state.windowBound || (window.addEventListener("mousemove", onMove), 
     window.addEventListener("mouseup", onUp), state.windowBound = !0), e.preventDefault && e.preventDefault());
   }
   function onMove(e) {
     state.active && applyAtEvent(e);
   }
   function onUp() {
-    state.active && endTrendsScrub(chart);
+    state.active && (state.pinned = !0, state.windowBound && (window.removeEventListener("mousemove", onMove), 
+    window.removeEventListener("mouseup", onUp), state.windowBound = !1), state.onPin && state.toTurn && state.onPin(state.toTurn(state.x)));
   }
   chart.$ozqScrub = state, state.onDown = onDown, state.onMove = onMove, state.onUp = onUp, 
-  chart.canvas.addEventListener("mousedown", onDown);
+  chart.canvas.addEventListener("mousedown", onDown), tip.addEventListener("click", () => {
+    state.pinned && (endTrendsScrub(chart), state.onPin && state.onPin(null));
+  });
+}
+
+function setTrendsPin(chart, x) {
+  const state = chart && chart.$ozqScrub;
+  if (state) if (null != x) {
+    if (chart.scales && chart.scales.x && chart.chartArea) {
+      state.active = !0, state.pinned = !0, state.x = x, state.items = scrubCollectItems(chart, x, state.fmtVal), 
+      paintScrubTip(state.tip, state.turnLabel(x), state.items), positionScrubTip(state.tip, chart, chart.scales.x.getPixelForValue(x)), 
+      setTrendsHoverTooltipEnabled(chart, !1);
+      try {
+        chart.draw();
+      } catch (e) {}
+    }
+  } else endTrendsScrub(chart);
+}
+
+const AGE_BAND_TINTS = [ "#2A2318", "#1C2226" ], AGE_TICK_TINTS = [ "#8C7444", "#4F6E80" ];
+
+function ageTint(list, ageIdx) {
+  return list[ageIdx % list.length];
 }
 
 const ozqScrubberPlugin = {
   id: "ozqScrubber",
+  beforeDatasetsDraw(chart, args, opts) {
+    const starts = opts && opts.ageStarts, xScale = chart.scales.x, ca = chart.chartArea;
+    if (!(starts && starts.length && xScale && ca)) return;
+    const ctx = chart.ctx;
+    ctx.save(), ctx.globalAlpha = .55, ctx.lineWidth = 1;
+    for (const a of starts) {
+      const px = xScale.getPixelForValue(a.x);
+      px < ca.left || px > ca.right || (ctx.beginPath(), ctx.moveTo(px, ca.top), ctx.lineTo(px, ca.bottom), 
+      ctx.strokeStyle = a.color, ctx.stroke());
+    }
+    ctx.restore();
+  },
   afterDraw(chart) {
     const s = chart.$ozqScrub;
     if (!s || !s.active || null == s.x) return;
@@ -2210,10 +2301,22 @@ const ozqScrubberPlugin = {
   }
 };
 
+function chartReachesTurn(metric, view, at) {
+  if (!at || !metric) return !0;
+  if ("live" === metric.kind || "bar" === metric.kind || "board" === metric.kind) return !1;
+  if ("stand" === view) return !!buildStandings(metric.trend, at);
+  const src = metric.trend ? trendSource(metric.trend) : null;
+  return !!src && null != sourceXAt(src, at.pos);
+}
+
+function cantShowNote(ui, text) {
+  return ui.at ? [ text, T("LOC_CHRONICLE_CANT_SHOW", ui.at.label) ].filter(Boolean).join("  ·  ") : text;
+}
+
 function renderChart(ui, metric, view, page) {
   if ("board" === metric.kind) return activeChart && (activeChart.destroy(), activeChart = null), 
-  setNote(ui, byTypeNote(metric), metric), ui.chartInner.style.display = "none", ui.board.style.display = "block", 
-  void function(container, metric) {
+  setNote(ui, cantShowNote(ui, byTypeNote(metric)), metric), ui.chartInner.style.display = "none", 
+  ui.board.style.display = "block", void function(container, metric) {
     const {perPlayer: perPlayer, players: players} = readByTypeData(metric);
     if (container.textContent = "", !players.length) return container.textContent = T("LOC_CHRONICLE_NO_TO_SHOW", metricLabel(metric)), 
     void (container.style.color = AXIS_TICK);
@@ -2279,7 +2382,7 @@ function renderChart(ui, metric, view, page) {
   var base;
   let config;
   if (pct && (valTicks.callback = value => formatChartNumber(value) + pct), "bar" === metric.kind) {
-    setNote(ui, byTypeNote(metric), metric);
+    setNote(ui, cantShowNote(ui, byTypeNote(metric)), metric);
     const {labels: labels, datasets: datasets} = buildBarChart(metric, page), hasData = datasets.length > 0 && labels.length > 0;
     if (setNoData(ui.canvas, hasData ? "" : T("LOC_CHRONICLE_NO_DATA_RECORDED", metricLabel(metric))), 
     !hasData) return;
@@ -2322,13 +2425,13 @@ function renderChart(ui, metric, view, page) {
       }
     };
   } else if ("live" === metric.kind || "stand" === view) {
-    const isLive = "live" === metric.kind;
-    if (isLive && isHistoricalView() && bankedSettlementRows().length > 0) setNote(ui, T("LOC_CHRONICLE_NOTE_BANKED"), metric); else {
+    const isLive = "live" === metric.kind, past = !isLive && ui.at ? buildStandings(metric.trend, ui.at) : null;
+    if (isLive && isHistoricalView() && bankedSettlementRows().length > 0) setNote(ui, cantShowNote(ui, T("LOC_CHRONICLE_NOTE_BANKED")), metric); else if (past) setNote(ui, sourceLabel(trendSource(metric.trend)), metric); else {
       const stand = [ T("LOC_CHRONICLE_CURRENT_STANDINGS") ];
       !isLive && metric.trend && stand.unshift(sourceLabel(trendSource(metric.trend))), 
-      setNote(ui, stand.join("  ·  "), metric);
+      setNote(ui, cantShowNote(ui, stand.join("  ·  ")), metric);
     }
-    const res = isLive ? metric.compute() : buildStandings(metric.trend), hasData = res && res.data && res.data.length > 0;
+    const res = past || (isLive ? metric.compute() : buildStandings(metric.trend)), hasData = res && res.data && res.data.length > 0;
     if (setNoData(ui.canvas, hasData ? "" : T("LOC_CHRONICLE_NO_DATA_AVAILABLE", metricLabel(metric))), 
     !hasData) return;
     const horiz = "y" === res.indexAxis, valueTitle = isLive ? res.valueTitle : locSrcYTitle(metric, metric.trend ? trendSource(metric.trend) : null), catAxis = {
@@ -2395,17 +2498,26 @@ function renderChart(ui, metric, view, page) {
     {
       const {datasets: datasets, start: start, end: end} = src;
       setNoData(ui.canvas, "");
-      const agePretty = prettifyType(src.firstAgeLabel), scope = src.currentAgeOnly ? T("LOC_CHRONICLE_AGE_ONLY", agePretty) : src.startedLate ? T("LOC_CHRONICLE_TRACKED_SINCE", agePretty, src.firstTurn) : "", provenance = [ sourceLabel(src), scope ].filter(Boolean).join("  ·  "), hint = datasets.length > 1 ? T("LOC_CHRONICLE_LEGEND_HINT") : "";
-      setNote(ui, [ provenance, hint ].filter(Boolean).join("  ·  "), metric);
+      const agePretty = prettifyType(src.firstAgeLabel), scope = src.currentAgeOnly ? T("LOC_CHRONICLE_AGE_ONLY", agePretty) : src.startedLate ? T("LOC_CHRONICLE_TRACKED_SINCE", agePretty, src.firstTurn) : "", provenance = [ sourceLabel(src), scope ].filter(Boolean).join("  ·  "), hint = datasets.length > 1 ? T("LOC_CHRONICLE_LEGEND_HINT") : "", pinX = ui.at ? sourceXAt(src, ui.at.pos) : null, note = [ provenance, hint ].filter(Boolean).join("  ·  ");
+      setNote(ui, ui.at && null == pinX ? cantShowNote(ui, note) : note, metric);
       const turnLabel = x => {
         for (const b of src.blocks) {
           const bEndX = b.offset + (b.maxT - b.minT);
           if (x >= b.offset && x <= bEndX) return T("LOC_CHRONICLE_AGE_TURN", b.label, b.minT + (x - b.offset));
         }
         return T("LOC_CHRONICLE_TURN", x);
+      }, toTurn = x => {
+        for (const b of src.blocks) if (x >= b.offset && x <= b.offset + (b.maxT - b.minT)) return {
+          ci: b.ci,
+          t: b.minT + Math.round(x - b.offset)
+        };
+        return null;
       }, dp = trend.ratioKey ? trend.ratioKey.dp : null, fmtVal = y => formatChartNumber(y, {
         dp: null != dp ? dp : Number.isInteger(Number(y)) ? null : 1
-      }) + pct, tk = turnAxisTicks(src.blocks, start, end);
+      }) + pct, tk = turnAxisTicks(src.blocks, start, end), ageStarts = src.blocks.slice(1).map((b, i) => ({
+        x: b.offset,
+        color: ageTint(AGE_TICK_TINTS, i + 1)
+      }));
       config = {
         type: "line",
         data: {
@@ -2427,6 +2539,9 @@ function renderChart(ui, metric, view, page) {
           },
           plugins: {
             ...plugins,
+            ozqScrubber: {
+              ageStarts: ageStarts
+            },
             tooltip: {
               mode: "nearest",
               intersect: !0,
@@ -2477,16 +2592,23 @@ function renderChart(ui, metric, view, page) {
         }
       }, config._ozqScrubOpts = {
         turnLabel: turnLabel,
+        toTurn: toTurn,
+        onPin: ui.onPin,
+        onDrag: ui.onDrag,
         fmtVal: fmtVal,
         start: start,
-        end: end
+        end: end,
+        pinX: pinX
       };
     }
   }
-  activeChart = new Chart(ui.canvas.getContext("2d"), config), config._ozqScrubOpts && bindTrendsScrubber(activeChart, config._ozqScrubOpts), 
+  activeChart = new Chart(ui.canvas.getContext("2d"), config);
+  const scrubOpts = config._ozqScrubOpts;
+  scrubOpts && bindTrendsScrubber(activeChart, scrubOpts);
+  const chart = activeChart;
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      activeChart && activeChart.resize();
+      activeChart === chart && (chart.resize(), scrubOpts && null != scrubOpts.pinX && setTrendsPin(chart, scrubOpts.pinX));
     });
   });
 }
@@ -2762,7 +2884,7 @@ const chronicleInputHandler = {
         const hk = readHotkeys();
         let slot = null;
         for (let i = 0; i < codes.length && (slot = hotkeySlotForCode(hk, codes[i]), !slot); i++) ;
-        "openHof" === slot ? activeNav.openHof() : "openOptions" === slot ? activeNav.openOptions() : "catPrev" === slot ? activeNav.stepCategory(-1) : "catNext" === slot ? activeNav.stepCategory(1) : "chartPrev" === slot ? activeNav.stepChart(-1) : "chartNext" === slot ? activeNav.stepChart(1) : "pagePrev" === slot ? activeNav.secondaryPrev() : "pageNext" === slot ? activeNav.secondaryNext() : "leadersMode" === slot ? activeNav.toggleMode() : "leadersCompare" === slot ? activeNav.toggleCompare() : "leadersGrouped" === slot ? activeNav.toggleGrouped() : "leadersSelectAll" === slot ? activeNav.selectAllLeaders() : "leadersStatGroups" === slot && activeNav.toggleAllGroups();
+        "openHof" === slot ? activeNav.openHof() : "openOptions" === slot ? activeNav.openOptions() : "catPrev" === slot ? activeNav.stepCategory(-1) : "catNext" === slot ? activeNav.stepCategory(1) : "chartPrev" === slot ? activeNav.stepChart(-1) : "chartNext" === slot ? activeNav.stepChart(1) : "pagePrev" === slot ? activeNav.secondaryPrev() : "pageNext" === slot ? activeNav.secondaryNext() : "leadersMode" === slot ? activeNav.toggleMode() : "leadersCompare" === slot ? activeNav.toggleCompare() : "leadersGrouped" === slot ? activeNav.toggleGrouped() : "leadersSelectAll" === slot ? activeNav.selectAllLeaders() : "leadersStatGroups" === slot ? activeNav.toggleAllGroups() : "turnPrev" === slot ? activeNav.stepTurn(-1) : "turnNext" === slot && activeNav.stepTurn(1);
       }
       return !1;
     }
@@ -2772,13 +2894,13 @@ const chronicleInputHandler = {
   handleNavigation: () => !0
 };
 
-function hotkeyHintText(mode, compare) {
-  const h = readHotkeys(), openLabs = engineLabelsForAction("open-ozq-chronicle"), openPhrase = (openLabs.length ? openLabs.join(" / ") : "F2") + " " + T("LOC_CHRONICLE_TITLE"), cats = formatHotkeyCode(h.catPrev) + " " + formatHotkeyCode(h.catNext), charts = formatHotkeyCode(h.chartPrev) + " " + formatHotkeyCode(h.chartNext), page = formatHotkeyCode(h.pagePrev) + " " + formatHotkeyCode(h.pageNext);
+function hotkeyHintText(mode, compare, turns) {
+  const h = readHotkeys(), openLabs = engineLabelsForAction("open-ozq-chronicle"), openPhrase = (openLabs.length ? openLabs.join(" / ") : "F2") + " " + T("LOC_CHRONICLE_TITLE"), cats = formatHotkeyCode(h.catPrev) + " " + formatHotkeyCode(h.catNext), charts = formatHotkeyCode(h.chartPrev) + " " + formatHotkeyCode(h.chartNext), page = formatHotkeyCode(h.pagePrev) + " " + formatHotkeyCode(h.pageNext), turnsHint = turns ? " · " + T("LOC_CHRONICLE_HOTKEY_HINT_TURNS", formatHotkeyCode(h.turnPrev) + " " + formatHotkeyCode(h.turnNext)) : "";
   if ("civs" === mode) {
     const all = formatHotkeyCode(h.leadersStatGroups), grp = formatHotkeyCode(h.leadersGrouped), cmp = formatHotkeyCode(h.leadersCompare), mode = formatHotkeyCode(h.leadersMode);
-    return compare ? T("LOC_CHRONICLE_HOTKEY_HINT_CIVS_COMPARE", openPhrase, all, grp, formatHotkeyCode(h.leadersSelectAll), cmp, mode) : T("LOC_CHRONICLE_HOTKEY_HINT_CIVS", openPhrase, all, grp, charts, cmp, mode);
+    return (compare ? T("LOC_CHRONICLE_HOTKEY_HINT_CIVS_COMPARE", openPhrase, all, grp, formatHotkeyCode(h.leadersSelectAll), cmp, mode) : T("LOC_CHRONICLE_HOTKEY_HINT_CIVS", openPhrase, all, grp, charts, cmp, mode)) + turnsHint;
   }
-  return T("LOC_CHRONICLE_HOTKEY_HINT", openPhrase, cats, charts, page, formatHotkeyCode(h.leadersMode));
+  return T("LOC_CHRONICLE_HOTKEY_HINT", openPhrase, cats, charts, page, formatHotkeyCode(h.leadersMode)) + turnsHint;
 }
 
 function onOverlayKeydown(e) {
@@ -2790,7 +2912,7 @@ function onOverlayKeydown(e) {
   if (isEngineBoundHotkeyCode(code)) return;
   const hk = readHotkeys();
   let handled = !1;
-  if (code === hk.catPrev) handled = !!activeNav.stepCategory(-1); else if (code === hk.catNext) handled = !!activeNav.stepCategory(1); else if (code === hk.chartPrev) handled = !!activeNav.stepChart(-1); else if (code === hk.chartNext) handled = !!activeNav.stepChart(1); else if (code === hk.pagePrev) handled = !!activeNav.secondaryPrev(); else if (code === hk.pageNext) handled = !!activeNav.secondaryNext(); else if (code === hk.openHof) handled = !!activeNav.openHof(); else if (code === hk.openOptions) handled = !!activeNav.openOptions(); else if (code === hk.leadersMode) handled = !!activeNav.toggleMode(); else if (code === hk.leadersCompare) handled = !!activeNav.toggleCompare(); else if (code === hk.leadersGrouped) handled = !!activeNav.toggleGrouped(); else if (code === hk.leadersSelectAll) handled = !!activeNav.selectAllLeaders(); else if (code === hk.leadersStatGroups) handled = !!activeNav.toggleAllGroups(); else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
+  if (code === hk.catPrev) handled = !!activeNav.stepCategory(-1); else if (code === hk.catNext) handled = !!activeNav.stepCategory(1); else if (code === hk.chartPrev) handled = !!activeNav.stepChart(-1); else if (code === hk.chartNext) handled = !!activeNav.stepChart(1); else if (code === hk.pagePrev) handled = !!activeNav.secondaryPrev(); else if (code === hk.pageNext) handled = !!activeNav.secondaryNext(); else if (code === hk.openHof) handled = !!activeNav.openHof(); else if (code === hk.openOptions) handled = !!activeNav.openOptions(); else if (code === hk.leadersMode) handled = !!activeNav.toggleMode(); else if (code === hk.leadersCompare) handled = !!activeNav.toggleCompare(); else if (code === hk.leadersGrouped) handled = !!activeNav.toggleGrouped(); else if (code === hk.leadersSelectAll) handled = !!activeNav.selectAllLeaders(); else if (code === hk.leadersStatGroups) handled = !!activeNav.toggleAllGroups(); else if (code === hk.turnPrev) handled = !!activeNav.stepTurn(-1); else if (code === hk.turnNext) handled = !!activeNav.stepTurn(1); else if (0 === code.indexOf("Digit") || 0 === code.indexOf("NumPad") || 0 === code.indexOf("Numpad")) {
     const n = Number(code.replace("Digit", "").replace("NumPad", "").replace("Numpad", ""));
     n >= 1 && n <= 7 && (handled = !!activeNav.jumpCategory(n - 1));
   }
@@ -2883,18 +3005,18 @@ function competitionRanks(values, lowerBetter) {
   });
 }
 
-function buildCivStats(metrics) {
+function buildCivStats(metrics, at) {
   const rows = [], living = new Set;
   for (const m of metrics) {
     if (!m.trend || m.trend.religionKey) continue;
+    const dp = civValueDp(m), pairs = [], alive = at ? pid => at.living.has(pid) : isPlayerAlive;
     let st = null;
     try {
-      st = buildStandings(m.trend);
+      st = buildStandings(m.trend, at);
     } catch (e) {
       st = null;
     }
     if (!st || !st.data || !st.data.length) continue;
-    const dp = civValueDp(m), pairs = [];
     if (st.data.forEach((v, i) => {
       const n = Number(v);
       isFinite(n) && pairs.push({
@@ -2910,7 +3032,7 @@ function buildCivStats(metrics) {
         value: p.value,
         rank: ranks[i],
         of: pairs.length
-      }), isPlayerAlive(p.pid) ? living.add(p.pid) : deadCounted = !0;
+      }), alive(p.pid) ? living.add(p.pid) : deadCounted = !0;
     }), rows.push({
       metric: m,
       dp: dp,
@@ -2938,6 +3060,33 @@ function buildCivStats(metrics) {
   };
 }
 
+const COUNTER_ONLY_KEYS = {
+  uKill: !0,
+  uLost: !0,
+  ob: !0,
+  sLost: !0,
+  rz: !0,
+  bld: !0,
+  imp: !0
+};
+
+function isFullSnapshotRow(row) {
+  if (!row) return !1;
+  for (const k in row) if (!COUNTER_ONLY_KEYS[k]) return !0;
+  return !1;
+}
+
+function timelineIndexOf(timeline, turn) {
+  const ps = timeline.positions;
+  if (!turn || !ps.length) return null;
+  let best = 0;
+  for (let i = 0; i < ps.length; i++) {
+    const p = ps[i];
+    (p.ci < turn.ci || p.ci === turn.ci && p.t <= turn.t) && (best = i);
+  }
+  return best;
+}
+
 function civRankColor(rank) {
   return 1 === rank ? "#FFCF3F" : 2 === rank ? "#C8D2DC" : 3 === rank ? "#D2874A" : "#B7A987";
 }
@@ -2962,32 +3111,37 @@ function civEl(tag, style, text) {
   e;
 }
 
-function civPortrait(id, size) {
-  const wrap = civEl("div", "width:" + size + "px;height:" + size + "px;flex-shrink:0;border-radius:" + Math.round(size / 2) + "px;overflow:hidden;background:#2A241C;border:2px solid " + id.color + ";box-sizing:border-box;background-position:center;background-repeat:no-repeat;background-size:cover;display:flex;align-items:center;justify-content:center"), css = leaderIconCss(id.leaderType);
-  return css ? wrap.style.backgroundImage = css : wrap.appendChild(civEl("div", "color:#B7A987;font-weight:600;font-size:" + Math.max(12, Math.round(.4 * size)) + "px", (id.name || "?").charAt(0).toUpperCase())), 
-  wrap;
-}
-
 function makeCivsView(opts) {
-  const {catList: catList, stats: stats, memory: memory} = opts, root = civEl("div", "display:none;flex-direction:row;flex:1 1 auto;width:100%;min-height:0;overflow:hidden"), col = civEl("div", "display:flex;flex-direction:column;width:18rem;flex-shrink:0;margin-right:18px;min-height:0"), list = civEl("div", "flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden"), colFoot = civEl("div", "display:flex;flex-direction:column;align-items:center;flex-shrink:0;margin-top:10px");
+  const {catList: catList, memory: memory} = opts;
+  let stats = opts.stats;
+  const root = civEl("div", "display:none;flex-direction:row;flex:1 1 auto;width:100%;min-height:0;overflow:hidden"), col = civEl("div", "display:flex;flex-direction:column;width:18rem;flex-shrink:0;margin-right:18px;min-height:0"), list = civEl("div", "flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden"), colFoot = civEl("div", "display:flex;flex-direction:column;align-items:center;flex-shrink:0;margin-top:10px");
   col.appendChild(list), col.appendChild(colFoot);
   const content = civEl("div", "flex:1 1 auto;min-width:0;min-height:0;overflow-y:auto;overflow-x:auto;padding-right:6px");
-  root.appendChild(col), root.appendChild(content), stats.pids.includes(memory.pid) || (memory.pid = stats.pids.length ? stats.pids[0] : null), 
-  memory.picks = (memory.picks || []).filter(p => stats.pids.includes(p)), stats.pids.length < 2 && (memory.compare = !1);
-  const rowsIn = cat => stats.rows.filter(r => r.metric.category === cat), groupHasRows = cat => rowsIn(cat).length > 0, groupOn = cat => !memory.off[cat], shownGroups = () => catList.filter(c => groupOn(c) && groupHasRows(c)), shownRows = () => {
+  root.appendChild(col), root.appendChild(content), memory.picks || (memory.picks = []);
+  const inCompare = () => !!memory.compare && stats.pids.length >= 2, shownPid = () => stats.pids.includes(memory.pid) ? memory.pid : stats.pids.length ? stats.pids[0] : null, shownPicks = () => memory.picks.filter(p => stats.pids.includes(p)), rowsIn = cat => stats.rows.filter(r => r.metric.category === cat), groupHasRows = cat => rowsIn(cat).length > 0, groupOn = cat => !memory.off[cat], shownGroups = () => catList.filter(c => groupOn(c) && groupHasRows(c)), shownRows = () => {
     const out = [];
     for (const cat of shownGroups()) for (const r of rowsIn(cat)) out.push(r);
     return out;
   }, rankIn = (r, pid) => {
     const c = r.byPid.get(pid);
     return c ? c.rank : 1 / 0;
-  }, byRankFor = (rows, pid) => rows.map((r, i) => ({
+  }, portraits = new Map, portrait = (id, size) => {
+    const k = id.pid + ":" + size;
+    let el = portraits.get(k);
+    return el || (el = function(id, size) {
+      const wrap = civEl("div", "width:" + size + "px;height:" + size + "px;flex-shrink:0;border-radius:" + Math.round(size / 2) + "px;overflow:hidden;background:#2A241C;border:2px solid " + id.color + ";box-sizing:border-box;background-position:center;background-repeat:no-repeat;background-size:cover;display:flex;align-items:center;justify-content:center"), css = leaderIconCss(id.leaderType);
+      return css ? wrap.style.backgroundImage = css : wrap.appendChild(civEl("div", "color:#B7A987;font-weight:600;font-size:" + Math.max(12, Math.round(.4 * size)) + "px", (id.name || "?").charAt(0).toUpperCase())), 
+      wrap;
+    }(id, size), portraits.set(k, el)), el;
+  };
+  let listKey = null;
+  const byRankFor = (rows, pid) => rows.map((r, i) => ({
     r: r,
     i: i,
     k: rankIn(r, pid)
   })).sort((a, b) => a.k - b.k || a.i - b.i).map(x => x.r);
   function toggleCompare() {
-    return !(stats.pids.length < 2) && (memory.compare = !memory.compare, memory.compare && !memory.picks.length && null != memory.pid && (memory.picks = [ memory.pid ]), 
+    return !(stats.pids.length < 2) && (memory.compare = !inCompare(), memory.compare && !shownPicks().length && null != shownPid() && memory.picks.push(shownPid()), 
     render(), !0);
   }
   function toggleGrouped() {
@@ -2995,7 +3149,7 @@ function makeCivsView(opts) {
   }
   const allPicked = () => stats.pids.every(p => memory.picks.includes(p));
   function selectAll() {
-    if (!memory.compare || !stats.pids.length) return !1;
+    if (!inCompare()) return !1;
     if (allPicked()) memory.picks = []; else for (const p of stats.pids) memory.picks.includes(p) || memory.picks.push(p);
     return render(), !0;
   }
@@ -3031,12 +3185,14 @@ function makeCivsView(opts) {
       p: p,
       i: i,
       k: rankIn(colRow, p)
-    })).sort((a, b) => a.k - b.k || a.i - b.i).map(x => x.p) : picked, LABEL_W = null != fit.labelPx ? fit.labelPx + "px" : "15rem", CELL = "flex:1 1 0px;min-width:0;margin-left:6px;box-sizing:border-box;", table = civEl("div", "display:flex;flex-direction:column;width:100%;box-sizing:border-box;min-width:" + compareMinWidth(fit.labelPx, pids.length)), head = civEl("div", "display:flex;flex-direction:row;align-items:stretch;margin-bottom:4px"), spacer = civEl("div", "width:" + LABEL_W + ";flex-shrink:0");
+    })).sort((a, b) => a.k - b.k || a.i - b.i).map(x => x.p) : picked, LABEL_W = null != fit.labelPx ? fit.labelPx + "px" : "15rem", CELL = "flex:1 1 0px;min-width:0;margin-left:6px;box-sizing:border-box;", table = civEl("div", "display:flex;flex-direction:column;width:100%;box-sizing:border-box;min-width:" + compareMinWidth(fit.labelPx, pids.length));
+    null == fit.labelPx && (table.style.visibility = "hidden");
+    const head = civEl("div", "display:flex;flex-direction:row;align-items:stretch;margin-bottom:4px"), spacer = civEl("div", "width:" + LABEL_W + ";flex-shrink:0");
     head.appendChild(spacer);
     const labs = [];
     for (const pid of pids) {
       const id = stats.ident.get(pid), on = pid === sortPid, cell = civEl("div", CELL + "display:flex;align-items:center;padding:8px 10px;cursor:pointer;background:" + (on ? "#2E271D" : "#1E1A14") + ";border-top:4px solid " + id.color + ";border-bottom:2px solid " + (on ? "#FFD98A" : "transparent"));
-      cell.appendChild(civPortrait(id, 34));
+      cell.appendChild(portrait(id, 34));
       const t = civEl("div", "display:flex;flex-direction:column;min-width:0;flex:1 1 auto;margin-left:8px");
       t.appendChild(civEl("div", "font-size:1rem;color:" + (on ? "#FFD98A" : "#F0E6D2"), id.name)), 
       id.civ && t.appendChild(civEl("div", "font-size:0.78rem;color:#8A7F63", id.civ)), 
@@ -3087,7 +3243,8 @@ function makeCivsView(opts) {
           natural = Math.max(natural, c.getBoundingClientRect().width);
         } catch (e) {}
         if ((!sw || labs.length && !natural) && tries < 60) return void requestAnimationFrame(run);
-        if (meter.parentNode && meter.parentNode.removeChild(meter), !sw) return;
+        if (meter.parentNode && meter.parentNode.removeChild(meter), table.style.visibility = "visible", 
+        !sw) return;
         null == fit.remPx && null == fit.labelPx && (fit.remPx = sw / 15);
         const cap = Math.round(LABEL_CAP * content.clientWidth), w = natural ? Math.min(Math.ceil(natural) + LABEL_EXTRA_PX, cap) : Math.round(sw);
         if (w !== fit.labelPx || Math.round(sw) !== w) {
@@ -3108,21 +3265,24 @@ function makeCivsView(opts) {
   }
   function render() {
     !function() {
-      list.textContent = "";
-      for (const pid of stats.pids) {
-        const id = stats.ident.get(pid), sel = memory.compare ? memory.picks.includes(pid) : pid === memory.pid, row = civEl("div", "display:flex;align-items:center;padding:8px 10px;margin-bottom:6px;cursor:pointer;box-sizing:border-box;background:" + (sel ? "#2E271D" : "#1E1A14") + ";border:1px solid " + (sel ? "#8A6F4A" : "#3A3226") + ";border-left:4px solid " + id.color);
-        memory.compare && !sel && (row.style.opacity = "0.45"), row.appendChild(civPortrait(id, 40));
-        const text = civEl("div", "display:flex;flex-direction:column;min-width:0;flex:1 1 auto;margin-left:10px");
-        text.appendChild(civEl("div", "font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:" + (sel ? "#FFD98A" : "#E8E2D0"), id.name));
-        const sub = [ id.civ, pid === stats.me ? T("LOC_CHRONICLE_CIVS_YOU") : "" ].filter(Boolean).join("  ·  ");
-        sub && text.appendChild(civEl("div", "font-size:0.8rem;color:#8A7F63;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", sub)), 
-        row.appendChild(text), row.addEventListener("click", () => {
-          if (memory.compare) {
-            const i = memory.picks.indexOf(pid);
-            i >= 0 ? memory.picks.splice(i, 1) : memory.picks.push(pid);
-          } else memory.pid = pid;
-          render();
-        }), list.appendChild(row);
+      const key = stats.pids.join(",") + "|" + (inCompare() ? "c" + shownPicks().join(",") : "s" + shownPid());
+      if (key !== listKey) {
+        listKey = key, list.textContent = "";
+        for (const pid of stats.pids) {
+          const id = stats.ident.get(pid), sel = inCompare() ? memory.picks.includes(pid) : pid === shownPid(), row = civEl("div", "display:flex;align-items:center;padding:8px 10px;margin-bottom:6px;cursor:pointer;box-sizing:border-box;background:" + (sel ? "#2E271D" : "#1E1A14") + ";border:1px solid " + (sel ? "#8A6F4A" : "#3A3226") + ";border-left:4px solid " + id.color);
+          inCompare() && !sel && (row.style.opacity = "0.45"), row.appendChild(portrait(id, 40));
+          const text = civEl("div", "display:flex;flex-direction:column;min-width:0;flex:1 1 auto;margin-left:10px");
+          text.appendChild(civEl("div", "font-size:1.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:" + (sel ? "#FFD98A" : "#E8E2D0"), id.name));
+          const sub = [ id.civ, pid === stats.me ? T("LOC_CHRONICLE_CIVS_YOU") : "" ].filter(Boolean).join("  ·  ");
+          sub && text.appendChild(civEl("div", "font-size:0.8rem;color:#8A7F63;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", sub)), 
+          row.appendChild(text), row.addEventListener("click", () => {
+            if (inCompare()) {
+              const i = memory.picks.indexOf(pid);
+              i >= 0 ? memory.picks.splice(i, 1) : memory.picks.push(pid);
+            } else memory.pid = pid;
+            render();
+          }), list.appendChild(row);
+        }
       }
     }(), function() {
       colFoot.textContent = "";
@@ -3132,13 +3292,13 @@ function makeCivsView(opts) {
         });
         colFoot.firstChild && (b.style.marginTop = "6px"), highlightButton(b, !!on), colFoot.appendChild(b);
       };
-      stats.pids.length >= 2 && (memory.compare && add(T("LOC_CHRONICLE_CIVS_ALL_LEADERS"), selectAll, allPicked()), 
-      add(T(memory.compare ? "LOC_CHRONICLE_CIVS_DONE" : "LOC_CHRONICLE_CIVS_COMPARE"), toggleCompare, memory.compare)), 
+      stats.pids.length >= 2 && (inCompare() && add(T("LOC_CHRONICLE_CIVS_ALL_LEADERS"), selectAll, allPicked()), 
+      add(T(inCompare() ? "LOC_CHRONICLE_CIVS_DONE" : "LOC_CHRONICLE_CIVS_COMPARE"), toggleCompare, inCompare())), 
       add(T(allGroupsOn() ? "LOC_CHRONICLE_CIVS_ALL_GROUPS_OFF" : "LOC_CHRONICLE_CIVS_ALL_GROUPS_ON"), toggleAllGroups, !1), 
       add(T("LOC_CHRONICLE_CIVS_GROUPED"), toggleGrouped, !memory.ungrouped);
-    }(), content.textContent = "", stats.pids.length ? memory.compare ? renderCompare(memory.picks.filter(p => stats.pids.includes(p))) : function(pid) {
+    }(), content.textContent = "", stats.pids.length ? inCompare() ? renderCompare(shownPicks()) : function(pid) {
       const id = stats.ident.get(pid), hero = civEl("div", "display:flex;align-items:center;padding:16px 20px;margin-bottom:16px;box-sizing:border-box;background:#1E1A14;border:1px solid #4A3F32;border-left:6px solid " + id.color);
-      hero.appendChild(civPortrait(id, 76));
+      hero.appendChild(portrait(id, 76));
       const htext = civEl("div", "display:flex;flex-direction:column;min-width:0;flex:1 1 auto;margin-left:18px");
       htext.appendChild(civEl("div", "font-size:1.7rem;color:#F0E6D2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", id.name));
       const sub = [ id.civ, pid === stats.me ? T("LOC_CHRONICLE_CIVS_YOU") : "" ].filter(Boolean).join("  ·  ");
@@ -3162,11 +3322,12 @@ function makeCivsView(opts) {
         rows.length && card(cat, rows);
       }
       footnote(anyDead);
-    }(memory.pid) : message(T("LOC_CHRONICLE_CIVS_EMPTY")), opts.onRender && opts.onRender();
+    }(shownPid()) : message(T("LOC_CHRONICLE_CIVS_EMPTY")), opts.onRender && opts.onRender();
   }
   return {
     el: root,
     render: render,
+    isCompare: inCompare,
     groupOn: groupOn,
     groupHasRows: groupHasRows,
     toggleCompare: toggleCompare,
@@ -3178,14 +3339,19 @@ function makeCivsView(opts) {
       return !(!cat || !groupHasRows(cat)) && (memory.off[cat] ? delete memory.off[cat] : memory.off[cat] = !0, 
       render(), opts.onGroupsChanged && opts.onGroupsChanged(), !0);
     },
+    setStats(next) {
+      stats = next, render(), opts.onGroupsChanged && opts.onGroupsChanged();
+    },
     stepCiv(d) {
-      if (memory.compare || stats.pids.length < 2) return !1;
-      const i = Math.max(0, stats.pids.indexOf(memory.pid));
+      if (inCompare() || stats.pids.length < 2) return !1;
+      const i = Math.max(0, stats.pids.indexOf(shownPid()));
       return memory.pid = stats.pids[(i + d + stats.pids.length) % stats.pids.length], 
       render(), !0;
     }
   };
 }
+
+const NOTCH_SNAP_PX = 10;
 
 function openOverlayForStore(store, opts) {
   opts = opts || {}, store && store.ages && (activeRoot && (activeRoot.style.visibility = "hidden", 
@@ -3214,7 +3380,7 @@ try {
     openForStore: openOverlayForStore,
     close: closeOverlay,
     refreshDockButton: refreshDockButton,
-    version: "0.34.1"
+    version: "0.35.7"
   };
 } catch (e) {
   try {
@@ -3223,7 +3389,7 @@ try {
       openForStore: openOverlayForStore,
       close: closeOverlay,
       refreshDockButton: refreshDockButton,
-      version: "0.34.1"
+      version: "0.35.7"
     };
   } catch (e2) {}
 }
@@ -3419,6 +3585,7 @@ function openOverlay(opts) {
       toggleGrouped: () => !1,
       selectAllLeaders: () => !1,
       toggleAllGroups: () => !1,
+      stepTurn: () => !1,
       openHof: () => openHofFromHeader(),
       openOptions: () => openOptionsFromHeader()
     }, document.body.appendChild(root), void openLog("open-fill total=" + Math.round(openNowMs() - tOpen0) + "ms flush=" + flushMs + " probe=" + probeMs + " empty=1 historical=" + (historical ? 1 : 0));
@@ -3441,12 +3608,22 @@ function openOverlay(opts) {
   const board = document.createElement("div");
   board.setAttribute("style", "position:relative;width:100%;height:100%;overflow:auto;display:none"), 
   chartWrap.appendChild(board), panel.appendChild(chartWrap);
-  const viewBar = document.createElement("div");
-  viewBar.setAttribute("style", "display:flex;gap:8px;justify-content:center;margin-top:12px;flex-shrink:0"), 
-  panel.appendChild(viewBar);
+  const chipSlot = document.createElement("div");
+  chipSlot.setAttribute("style", "position:relative;display:flex;justify-content:center;align-items:center;height:2.4rem;margin-top:10px;flex-shrink:0"), 
+  panel.appendChild(chipSlot);
+  const ctrlRow = document.createElement("div");
+  ctrlRow.setAttribute("style", "position:relative;display:block;width:100%;margin-top:8px;flex-shrink:0"), 
+  panel.appendChild(ctrlRow);
+  const ctrlSizer = makeNativeButton(T("LOC_CHRONICLE_TRENDS"), () => {}, {
+    secondary: !0
+  });
+  ctrlSizer.style.visibility = "hidden", ctrlSizer.style.pointerEvents = "none";
+  for (const a of [ "activatable", "data-audio-press-ref", "data-audio-focus-ref" ]) ctrlSizer.removeAttribute(a);
+  ctrlRow.appendChild(ctrlSizer);
+  const CTRL_LAYER = "position:absolute;left:0;right:0;top:0;bottom:0;align-items:center;justify-content:center;", viewBar = document.createElement("div");
+  viewBar.setAttribute("style", CTRL_LAYER + "display:flex;gap:8px"), ctrlRow.appendChild(viewBar);
   const pageBar = document.createElement("div");
-  pageBar.setAttribute("style", "display:flex;gap:12px;align-items:center;justify-content:center;margin-top:10px;flex-shrink:0"), 
-  panel.appendChild(pageBar);
+  pageBar.setAttribute("style", CTRL_LAYER + "display:none;gap:12px"), ctrlRow.appendChild(pageBar);
   const footer = document.createElement("div");
   footer.setAttribute("style", "display:flex;flex-direction:column;flex-shrink:0;width:100%;min-width:0;margin-top:10px"), 
   footer.appendChild(note);
@@ -3476,11 +3653,137 @@ function openOverlay(opts) {
   historical || (liveSessionSelection = Object.assign({}, liveSessionSelection, {
     civs: civMemory
   }));
-  let curMode = "metrics", civsView = null, metricsPending = null;
+  let curMode = "metrics", civsView = null, turnStrip = null;
+  const timeline = function() {
+    const ctx = ensureStoreLayout(), positions = [];
+    return ctx && ctx.layout.length ? (ctx.layout.forEach((L, ageIdx) => {
+      const ageLabel = prettifyType(L.age.label || L.age.key);
+      L.turns.forEach((t, i) => {
+        const p = L.age.turns[t] && L.age.turns[t].p || {}, living = new Set;
+        for (const pid in p) isVisibleMajorPid(pid) && isFullSnapshotRow(p[pid]) && living.add(Number(pid));
+        positions.push({
+          ci: L.age.ci,
+          ageIdx: ageIdx,
+          ageLabel: ageLabel,
+          t: t,
+          x: L.offset + (t - L.minT),
+          ageEnd: i === L.turns.length - 1,
+          ageStart: 0 === i,
+          living: living
+        });
+      });
+    }), {
+      positions: positions,
+      end: ctx.end
+    }) : {
+      positions: positions,
+      end: 0
+    };
+  }(), lastPos = timeline.positions.length - 1;
+  let selIndex = null;
+  if (opts && opts.navMemory) {
+    if (civMemory.turn) {
+      const i = timelineIndexOf(timeline, civMemory.turn);
+      selIndex = null == i || i >= lastPos ? null : i;
+    }
+  } else civMemory.turn = null;
+  const atFor = i => {
+    if (null == i) return null;
+    const p = timeline.positions[i];
+    return {
+      pos: p,
+      living: p.living,
+      label: T("LOC_CHRONICLE_AGE_TURN_SHORT", p.ageLabel, p.t)
+    };
+  };
+  ui.at = atFor(selIndex), ui.onPin = turn => {
+    setTurn(turn ? timelineIndexOf(timeline, turn) : null);
+  }, ui.onDrag = turn => {
+    const i = turn ? timelineIndexOf(timeline, turn) : null;
+    paintChip(atFor(null == i || i >= lastPos ? null : i));
+  };
+  const statsByIndex = new Map, civStatsAt = i => {
+    const k = null == i ? -1 : i;
+    return statsByIndex.has(k) || statsByIndex.set(k, buildCivStats(metrics, atFor(i))), 
+    statsByIndex.get(k);
+  };
+  let civsRenderQueued = !1;
+  const queueCivsRender = () => {
+    civsRenderQueued || (civsRenderQueued = !0, requestAnimationFrame(() => {
+      civsRenderQueued = !1, civsView && "civs" === curMode && civsView.setStats(civStatsAt(selIndex));
+    }));
+  }, turnChip = civEl("div", "display:none;align-items:center;padding:5px 16px;font-size:0.95rem;letter-spacing:0.06em;box-sizing:border-box;background:#1E1A14;white-space:nowrap");
+  turnChip.className = "font-title", chipSlot.appendChild(turnChip);
+  let chipLive = !1;
+  turnChip.addEventListener("click", () => {
+    chipLive && setTurn(null);
+  });
+  let chipFit = 0, chipW = 0;
+  const chipW88 = {}, paintChip = at => {
+    void 0 === at && (at = ui.at);
+    const on = !!at && "civs" !== curMode;
+    if (chipLive = on && chartReachesTurn(curMetric, curView, at), turnChip.style.display = on ? "flex" : "none", 
+    on) {
+      (() => {
+        if (chipFit) return;
+        chipFit = 1;
+        const items = [ {
+          text: T("LOC_CHRONICLE_TURN_NOW")
+        } ], ages = [];
+        for (const p of timeline.positions) ages.indexOf(p.ageLabel) >= 0 || (ages.push(p.ageLabel), 
+        items.push({
+          text: T("LOC_CHRONICLE_AGE_TURN_SHORT", p.ageLabel, 999)
+        }), items.push({
+          text: T("LOC_CHRONICLE_AGE_TURN_SHORT", p.ageLabel, 88),
+          age88: p.ageLabel
+        }));
+        const meter = civEl("div", "position:absolute;left:0;top:0;visibility:hidden;display:flex;flex-direction:row");
+        for (const it of items) {
+          const m = civEl("div", "flex:none;white-space:nowrap;font-size:0.95rem;letter-spacing:0.06em", it.text);
+          m.className = "font-title", meter.appendChild(m);
+        }
+        chipSlot.appendChild(meter);
+        let tries = 0;
+        const run = () => {
+          const widths = Array.prototype.slice.call(meter.children).map(c => {
+            try {
+              return c.getBoundingClientRect().width;
+            } catch (e) {
+              return 0;
+            }
+          }), w = Math.max.apply(null, widths);
+          !w && ++tries < 120 ? requestAnimationFrame(run) : (meter.parentNode && meter.parentNode.removeChild(meter), 
+          w ? (chipFit = 2, chipW = Math.ceil(w + 32 + 4 + 4), items.forEach((it, i) => {
+            it.age88 && (chipW88[it.age88] = widths[i]);
+          }), turnChip.style.width = chipW + "px", paintChip()) : chipFit = 0);
+        };
+        requestAnimationFrame(run);
+      })(), turnChip.textContent = chipLive ? at.label : T("LOC_CHRONICLE_TURN_NOW"), 
+      turnChip.style.color = chipLive ? "#FFD98A" : "#8A7F63", turnChip.style.border = "2px solid " + (chipLive ? "#FFD98A" : "#4A3F32"), 
+      turnChip.style.cursor = chipLive ? "pointer" : "default";
+      const w88 = chipLive && 2 === chipFit ? chipW88[at.pos.ageLabel] : null;
+      turnChip.style.justifyContent = w88 ? "flex-start" : "center", turnChip.style.paddingLeft = (w88 ? Math.max(0, Math.round((chipW - 4 - w88) / 2)) : 16) + "px", 
+      turnChip.style.paddingRight = (w88 ? 0 : 16) + "px";
+    }
+  };
+  function setTurn(i) {
+    null != i && i >= lastPos && (i = null);
+    const changed = i !== selIndex, reachedBefore = "civs" === curMode || chartReachesTurn(curMetric, curView, ui.at);
+    selIndex = i;
+    const at = atFor(i);
+    if (ui.at = at, civMemory.turn = at ? {
+      ci: at.pos.ci,
+      t: at.pos.t
+    } : null, "civs" === curMode) return turnStrip && turnStrip.setIndex(null == i ? lastPos : i), 
+    void (changed && queueCivsRender());
+    paintChip();
+    activeChart && activeChart.$ozqScrub && "trend" === curView && curMetric && curMetric.trend && reachedBefore === chartReachesTurn(curMetric, curView, at) ? setTrendsPin(activeChart, at ? sourceXAt(trendSource(curMetric.trend), at.pos) : null) : changed && curMetric && renderPage();
+  }
+  let metricsPending = null;
   const renderPage = () => {
-    renderChart(ui, curMetric, curView, curPage), pageBar.textContent = "";
+    renderChart(ui, curMetric, curView, curPage), paintChip(), pageBar.textContent = "";
     const pages = curMetric && "bar" === curMetric.kind ? barPageCount(curMetric) : 1;
-    if (pages <= 1) return;
+    if (pageBar.style.display = pages > 1 ? "flex" : "none", pages <= 1) return;
     const prev = makeNativeButton(T("LOC_CHRONICLE_PREV"), () => {
       curPage > 0 && (curPage--, renderPage());
     }, {
@@ -3559,24 +3862,103 @@ function openOverlay(opts) {
       b.style.cursor = has ? "pointer" : "default";
     });
   }, paintHint = () => {
-    hotkeyHint.textContent = "civs" === curMode ? hotkeyHintText("civs", !!civMemory.compare) : hotkeyHintText("metrics");
+    hotkeyHint.textContent = "civs" === curMode ? hotkeyHintText("civs", !(!civsView || !civsView.isCompare()), lastPos >= 1) : hotkeyHintText("metrics", !1, lastPos >= 1);
   }, setMode = m => {
     if ("metrics" !== m && "civs" !== m) return;
     if (m === curMode && ("metrics" === m || civsView)) return;
     curMode = m, civMemory.mode = m, modeSwitch.paint(m);
     const civs = "civs" === m;
     if (chartRow.root.style.display = civs ? "none" : "", chartWrap.style.display = civs ? "none" : "", 
-    pageBar.style.display = civs ? "none" : "flex", civs) return viewBar.style.display = "none", 
-    activeChart && (activeChart.destroy(), activeChart = null), civsView || (civsView = makeCivsView({
+    chipSlot.style.display = civs ? "none" : "flex", ctrlRow.style.display = civs ? "none" : "block", 
+    civs) return viewBar.style.display = "none", activeChart && (activeChart.destroy(), 
+    activeChart = null), civsView ? (civsView.el.style.display = "flex", civsView.setStats(civStatsAt(selIndex))) : (civsView = makeCivsView({
       catList: catList,
-      stats: buildCivStats(metrics),
+      stats: civStatsAt(selIndex),
       memory: civMemory,
       onGroupsChanged: paintCatButtons,
       onRender: paintHint
-    }), panel.insertBefore(civsView.el, viewBar)), civsView.el.style.display = "flex", 
-    civsView.render(), setNote(ui, "", null, !0), paintHint(), void paintCatButtons();
-    if (civsView && (civsView.el.style.display = "none"), paintHint(), paintCatButtons(), 
-    metricsPending) {
+    }), panel.insertBefore(civsView.el, chipSlot), civsView.el.style.display = "flex", 
+    lastPos >= 1 && (turnStrip = function(timeline, onPick) {
+      const ps = timeline.positions, last = ps.length - 1, span = Math.max(1, timeline.end), pct = x => 100 * x / span + "%", root = civEl("div", "display:none;flex-direction:column;align-items:stretch;flex-shrink:0;width:100%;margin-top:12px"), label = civEl("div", "text-align:center;font-size:0.95rem;color:#FFD98A;height:1.4rem;line-height:1.4rem;margin-bottom:4px");
+      root.appendChild(label);
+      const row = civEl("div", "display:flex;flex-direction:row;align-items:center;width:100%"), track = civEl("div", "position:relative;flex:1 1 auto;min-width:0;height:28px;cursor:pointer;margin:0 8px 0 8px");
+      row.appendChild(track);
+      const cap = civEl("div", "flex-shrink:0;padding:5px 12px;font-size:0.8rem;cursor:pointer;border:1px solid #6B5842", T(isHistoricalView() ? "LOC_CHRONICLE_TURN_LATEST" : "LOC_CHRONICLE_TURN_NOW"));
+      cap.className = "font-title uppercase tracking-150", row.appendChild(cap), root.appendChild(row);
+      const ageNames = [];
+      let prevEndX = 0;
+      for (let i = 0; i <= last; i++) {
+        if (!ps[i].ageStart) continue;
+        let j = i;
+        for (;j < last && !ps[j].ageEnd; ) j++;
+        const x0 = prevEndX, x1 = ps[j].x;
+        prevEndX = x1;
+        const band = civEl("div", "position:absolute;top:0;height:100%;box-sizing:border-box;background:" + ageTint(AGE_BAND_TINTS, ps[i].ageIdx) + ";border-top:1px solid #3A3226;border-bottom:1px solid #3A3226;left:" + pct(x0) + ";width:" + pct(Math.max(0, x1 - x0))), box = civEl("div", "position:absolute;top:0;bottom:0;right:2px;margin-left:6px;overflow:hidden;display:flex;flex-direction:row;align-items:center;left:" + (i > 0 && x1 > x0 ? 100 * (ps[i].x - x0) / (x1 - x0) : 0) + "%"), name = civEl("div", "flex:none;white-space:nowrap;font-size:0.75rem;color:#8A7F63", ps[i].ageLabel);
+        box.appendChild(name), band.appendChild(box), track.appendChild(band), ageNames.push({
+          box: box,
+          name: name,
+          full: ps[i].ageLabel
+        }), i > 0 && track.appendChild(civEl("div", "position:absolute;top:0;width:2px;height:100%;margin-left:-1px;background:" + ageTint(AGE_TICK_TINTS, ps[i].ageIdx) + ";left:" + pct(ps[i].x)));
+      }
+      for (let i = 0; i < last; i++) ps[i].ageEnd && track.appendChild(civEl("div", "position:absolute;top:-4px;width:3px;height:36px;margin-left:-1px;background:#C9A94E;left:" + pct(ps[i].x)));
+      const thumb = civEl("div", "position:absolute;top:-6px;width:10px;height:40px;margin-left:-5px;background:#FFD98A;border:1px solid #110F0B;box-sizing:border-box");
+      track.appendChild(thumb);
+      let cur = last;
+      function paint() {
+        const p = ps[cur];
+        thumb.style.left = pct(p.x);
+        const now = cur === last;
+        label.textContent = T("LOC_CHRONICLE_AGE_TURN", p.ageLabel, p.t), cap.style.background = now ? "#4A3B26" : "transparent", 
+        cap.style.color = now ? "#FFD98A" : "#B7A987";
+      }
+      function set(i) {
+        return (i = Math.max(0, Math.min(last, i))) !== cur && (cur = i, paint(), onPick(cur), 
+        !0);
+      }
+      function indexAt(e) {
+        const r = track.getBoundingClientRect(), w = r.right - r.left;
+        if (!(w > 0)) return cur;
+        const x = Math.max(0, Math.min(1, (e.clientX - r.left) / w)) * span;
+        let best = cur, bestD = 1 / 0, notch = -1, notchD = 1 / 0;
+        for (let i = 0; i <= last; i++) {
+          const d = Math.abs(ps[i].x - x);
+          d < bestD && (bestD = d, best = i), ps[i].ageEnd && d < notchD && (notchD = d, notch = i);
+        }
+        return notch >= 0 && notchD * w / span <= NOTCH_SNAP_PX ? notch : best;
+      }
+      const onMove = e => {
+        set(indexAt(e));
+      }, onUp = () => {
+        window.removeEventListener("mousemove", onMove), window.removeEventListener("mouseup", onUp);
+      };
+      track.addEventListener("mousedown", e => {
+        null != e.button && 0 !== e.button || (set(indexAt(e)), window.addEventListener("mousemove", onMove), 
+        window.addEventListener("mouseup", onUp), e.preventDefault && e.preventDefault());
+      }), cap.addEventListener("click", () => {
+        set(last);
+      }), paint();
+      let fitTries = 0;
+      const fitAgeNames = () => {
+        if (!root.parentNode) return;
+        let pending = !1;
+        for (const a of ageNames) {
+          if (a.done) continue;
+          const bw = a.box.getBoundingClientRect().width, nw = a.name.getBoundingClientRect().width;
+          bw && nw ? (a.done = !0, nw > bw && (a.name.textContent = /^[\u3400-\u9fff]/.test(a.full) ? a.full.charAt(0) : a.full.charAt(0) + ".")) : pending = !0;
+        }
+        pending && ++fitTries < 120 && requestAnimationFrame(fitAgeNames);
+      };
+      return requestAnimationFrame(fitAgeNames), {
+        el: root,
+        setIndex(i) {
+          cur = Math.max(0, Math.min(last, i)), paint();
+        }
+      };
+    }(timeline, i => setTurn(i)), panel.insertBefore(turnStrip.el, chipSlot)), civsView.render()), 
+    turnStrip && (turnStrip.setIndex(null == selIndex ? lastPos : selIndex), turnStrip.el.style.display = "flex"), 
+    setNote(ui, "", null, !0), paintHint(), void paintCatButtons();
+    if (civsView && (civsView.el.style.display = "none"), turnStrip && (turnStrip.el.style.display = "none"), 
+    paintHint(), paintCatButtons(), metricsPending) {
       const p = metricsPending;
       metricsPending = null, selectCategory(p.cat, p.id, p.view);
     } else curInCat.length && selectChart(curInCat, curChartIndex, curView);
@@ -3592,6 +3974,11 @@ function openOverlay(opts) {
     toggleGrouped: () => "civs" === curMode && !(!civsView || !civsView.toggleGrouped()),
     selectAllLeaders: () => "civs" === curMode && !(!civsView || !civsView.selectAll()),
     toggleAllGroups: () => "civs" === curMode && !(!civsView || !civsView.toggleAllGroups()),
+    stepTurn(d) {
+      if (lastPos < 1) return !1;
+      const cur = null == selIndex ? lastPos : selIndex, next = Math.max(0, Math.min(lastPos, cur + d));
+      return next !== cur && (setTurn(next), !0);
+    },
     stepCategory: d => !(!catList.length || "civs" === curMode) && (selectCategory((curCatIndex + d + catList.length) % catList.length), 
     !0),
     stepChart(d) {
@@ -3630,7 +4017,7 @@ function openOverlay(opts) {
   requestAnimationFrame(() => {
     if (seq !== openSeq || !activeRoot) return;
     const tChart0 = openNowMs();
-    modeSwitch.paint("metrics"), "civs" === civMemory.mode ? (metricsPending = {
+    modeSwitch.paint("metrics"), paintHint(), "civs" === civMemory.mode ? (metricsPending = {
       cat: openCat,
       id: openMetric && openMetric.id,
       view: openView
@@ -3656,6 +4043,12 @@ function injectButton(screen) {
     if (screen.querySelector("#ozq-chronicle-graphs-button")) return;
     const row = screen.querySelector(".bottom-10.right-10");
     if (!row) return void (tries++ < 180 && requestAnimationFrame(attempt));
+    readEndGameFlag(screen) && function() {
+      try {
+        const log = "undefined" != typeof globalThis && globalThis.ozqChronicleLog || "undefined" != typeof window && window.ozqChronicleLog;
+        log && "function" == typeof log.flushNow && log.flushNow("results-screen");
+      } catch (e) {}
+    }();
     const button = makeNativeButton(T("LOC_CHRONICLE_BUTTON"), () => openOverlay({
       fromEndGame: readEndGameFlag(screen)
     }), {
@@ -3702,20 +4095,17 @@ function refreshDockButton() {
   }());
 }
 
-function isResultsScreen(el) {
-  return el instanceof HTMLElement && "string" == typeof el.localName && "screen-victory-progress" === el.localName.toLowerCase();
-}
-
 function findById(node, id) {
-  return node instanceof HTMLElement ? node.id === id ? node : node.querySelector ? node.querySelector(`#${id}`) : null : null;
+  return node instanceof HTMLElement ? node.id === id ? node : node.firstElementChild ? node.querySelector(`#${id}`) : null : null;
 }
 
 function inspectNode(node) {
   if (!(node instanceof HTMLElement)) return;
-  if (isResultsScreen(node)) injectButton(node); else if (node.querySelectorAll) for (const el of node.querySelectorAll("*")) if (isResultsScreen(el)) {
-    injectButton(el);
-    break;
+  if ((el = node) instanceof HTMLElement && "string" == typeof el.localName && el.localName.toLowerCase() === SCREEN_TAG) injectButton(node); else if (node.firstElementChild) {
+    const screen = node.querySelector(SCREEN_TAG);
+    screen && injectButton(screen);
   }
+  var el;
   const pause = findById(node, "pause-menu-button-container");
   pause && injectPauseMenuButton(pause);
   const dock = findById(node, "panel-sub-system-dock-mod-slot");
@@ -3723,14 +4113,11 @@ function inspectNode(node) {
 }
 
 scheduleInstall(function() {
-  const existing = document.querySelector("screen-victory-progress");
+  const existing = document.querySelector(SCREEN_TAG);
   existing && injectButton(existing);
   const existingPause = document.getElementById("pause-menu-button-container");
-  existingPause && injectPauseMenuButton(existingPause), refreshDockButton(), new MutationObserver(mutations => {
+  existingPause && injectPauseMenuButton(existingPause), refreshDockButton(), observeBody(mutations => {
     for (const mutation of mutations) for (const added of mutation.addedNodes) inspectNode(added);
-  }).observe(document.body, {
-    childList: !0,
-    subtree: !0
   });
   try {
     document.addEventListener("keydown", onOverlayKeydown, !0);

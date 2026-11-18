@@ -1,6 +1,6 @@
 import "/ozq-chronicle/scripts/chronicle-common.js";
 
-const LOG = "[chronicle-options]", {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, readSettings: readSettings, writeSettings: writeSettings, DEFAULT_HOTKEYS: DEFAULT_HOTKEYS, HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS, isWatchedEngineAction: isWatchedEngineAction, isEatableWorldAction: isEatableWorldAction, engineCodesForAction: engineCodesForAction, nativeActionsForCode: nativeActionsForCode, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, engineLabelsForAction: engineLabelsForAction, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode} = globalThis.ozqChronicleCommon, T = (key, ...args) => L(key, ...args), SETTINGS = [ {
+const LOG = "[chronicle-options]", {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: HEADER_BOX, TITLE_COL_ROW: TITLE_COL_ROW, TITLE_TEXT: TITLE_TEXT, HEADER_ACTIONS: HEADER_ACTIONS, makeNativeButton: makeNativeButton, CANCEL_ACTIONS: CANCEL_ACTIONS, isPressFinished: isPressFinished, installFrontInputHandler: installFrontInputHandler, removeFrontInputHandler: removeFrontInputHandler, scheduleInstall: scheduleInstall, noteOverlayOpened: noteOverlayOpened, isTopOverlay: isTopOverlay, forgetOverlay: forgetOverlay, observeBody: observeBody, readSettings: readSettings, writeSettings: writeSettings, DEFAULT_HOTKEYS: DEFAULT_HOTKEYS, HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS, isWatchedEngineAction: isWatchedEngineAction, isEatableWorldAction: isEatableWorldAction, engineCodesForAction: engineCodesForAction, nativeActionsForCode: nativeActionsForCode, isEngineBoundHotkeyCode: isEngineBoundHotkeyCode, refreshEngineKeyMap: refreshEngineKeyMap, stopKeydownPeers: stopKeydownPeers, readHotkeys: readHotkeys, noteKeydownPress: noteKeydownPress, isKeydownPress: isKeydownPress, engineLabelsForAction: engineLabelsForAction, formatHotkeyCode: formatHotkeyCode, resolveHotkeyCode: resolveHotkeyCode} = globalThis.ozqChronicleCommon, T = (key, ...args) => L(key, ...args), SETTINGS = [ {
   key: "fog",
   invert: !0,
   label: "LOC_CHRONICLE_OPT_SHOW_UNMET",
@@ -32,6 +32,12 @@ const LOG = "[chronicle-options]", {L: L, PANEL_PAD_X: PANEL_PAD_X, HEADER_BOX: 
 }, {
   slot: "pageNext",
   label: "LOC_CHRONICLE_OPT_HK_PAGE_NEXT"
+}, {
+  slot: "turnPrev",
+  label: "LOC_CHRONICLE_OPT_HK_TURN_PREV"
+}, {
+  slot: "turnNext",
+  label: "LOC_CHRONICLE_OPT_HK_TURN_NEXT"
 }, {
   slot: "openHof",
   label: "LOC_CHRONICLE_OPT_HK_OPEN_HOF"
@@ -302,7 +308,7 @@ try {
       root.appendChild(panel);
       const header = el("div", HEADER_BOX), titleCol = el("div", TITLE_COL_ROW), title = el("div", TITLE_TEXT, T("LOC_CHRONICLE_OPT_TITLE"));
       title.className = "font-title uppercase tracking-150", titleCol.appendChild(title), 
-      titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.75rem;padding-bottom:4px;flex-shrink:0;margin-right:16px", "v0.34.1")), 
+      titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.75rem;padding-bottom:4px;flex-shrink:0;margin-right:16px", "v0.35.7")), 
       header.appendChild(titleCol);
       const actions = el("div", HEADER_ACTIONS), closeBtn = makeNativeButton(T("LOC_GENERIC_CLOSE"), closeOptions, {});
       closeBtn.style.opacity = "0.72";
@@ -315,7 +321,7 @@ try {
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.34.1"
+    version: "0.35.7"
   };
 } catch (e) {}
 
@@ -351,11 +357,8 @@ scheduleInstall(function() {
     console.error(`${LOG} could not register Add-ons options (${e}) — in-overlay Options still works`);
   }), function() {
     const existing = document.querySelector("screen-options");
-    existing && retitleGroupHeader(existing), new MutationObserver(mutations => {
-      for (const mutation of mutations) for (const added of mutation.addedNodes) added instanceof HTMLElement && (isOptionsScreen(added) || added.querySelector && added.querySelector("screen-options")) && retitleGroupHeader(added);
-    }).observe(document.body, {
-      childList: !0,
-      subtree: !0
+    existing && retitleGroupHeader(existing), observeBody(mutations => {
+      for (const mutation of mutations) for (const added of mutation.addedNodes) added instanceof HTMLElement && (isOptionsScreen(added) || added.firstElementChild && added.querySelector("screen-options")) && retitleGroupHeader(added);
     });
   }(), console.error(`${LOG} loaded.`);
 });

@@ -180,6 +180,8 @@ function foldSchema1(row0) {
   }, c;
 }
 
+let lastWrite = null;
+
 function loadShared() {
   let folded = null;
   const notes = [], fin = shared => ({
@@ -196,6 +198,15 @@ function loadShared() {
     try {
       raw = localStorage.getItem("modSettings");
     } catch (e) {}
+    if (0 === hop && lastWrite && raw === lastWrite.str) {
+      const shared = Object.assign({}, lastWrite.shared);
+      return delete shared[SUB_KEY], notes.push("steady (unchanged since our last write)"), 
+      {
+        shared: shared,
+        container: lastWrite.container,
+        notes: notes
+      };
+    }
     if (!raw) return notes.push("row0 empty"), fin({});
     let row0 = null;
     try {
@@ -227,14 +238,24 @@ function loadShared() {
 }
 
 function saveShared(shared, c) {
-  shared[SUB_KEY] = c;
-  const str = JSON.stringify(shared);
-  localStorage.setItem("modSettings", str);
+  return writeShared(shared, serialiseShared(shared, c));
+}
+
+function serialiseShared(shared, c) {
+  return shared[SUB_KEY] = c, JSON.stringify(shared);
+}
+
+function writeShared(shared, str) {
+  lastWrite = null, localStorage.setItem("modSettings", str);
   let back = null;
   try {
     back = localStorage.getItem("modSettings");
   } catch (e) {}
-  if (back === str) return !0;
+  if (back === str) return lastWrite = {
+    str: str,
+    shared: shared,
+    container: shared[SUB_KEY]
+  }, !0;
   try {
     null != back && (shared._ozqRescued = {
       t: Date.now(),
@@ -261,8 +282,10 @@ const DEFAULT_HOTKEYS = {
   leadersCompare: "KeyC",
   leadersGrouped: "KeyG",
   leadersSelectAll: "KeyA",
-  leadersStatGroups: "KeyS"
-}, HOTKEY_SLOT_KEYS = [ "catPrev", "catNext", "chartPrev", "chartNext", "pagePrev", "pageNext", "openHof", "openOptions", "leadersMode", "leadersCompare", "leadersGrouped", "leadersSelectAll", "leadersStatGroups" ], ENGINE_WATCHED_ACTIONS = [ "unit-heal", "unit-fortify", "unit-sleep", "unit-alert", "unit-auto-explore", "unit-move", "unit-ranged-attack", "unit-skip-turn", "open-greatworks", "open-techs", "open-civics", "open-traditions", "open-rankings", "open-attributes", "open-civilopedia", "open-advisors", "open-legacies", "open-religion", "open-trade", "open-ozq-chronicle", "quick-save", "quick-load", "toggle-grid-layer", "toggle-yields-layer", "toggle-resources-layer", "toggle-frame-stats", "next-action", "keyboard-enter", "text-to-speech-keyboard" ], ENGINE_NO_SKIP_KEYDOWN = {
+  leadersStatGroups: "KeyS",
+  turnPrev: "SemiColon",
+  turnNext: "Quote"
+}, HOTKEY_SLOT_KEYS = [ "catPrev", "catNext", "chartPrev", "chartNext", "pagePrev", "pageNext", "openHof", "openOptions", "leadersMode", "leadersCompare", "leadersGrouped", "leadersSelectAll", "leadersStatGroups", "turnPrev", "turnNext" ], ENGINE_WATCHED_ACTIONS = [ "unit-heal", "unit-fortify", "unit-sleep", "unit-alert", "unit-auto-explore", "unit-move", "unit-ranged-attack", "unit-skip-turn", "open-greatworks", "open-techs", "open-civics", "open-traditions", "open-rankings", "open-attributes", "open-civilopedia", "open-advisors", "open-legacies", "open-religion", "open-trade", "open-ozq-chronicle", "quick-save", "quick-load", "toggle-grid-layer", "toggle-yields-layer", "toggle-resources-layer", "toggle-frame-stats", "next-action", "keyboard-enter", "text-to-speech-keyboard" ], ENGINE_NO_SKIP_KEYDOWN = {
   "toggle-grid-layer": !0,
   "toggle-yields-layer": !0,
   "toggle-resources-layer": !0,
@@ -546,15 +569,20 @@ function formatHotkeyCode(code) {
   return code;
 }
 
+let cachedSettings = null;
+
 function readSettings() {
-  try {
+  if (!cachedSettings) try {
     const {container: container} = loadShared(), raw = container && container.settings || {}, s = Object.assign({}, DEFAULT_SETTINGS, raw);
-    return s.hotkeys = normalizeHotkeys(raw.hotkeys), s;
+    s.hotkeys = normalizeHotkeys(raw.hotkeys), cachedSettings = s;
   } catch (e) {
     return Object.assign({}, DEFAULT_SETTINGS, {
       hotkeys: Object.assign({}, DEFAULT_HOTKEYS)
     });
   }
+  return Object.assign({}, cachedSettings, {
+    hotkeys: Object.assign({}, cachedSettings.hotkeys)
+  });
 }
 
 function uiIconCss(id, context) {
@@ -681,6 +709,13 @@ globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first publi
   forgetOverlay: function(id) {
     overlayOpenSeq.delete(id);
   },
+  observeBody: function(callback) {
+    const observer = new MutationObserver(callback);
+    return observer.observe(document.body, {
+      childList: !0,
+      subtree: !0
+    }), observer;
+  },
   isSyntheticReligionLabel: isSyntheticReligionLabel,
   extractUgcPayload: extractUgcPayload,
   resolvePlayerReligionName: function(playerRel) {
@@ -742,6 +777,8 @@ globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first publi
   foldSchema1: foldSchema1,
   loadShared: loadShared,
   saveShared: saveShared,
+  serialiseShared: serialiseShared,
+  writeShared: writeShared,
   DEFAULT_SETTINGS: DEFAULT_SETTINGS,
   DEFAULT_HOTKEYS: DEFAULT_HOTKEYS,
   HOTKEY_SLOT_KEYS: HOTKEY_SLOT_KEYS,
@@ -1008,7 +1045,7 @@ globalThis.ozqChronicleCommon ? err("evaluated twice — keeping the first publi
       const {shared: shared, container: container} = loadShared(), prev = container.settings || {}, next = Object.assign({}, DEFAULT_SETTINGS, prev, patch || {}), prevHk = normalizeHotkeys(prev.hotkeys);
       return patch && patch.hotkeys && "object" == typeof patch.hotkeys ? next.hotkeys = normalizeHotkeys(Object.assign({}, prevHk, patch.hotkeys)) : next.hotkeys = prevHk, 
       container.settings = next, container.updated = Date.now(), saveShared(shared, container), 
-      invalidateHotkeysCache(), readSettings();
+      invalidateHotkeysCache(), cachedSettings = null, readSettings();
     } catch (e) {
       return err("settings write failed: " + e), invalidateHotkeysCache(), readSettings();
     }
