@@ -180,7 +180,7 @@ function foldSchema1(row0) {
   }, c;
 }
 
-let lastWrite = null;
+let lastWrite = null, unchangedShared = null;
 
 function loadShared() {
   let folded = null;
@@ -193,6 +193,7 @@ function loadShared() {
     },
     notes: notes
   });
+  unchangedShared = null;
   for (let hop = 0; hop < 4; hop++) {
     let raw = null;
     try {
@@ -200,7 +201,7 @@ function loadShared() {
     } catch (e) {}
     if (0 === hop && lastWrite && raw === lastWrite.str) {
       const shared = Object.assign({}, lastWrite.shared);
-      return delete shared[SUB_KEY], notes.push("steady (unchanged since our last write)"), 
+      return delete shared[SUB_KEY], unchangedShared = shared, notes.push("steady (unchanged since our last write)"), 
       {
         shared: shared,
         container: lastWrite.container,
@@ -241,12 +242,47 @@ function saveShared(shared, c) {
   return writeShared(shared, serialiseShared(shared, c));
 }
 
-function serialiseShared(shared, c) {
-  return shared[SUB_KEY] = c, JSON.stringify(shared);
+const gameJsonCache = new WeakMap;
+
+function gameJson(g) {
+  const hit = gameJsonCache.get(g);
+  if (hit && hit.u === g.updated) return hit.json;
+  const json = JSON.stringify(g);
+  return gameJsonCache.set(g, {
+    u: g.updated,
+    json: json
+  }), json;
+}
+
+function serialiseShared(shared, c, liveGid) {
+  if (shared[SUB_KEY] = c, null == liveGid || !c.games) return JSON.stringify(shared);
+  const parts = [];
+  for (const gid in c.games) {
+    const g = c.games[gid];
+    void 0 !== g && parts.push(JSON.stringify(gid) + ":" + (gid !== liveGid && g && "object" == typeof g ? gameJson(g) : JSON.stringify(g)));
+  }
+  const mark = "\0ozq-games-" + Date.now() + "-" + Math.random();
+  let str;
+  shared[SUB_KEY] = Object.assign({}, c, {
+    games: mark
+  });
+  try {
+    str = JSON.stringify(shared);
+  } finally {
+    shared[SUB_KEY] = c;
+  }
+  const tok = JSON.stringify(mark), at = str.lastIndexOf(tok);
+  return str.slice(0, at) + "{" + parts.join(",") + "}" + str.slice(at + tok.length);
 }
 
 function writeShared(shared, str) {
-  lastWrite = null, localStorage.setItem("modSettings", str);
+  const trusted = shared === unchangedShared;
+  if (unchangedShared = null, lastWrite = null, localStorage.setItem("modSettings", str), 
+  trusted) return lastWrite = {
+    str: str,
+    shared: shared,
+    container: shared[SUB_KEY]
+  }, !0;
   let back = null;
   try {
     back = localStorage.getItem("modSettings");

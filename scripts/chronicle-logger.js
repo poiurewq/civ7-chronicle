@@ -834,8 +834,8 @@ function saveContainer(c, currentGameId) {
   for (let attempt = 0; attempt < 10; attempt++) try {
     const r = loadShared();
     r.container && r.container.settings && "object" == typeof r.container.settings && (c.settings = Object.assign({}, r.container.settings));
-    let str = serialiseShared(r.shared, c);
-    for (;str.length > CONTAINER_CAP && guard++ < 64 && evictOldestGame(c, currentGameId); ) str = serialiseShared(r.shared, c);
+    let str = serialiseShared(r.shared, c, currentGameId);
+    for (;str.length > CONTAINER_CAP && guard++ < 64 && evictOldestGame(c, currentGameId); ) str = serialiseShared(r.shared, c, currentGameId);
     return writeShared(r.shared, str);
   } catch (e) {
     if (!evictOldestGame(c, currentGameId)) return !1;
