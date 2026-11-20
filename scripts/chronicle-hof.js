@@ -448,12 +448,20 @@ function openConfirm(parent, title, lines, okLabel, onOk) {
   });
   const box = el("div", "background:#16130E;border:2px solid #6B5842;padding:32px 40px;max-width:52rem;display:flex;flex-direction:column;box-sizing:border-box");
   box.appendChild(el("div", "color:#F0E6D2;font-size:1.65rem;margin-bottom:16px", title));
-  for (const line of lines) line && box.appendChild(el("div", "color:#C9BFA6;font-size:1.38rem;margin-bottom:8px", line));
+  for (const line of lines) line && box.appendChild("string" == typeof line ? el("div", "color:#C9BFA6;font-size:1.38rem;margin-bottom:8px", line) : line);
   const row = el("div", "display:flex;justify-content:flex-end;margin-top:24px"), ok = hofButton(okLabel, () => {
     closeConfirm(), onOk();
   }, "#E8574A");
   ok.style.marginRight = "12px", row.appendChild(ok), row.appendChild(hofButton(L("LOC_CHRONICLE_HOF_CANCEL"), closeConfirm, "#FFFFFF")), 
   box.appendChild(row), layer.appendChild(box), parent.appendChild(layer), activeConfirm = layer;
+}
+
+function confirmGameCard(g) {
+  const card = el("div", "background:#1E1A14;border:1px solid #6B5842;padding:12px 18px;margin-bottom:16px;display:flex;flex-direction:column;box-sizing:border-box");
+  card.appendChild(el("div", "color:#F0E6D2;font-size:1.43rem", gameTitle(g)));
+  const when = fmtDate(g.updated);
+  return when && card.appendChild(el("div", "color:#8A7F63;font-size:1.3rem;margin-top:4px", when)), 
+  card;
 }
 
 function renderEntityGrid(body, rows, opts) {
@@ -731,7 +739,7 @@ function openHof(opts) {
       isLive: g => null != ops.liveId && g.id === ops.liveId,
       closeEl: closeBtn,
       requestDelete(g) {
-        openConfirm(root, L("LOC_CHRONICLE_HOF_DELETE_TITLE"), [ L("LOC_CHRONICLE_HOF_DELETE_BODY", gameTitle(g)) ], L("LOC_CHRONICLE_HOF_DELETE"), () => {
+        openConfirm(root, L("LOC_CHRONICLE_HOF_DELETE_TITLE"), [ confirmGameCard(g), L("LOC_CHRONICLE_HOF_DELETE_BODY") ], L("LOC_CHRONICLE_HOF_DELETE"), () => {
           ops.deleteGame(g.id) || err(`delete ${g.id} failed`), reopen();
         });
       },
@@ -1014,14 +1022,14 @@ try {
   globalThis.ozqChronicleHof = {
     open: openHof,
     close: closeHof,
-    version: "0.35.8"
+    version: "0.35.12"
   };
 } catch (e) {
   try {
     window.ozqChronicleHof = {
       open: openHof,
       close: closeHof,
-      version: "0.35.8"
+      version: "0.35.12"
     };
   } catch (e2) {}
 }

@@ -122,7 +122,7 @@ function setCheckbox(setting, checked) {
   } catch (e) {}
 }
 
-const PANEL_BOX_DIALOG = [ "position:fixed", "left:20%", "top:10%", "width:60%", "height:80%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px " + PANEL_PAD_X + "px", "overflow-x:hidden", "overflow-y:auto" ].join(";");
+const PANEL_BOX_DIALOG = [ "position:fixed", "left:20%", "top:10%", "width:60%", "height:80%", "box-sizing:border-box", "z-index:999999", "pointer-events:auto", "background:#16130E", "border:2px solid #6B5842", "display:flex", "flex-direction:column", "padding:24px " + PANEL_PAD_X + "px", "overflow:hidden" ].join(";");
 
 let activeRoot = null, activeOnClose = null, changedWhileOpen = !1, captureSlot = null, captureButton = null, capturePaintAll = null, captureCancelLatch = !1, captureEngineLatchCode = null;
 
@@ -308,20 +308,22 @@ try {
       root.appendChild(panel);
       const header = el("div", HEADER_BOX), titleCol = el("div", TITLE_COL_ROW), title = el("div", TITLE_TEXT, T("LOC_CHRONICLE_OPT_TITLE"));
       title.className = "font-title uppercase tracking-150", titleCol.appendChild(title), 
-      titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.75rem;padding-bottom:4px;flex-shrink:0;margin-right:16px", "v0.35.8")), 
+      titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.75rem;padding-bottom:4px;flex-shrink:0;margin-right:16px", "v0.35.12")), 
       header.appendChild(titleCol);
       const actions = el("div", HEADER_ACTIONS), closeBtn = makeNativeButton(T("LOC_GENERIC_CLOSE"), closeOptions, {});
       closeBtn.style.opacity = "0.72";
       const closeLabel = closeBtn.querySelector(".ozq-btn-label");
       closeLabel && (closeLabel.style.color = "#E8E2D0"), actions.appendChild(closeBtn), 
       header.appendChild(actions), panel.appendChild(header);
-      for (const setting of SETTINGS) panel.appendChild(buildRow(setting));
-      panel.appendChild(buildHotkeySection()), panel.appendChild(el("div", "color:#8A7F63;font-size:0.8rem;margin-top:16px", T("LOC_CHRONICLE_OPT_ALSO_IN_MENU"))), 
+      const body = el("div", "flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;width:100%;box-sizing:border-box");
+      panel.appendChild(body);
+      for (const setting of SETTINGS) body.appendChild(buildRow(setting));
+      body.appendChild(buildHotkeySection()), body.appendChild(el("div", "color:#8A7F63;font-size:0.8rem;margin-top:16px", T("LOC_CHRONICLE_OPT_ALSO_IN_MENU"))), 
       document.body.appendChild(root);
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.35.8"
+    version: "0.35.12"
   };
 } catch (e) {}
 

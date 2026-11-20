@@ -909,27 +909,44 @@ function loggerValueOf(metric) {
   return v => v && null != v[key] ? v[key] : null;
 }
 
-function turnAxisTicks(blocks, start, end) {
-  const values = [], labels = new Map, visible = blocks.filter(b => b.offset + (b.maxT - b.minT) >= start && b.offset <= end);
-  return visible.forEach((b, bi) => {
-    const bEndX = b.offset + (b.maxT - b.minT), lo = b.minT + (Math.max(start, b.offset) - b.offset), hi = b.minT + (Math.min(end, bEndX) - b.offset), step = function(range) {
-      const raw = Math.max(1, range) / 5, pow = Math.max(1, Math.pow(10, Math.floor(Math.log10(raw))));
-      for (const m of [ 1, 2, 5, 10 ]) if (m * pow >= raw) return m * pow;
-      return 10 * pow;
-    }(hi - lo), turns = new Set(bi === visible.length - 1 ? [ lo, hi ] : [ lo ]);
-    for (let t = Math.ceil(lo / step) * step; t < hi; t += step) t > lo && turns.add(t);
-    Array.from(turns).sort((a, z) => a - z).forEach((t, i) => {
-      const x = b.offset + (t - b.minT);
-      values.push(x);
-      const tl = String(Math.round(t));
-      labels.set(x, 0 === i ? [ b.label, tl ] : tl);
+const TURN_STEPS = [ 10, 20, 50, 100, 200, 500, 1e3 ], SHORT_SPAN_STEPS = [ 1, 2, 5 ];
+
+function shortAgeName(full) {
+  return /^[\u3400-\u9fff]/.test(full) ? full.charAt(0) : full.charAt(0) + ".";
+}
+
+function planTurnTicks(blocks, start, end, pxPerX, measure, em) {
+  const labels = new Map, visible = [];
+  for (const b of blocks) {
+    const bEndX = b.offset + (b.maxT - b.minT);
+    bEndX < start || b.offset > end || visible.push({
+      b: b,
+      lo: b.minT + (Math.max(start, b.offset) - b.offset),
+      hi: b.minT + (Math.min(end, bEndX) - b.offset)
     });
-  }), {
-    values: values,
-    labelAt: x => {
-      const v = labels.get(x);
-      return null != v ? v : "";
-    }
+  }
+  if (!visible.length) return {
+    values: [],
+    labels: labels
+  };
+  const gap = .5 * em, turnText = t => String(Math.round(t)), numW = Math.max(...visible.map(v => measure(turnText(v.hi)))), step = (end - start < 3 * TURN_STEPS[0] ? SHORT_SPAN_STEPS.concat(TURN_STEPS) : TURN_STEPS).find(s => s * pxPerX >= numW + 2 * em) || TURN_STEPS[TURN_STEPS.length - 1], placed = [], tryPut = (x, lab) => {
+    const px = x * pxPerX, half = (lab => Array.isArray(lab) ? Math.max(...lab.map(measure)) : measure(lab))(lab) / 2;
+    for (const p of placed) if (px - half < p.r + gap && px + half > p.l - gap) return !1;
+    return placed.push({
+      l: px - half,
+      r: px + half
+    }), labels.set(x, lab), !0;
+  }, xOf = (v, t) => v.b.offset + (t - v.b.minT);
+  for (let i = visible.length - 1; i >= 0; i--) {
+    const v = visible[i], tl = turnText(v.lo), x = xOf(v, v.lo);
+    tryPut(x, [ v.b.label, tl ]) || tryPut(x, [ shortAgeName(v.b.label), tl ]) || tryPut(x, tl);
+  }
+  for (const v of visible) for (let t = Math.ceil(v.lo / step) * step; t <= v.hi; t += step) t > v.lo && tryPut(xOf(v, t), turnText(t));
+  const last = visible[visible.length - 1];
+  return last.hi > last.lo && !labels.has(xOf(last, last.hi)) && tryPut(xOf(last, last.hi), turnText(last.hi)), 
+  {
+    values: Array.from(labels.keys()).sort((a, z) => a - z),
+    labels: labels
   };
 }
 
@@ -2346,15 +2363,7 @@ function renderChart(ui, metric, view, page) {
   if (ui.board.style.display = "none", ui.chartInner.style.display = "block", "undefined" == typeof Chart) return;
   if (!ui.chartInner.clientWidth || !ui.chartInner.clientHeight) return void requestAnimationFrame(() => renderChart(ui, metric, view, page));
   activeChart && (activeChart.destroy(), activeChart = null), applyChartDefaults();
-  const fs = function() {
-    try {
-      if ("undefined" != typeof Chart && Chart.defaults && Chart.defaults.font) {
-        const cur = Number(Chart.defaults.font.size) || 0;
-        if (cur >= 33) return cur;
-      }
-    } catch (e) {}
-    return 33;
-  }(), tickFont = {
+  const fs = chartFontSize(), tickFont = {
     size: fs
   }, legendFont = {
     size: fs
@@ -2514,7 +2523,12 @@ function renderChart(ui, metric, view, page) {
         return null;
       }, dp = trend.ratioKey ? trend.ratioKey.dp : null, fmtVal = y => formatChartNumber(y, {
         dp: null != dp ? dp : Number.isInteger(Number(y)) ? null : 1
-      }) + pct, tk = turnAxisTicks(src.blocks, start, end), ageStarts = src.blocks.slice(1).map((b, i) => ({
+      }) + pct;
+      let tk = {
+        values: [],
+        labels: new Map
+      };
+      const ageStarts = src.blocks.slice(1).map((b, i) => ({
         x: b.offset,
         color: ageTint(AGE_TICK_TINTS, i + 1)
       }));
@@ -2565,7 +2579,28 @@ function renderChart(ui, metric, view, page) {
               min: start,
               max: end > start ? end : void 0,
               afterBuildTicks: axis => {
-                axis.ticks = tk.values.map(v => ({
+                tk = function(axis, blocks, start, end) {
+                  let font = null;
+                  try {
+                    font = Chart.helpers.toFont(axis.options.ticks.font);
+                  } catch (e) {}
+                  const em = font && font.size || chartFontSize(), ctx = axis.ctx, cache = new Map, measure = s => {
+                    if (!cache.has(s)) {
+                      let w = 0;
+                      try {
+                        w = ctx.measureText(s).width;
+                      } catch (e) {}
+                      cache.set(s, w > 0 ? w : .6 * s.length * em);
+                    }
+                    return cache.get(s);
+                  }, pxPerX = axis.width / Math.max(1, end - start);
+                  ctx && font && (ctx.save(), ctx.font = font.string);
+                  try {
+                    return planTurnTicks(blocks, start, end, pxPerX, measure, em);
+                  } finally {
+                    ctx && font && ctx.restore();
+                  }
+                }(axis, src.blocks, start, end), axis.ticks = tk.values.map(v => ({
                   value: v
                 }));
               },
@@ -2573,7 +2608,10 @@ function renderChart(ui, metric, view, page) {
                 ...tickOpts,
                 autoSkip: !1,
                 maxRotation: 0,
-                callback: v => tk.labelAt(v)
+                callback: v => {
+                  const l = tk.labels.get(v);
+                  return null != l ? l : "";
+                }
               },
               grid: {
                 color: "#4A4034"
@@ -2937,6 +2975,16 @@ function closeOverlay() {
 }
 
 let chartWaiters = null;
+
+function chartFontSize() {
+  try {
+    if ("undefined" != typeof Chart && Chart.defaults && Chart.defaults.font) {
+      const cur = Number(Chart.defaults.font.size) || 0;
+      if (cur >= 33) return cur;
+    }
+  } catch (e) {}
+  return 33;
+}
 
 function applyChartDefaults() {
   if ("undefined" != typeof Chart && Chart.defaults) try {
@@ -3380,7 +3428,7 @@ try {
     openForStore: openOverlayForStore,
     close: closeOverlay,
     refreshDockButton: refreshDockButton,
-    version: "0.35.8"
+    version: "0.35.12"
   };
 } catch (e) {
   try {
@@ -3389,7 +3437,7 @@ try {
       openForStore: openOverlayForStore,
       close: closeOverlay,
       refreshDockButton: refreshDockButton,
-      version: "0.35.8"
+      version: "0.35.12"
     };
   } catch (e2) {}
 }
@@ -3944,7 +3992,7 @@ function openOverlay(opts) {
         for (const a of ageNames) {
           if (a.done) continue;
           const bw = a.box.getBoundingClientRect().width, nw = a.name.getBoundingClientRect().width;
-          bw && nw ? (a.done = !0, nw > bw && (a.name.textContent = /^[\u3400-\u9fff]/.test(a.full) ? a.full.charAt(0) : a.full.charAt(0) + ".")) : pending = !0;
+          bw && nw ? (a.done = !0, nw > bw && (a.name.textContent = shortAgeName(a.full))) : pending = !0;
         }
         pending && ++fitTries < 120 && requestAnimationFrame(fitAgeNames);
       };
