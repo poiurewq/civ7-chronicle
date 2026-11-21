@@ -3428,7 +3428,7 @@ try {
     openForStore: openOverlayForStore,
     close: closeOverlay,
     refreshDockButton: refreshDockButton,
-    version: "0.35.12"
+    version: "0.35.13"
   };
 } catch (e) {
   try {
@@ -3437,7 +3437,7 @@ try {
       openForStore: openOverlayForStore,
       close: closeOverlay,
       refreshDockButton: refreshDockButton,
-      version: "0.35.12"
+      version: "0.35.13"
     };
   } catch (e2) {}
 }

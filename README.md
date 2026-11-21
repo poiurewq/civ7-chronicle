@@ -130,7 +130,7 @@ On Steam, **subscribe on the Steam Workshop**. Steam downloads and updates the m
 ### Option A: Steam Workshop
 
 1. Open the [Chronicle Workshop page](https://steamcommunity.com/sharedfiles/filedetails/?id=3761407790) and click **Subscribe**.
-2. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle - Stats, Graphs & Hall of Fame**.
+2. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle**.
 
 Steam keeps it up to date. To uninstall, **Unsubscribe**.
 
@@ -141,7 +141,7 @@ Steam keeps it up to date. To uninstall, **Unsubscribe**.
    - **macOS:** `~/Library/Application Support/Civilization VII/Mods/`
    - **Windows:** `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VII\Mods\`
 3. Copy the entire `ozq-chronicle` folder into that `Mods` folder.
-4. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle - Stats, Graphs & Hall of Fame**.
+4. Launch Civ 7 → **Additional Content / Mods** → enable **Chronicle**.
 
 To uninstall, disable it in the Mods menu or delete the `ozq-chronicle` folder.
 

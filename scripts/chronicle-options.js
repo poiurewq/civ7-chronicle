@@ -308,7 +308,7 @@ try {
       root.appendChild(panel);
       const header = el("div", HEADER_BOX), titleCol = el("div", TITLE_COL_ROW), title = el("div", TITLE_TEXT, T("LOC_CHRONICLE_OPT_TITLE"));
       title.className = "font-title uppercase tracking-150", titleCol.appendChild(title), 
-      titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.75rem;padding-bottom:4px;flex-shrink:0;margin-right:16px", "v0.35.12")), 
+      titleCol.appendChild(el("div", "color:#8A7F63;font-size:0.75rem;padding-bottom:4px;flex-shrink:0;margin-right:16px", "v0.35.13")), 
       header.appendChild(titleCol);
       const actions = el("div", HEADER_ACTIONS), closeBtn = makeNativeButton(T("LOC_GENERIC_CLOSE"), closeOptions, {});
       closeBtn.style.opacity = "0.72";
@@ -323,7 +323,7 @@ try {
     },
     close: closeOptions,
     read: readSettings,
-    version: "0.35.12"
+    version: "0.35.13"
   };
 } catch (e) {}
 
